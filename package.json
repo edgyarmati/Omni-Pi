@@ -1,0 +1,55 @@
+{
+  "name": "omni-pi",
+  "version": "0.1.0",
+  "description": "Opinionated Pi package for guided, beginner-friendly planning and implementation workflows.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "omni": "./bin/omni.js"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "agent",
+    "planning",
+    "skills",
+    "orchestration"
+  ],
+  "files": [
+    "bin",
+    "agents",
+    "extensions",
+    "prompts",
+    "skills",
+    "src",
+    "templates",
+    "README.md",
+    "docs"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/omni-core/index.ts",
+      "./extensions/omni-memory/index.ts",
+      "./extensions/omni-skills/index.ts",
+      "./extensions/omni-status/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.62.0"
+  }
+}
