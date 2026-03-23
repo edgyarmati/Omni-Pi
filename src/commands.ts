@@ -3,10 +3,22 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { renderPlainStatus } from "./status.js";
-import type { CommandDefinition } from "./pi.js";
+import type { AppCommandDefinition } from "./pi.js";
 import type { WorkEngine } from "./work.js";
-import { readSkillRegistry, renderSkillRegistry } from "./skills.js";
+import { prepareNextTaskDispatch } from "./work.js";
+import { appendSkillUsageNote, readSkillRegistry, renderSkillRegistry } from "./skills.js";
+import { createSubagentWorkEngine } from "./subagents.js";
 import { initializeOmniProject, planOmniProject, readOmniStatus, syncOmniProject, workOnOmniProject } from "./workflow.js";
+
+let runtimeWorkEngineFactory: typeof createSubagentWorkEngine = createSubagentWorkEngine;
+
+export function setRuntimeWorkEngineFactoryForTests(factory: typeof createSubagentWorkEngine): void {
+  runtimeWorkEngineFactory = factory;
+}
+
+export function resetRuntimeWorkEngineFactoryForTests(): void {
+  runtimeWorkEngineFactory = createSubagentWorkEngine;
+}
 
 const placeholderEngine: WorkEngine = {
   async runWorkerTask(task, attempt) {
@@ -45,18 +57,36 @@ function briefFromArgs(args: string[] | undefined): ConversationBrief {
   };
 }
 
-export function createOmniCommands(): CommandDefinition[] {
+export function createOmniCommands(): AppCommandDefinition[] {
   return [
     {
-      name: "/omni-init",
+      name: "omni-init",
       description: "Initialize Omni-Pi for the current project.",
-      execute: async ({ cwd }) => {
+      execute: async ({ cwd, runtime }) => {
         const result = await initializeOmniProject(cwd);
-        return `Initialized Omni-Pi in ${cwd}. Created ${result.created.length} files, reused ${result.reused.length}, and identified ${result.skillCandidates.length} skill candidates.`;
+        const installNotes: string[] = [];
+
+        if (runtime && result.installSteps.length > 0) {
+          for (const step of result.installSteps) {
+            const execResult = await runtime.pi.exec(step.command, step.args, { cwd });
+            if (execResult.code === 0) {
+              installNotes.push(`${step.summary}: installed`);
+            } else {
+              installNotes.push(`${step.summary}: failed (${execResult.stderr.trim() || execResult.stdout.trim() || `exit ${execResult.code}`})`);
+            }
+          }
+
+          for (const note of installNotes) {
+            await appendSkillUsageNote(cwd, note);
+          }
+        }
+
+        const installSummary = installNotes.length > 0 ? ` ${installNotes.join("; ")}.` : result.installCommands.length > 0 ? ` Planned install commands: ${result.installCommands.join("; ")}.` : "";
+        return `Initialized Omni-Pi in ${cwd}. Created ${result.created.length} files, reused ${result.reused.length}, and identified ${result.skillCandidates.length} skill candidates.${installSummary}`;
       }
     },
     {
-      name: "/omni-plan",
+      name: "omni-plan",
       description: "Create or refresh the current spec, tasks, and tests.",
       execute: async ({ cwd, args }) => {
         const brief = briefFromArgs(args);
@@ -65,20 +95,51 @@ export function createOmniCommands(): CommandDefinition[] {
       }
     },
     {
-      name: "/omni-work",
+      name: "omni-work",
       description: "Run the next task through worker, verifier, and expert fallback.",
-      execute: async ({ cwd }) => {
+      execute: async ({ cwd, runtime }) => {
+        if (runtime) {
+          try {
+            const engine = await runtimeWorkEngineFactory(cwd, runtime.ctx);
+            const result = await workOnOmniProject(cwd, engine);
+            runtime.ctx.ui.setStatus("omni", undefined);
+            return `${result.message} Current phase: ${result.state.currentPhase}.`;
+          } catch (error) {
+            runtime.ctx.ui.notify(
+              `pi-subagents integration unavailable, falling back to guided handoff: ${error instanceof Error ? error.message : String(error)}`,
+              "warning"
+            );
+          }
+
+          const dispatch = await prepareNextTaskDispatch(cwd);
+          if (dispatch.kind === "idle") {
+            return dispatch.message;
+          }
+          const currentSessionFile = runtime.ctx.sessionManager.getSessionFile();
+          const newSessionResult = await runtime.ctx.newSession({
+            parentSession: currentSessionFile
+          });
+
+          if (newSessionResult.cancelled) {
+            return "Omni-Pi task dispatch was cancelled before the focused session was created.";
+          }
+
+          runtime.ctx.ui.setEditorText(dispatch.prompt);
+          runtime.ctx.ui.setStatus("omni", `Prepared ${dispatch.taskId} in a fresh session`);
+          return `Prepared ${dispatch.taskId} in a fresh focused session. Review the drafted prompt and submit when ready.`;
+        }
+
         const result = await workOnOmniProject(cwd, placeholderEngine);
         return `${result.message} Current phase: ${result.state.currentPhase}.`;
       }
     },
     {
-      name: "/omni-status",
+      name: "omni-status",
       description: "Show the current phase, task, blockers, and next step.",
       execute: async ({ cwd }) => renderPlainStatus(await readOmniStatus(cwd))
     },
     {
-      name: "/omni-sync",
+      name: "omni-sync",
       description: "Update durable Omni-Pi project memory from recent progress.",
       execute: async ({ cwd, args }) => {
         const summary = args?.join(" ").trim() || "Captured recent progress without additional details.";
@@ -87,7 +148,7 @@ export function createOmniCommands(): CommandDefinition[] {
       }
     },
     {
-      name: "/omni-skills",
+      name: "omni-skills",
       description: "Show installed, recommended, deferred, and rejected skills.",
       execute: async ({ cwd }) => {
         const registry = await readSkillRegistry(cwd);
@@ -97,7 +158,7 @@ export function createOmniCommands(): CommandDefinition[] {
       }
     },
     {
-      name: "/omni-explain",
+      name: "omni-explain",
       description: "Explain what Omni-Pi is doing and why.",
       execute: async () => "Omni-Pi works in guided steps: understand the goal, plan the next slice, build it, check it, and escalate only when needed."
     }

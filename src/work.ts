@@ -15,6 +15,14 @@ export interface WorkResult {
   message: string;
 }
 
+export interface WorkDispatchResult {
+  kind: "ready" | "idle";
+  taskId: string | null;
+  prompt: string;
+  briefPath?: string;
+  message: string;
+}
+
 const DEFAULT_RETRY_LIMIT = 2;
 
 async function readRetryLimit(testsPath: string): Promise<number> {
@@ -69,6 +77,51 @@ ${task.skills.map((item) => `- ${item}`).join("\n") || "- None"}
 ${task.contextFiles.map((item) => `- ${item}`).join("\n") || "- None"}
 `;
   await writeFile(path.join(taskDir, `${task.id}-BRIEF.md`), content, "utf8");
+}
+
+export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDispatchResult> {
+  const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
+  const tasks = await readTasks(tasksPath);
+  const nextTask = findNextExecutableTask(tasks);
+
+  if (!nextTask) {
+    return {
+      kind: "idle",
+      taskId: null,
+      prompt: "",
+      message: "No executable tasks are available. Refresh the plan or complete dependencies first."
+    };
+  }
+
+  const taskDir = await ensureTaskDir(rootDir);
+  await writeTaskBrief(taskDir, nextTask);
+  await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "in_progress"));
+
+  const briefPath = path.join(taskDir, `${nextTask.id}-BRIEF.md`);
+  const prompt = [
+    "You are working inside an Omni-Pi guided task session.",
+    "",
+    `Task: ${nextTask.id} - ${nextTask.title}`,
+    `Objective: ${nextTask.objective}`,
+    "",
+    "Read these files first:",
+    "- .omni/PROJECT.md",
+    "- .omni/SPEC.md",
+    "- .omni/TESTS.md",
+    `- ${path.relative(rootDir, briefPath)}`,
+    ...nextTask.contextFiles.map((file) => `- ${file}`),
+    "",
+    "Then implement the task, explain the change briefly, and run the planned verification steps before finishing.",
+    nextTask.skills.length > 0 ? `Relevant skills: ${nextTask.skills.join(", ")}` : "Relevant skills: none explicitly listed"
+  ].join("\n");
+
+  return {
+    kind: "ready",
+    taskId: nextTask.id,
+    prompt,
+    briefPath,
+    message: `Prepared ${nextTask.id} for a focused worker session.`
+  };
 }
 
 async function writeEscalationBrief(taskDir: string, escalation: EscalationBrief): Promise<void> {

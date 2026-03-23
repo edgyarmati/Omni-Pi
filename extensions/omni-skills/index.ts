@@ -1,10 +1,9 @@
-export const omniSkillsExtension = {
-  name: "omni-skills",
-  description: "Tracks skill discovery, installation policy, and per-task skill routing.",
-  commands: [
-    {
-      name: "/omni-skills",
-      description: "Show installed, recommended, deferred, and rejected skills."
-    }
-  ]
-} as const;
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+import { createOmniCommands } from "../../src/commands.js";
+import { registerPiCommands } from "../../src/pi.js";
+
+export default function omniSkillsExtension(api: ExtensionAPI): void {
+  const commands = createOmniCommands().filter((command) => ["omni-skills"].includes(command.name));
+  registerPiCommands(api, commands);
+}

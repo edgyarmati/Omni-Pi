@@ -1,9 +1,11 @@
-import { createOmniCommands } from "../../src/commands.js";
-import { registerCommands, type ExtensionApi } from "../../src/pi.js";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-export default function omniStatusExtension(api: ExtensionApi): void {
+import { createOmniCommands } from "../../src/commands.js";
+import { registerPiCommands } from "../../src/pi.js";
+
+export default function omniStatusExtension(api: ExtensionAPI): void {
   const commands = createOmniCommands().filter((command) =>
-    ["/omni-status", "/omni-explain"].includes(command.name)
+    ["omni-status", "omni-explain"].includes(command.name)
   );
-  registerCommands(api, commands);
+  registerPiCommands(api, commands);
 }

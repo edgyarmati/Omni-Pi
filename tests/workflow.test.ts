@@ -21,6 +21,7 @@ describe("Omni workflow", () => {
 
     expect(result.created).toContain(".omni/PROJECT.md");
     expect(result.created).toContain(".omni/STATE.md");
+    expect(result.created).toContain(".pi/agents/omni-worker.md");
     expect(result.skillCandidates.some((candidate) => candidate.name === "find-skills")).toBe(true);
 
     const skillsContent = await readFile(path.join(rootDir, ".omni", "SKILLS.md"), "utf8");

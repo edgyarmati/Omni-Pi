@@ -12,8 +12,11 @@ Omni-Pi builds on top of the Pi ecosystem and intentionally borrows ideas from e
 - orchestration and workflow inspiration: [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi)
 - disk-first guided workflow inspiration: [gsd-build/gsd-2](https://github.com/gsd-build/gsd-2)
 - subagent and Pi ecosystem inspiration: nicopreme/nicobailon packages and related Pi community extensions
+- isolated worker/expert execution substrate: [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents)
 
 The goal of Omni-Pi is to contribute a distinct, beginner-friendly, opinionated package back into that ecosystem while giving clear credit to the original authors and projects that made it possible.
+
+For a more structured list, see `CREDITS.md`.
 
 ## v1 goals
 
@@ -62,6 +65,9 @@ This repository now contains a tested v1 foundation:
 - sync support that writes recent progress back into durable memory files
 - command registration scaffolding for `/omni-init`, `/omni-plan`, `/omni-status`, `/omni-sync`, `/omni-skills`, and `/omni-explain`
 - a branded `omni` launcher in `bin/omni.js` that boots the Pi runtime with Omni-Pi resources loaded
+- real Pi extension entrypoints that register Omni commands through Pi's `ExtensionAPI`
+- `/omni-init` can execute planned skill-install commands through Pi's runtime when launched inside `omni`
+- `/omni-work` uses `pi-subagents` as the isolated worker/expert execution substrate when available, while Omni-Pi keeps orchestration and memory ownership
 - starter agent, skill, and prompt definitions
 - automated tests covering initialization, repo signal detection, planning, status rendering, command registration, and launcher setup
 
@@ -73,6 +79,12 @@ This repository now contains a tested v1 foundation:
 
 ## Next steps
 
-- tighten the launcher/runtime integration against Pi's concrete extension APIs
-- replace the placeholder `/omni-work` execution engine with real Pi subagent dispatch
-- execute real skill installation commands from the planned install flow
+- improve the `pi-subagents` execution path with richer verification and escalation semantics
+- upgrade command output from notifications to richer Pi-native UI/message rendering where helpful
+- execute verification commands from `.omni/TESTS.md` inside the live runtime path
+
+## Backlog after working v1
+
+- GitHub workflow support for worktrees, explicit commits, pushes, merges, and branch hygiene
+- PR creation that follows project conventions when available and falls back to detailed PR bodies otherwise
+- PR review support, review summaries, and follow-up task capture

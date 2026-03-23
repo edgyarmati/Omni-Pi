@@ -89,13 +89,15 @@ Deliver a usable Pi package scaffold for guided, disk-first project planning and
 - skill registry data can be parsed, rendered, and turned into install plans
 - `/omni-sync` now writes recent progress back into `.omni/SESSION-SUMMARY.md` and `.omni/DECISIONS.md`
 - `bin/omni.js` launches the bundled Pi runtime with Omni-Pi resources preloaded
+- Omni extensions now register commands through Pi's real `ExtensionAPI`
+- `/omni-init` can execute skill-install commands through Pi's runtime `exec()` API
+- `/omni-work` can delegate worker/expert execution to `pi-subagents` while preserving Omni-Pi's retry and state machine
 - automated tests cover the current implementation surface
 
 ## Remaining gaps
 
-- tighter integration with Pi's concrete extension APIs
-- real skill installation execution
-- direct worker and expert execution through Pi runtime
 - expert escalation runtime integration
+- richer Pi-native rendering for command output beyond simple notifications
 - richer planning inputs from live user conversations
-- real skill command execution and skill auto-install policy enforcement
+- full skill auto-install policy enforcement with runtime feedback and recovery
+- deeper verification command execution from `.omni/TESTS.md` inside the live subagent path

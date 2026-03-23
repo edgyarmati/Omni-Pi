@@ -119,14 +119,22 @@ export async function readSkillRegistry(rootDir: string): Promise<SkillRegistry>
 export interface SkillInstallPlan {
   commands: string[];
   installed: SkillCandidate[];
+  steps: Array<{
+    command: string;
+    args: string[];
+    summary: string;
+  }>;
 }
 
 export function buildSkillInstallPlan(candidates: SkillCandidate[]): SkillInstallPlan {
   const installed = candidates.filter((candidate) => candidate.policy === "auto-install");
-  const commands = installed.map(
-    (candidate) => `npx skills add https://github.com/vercel-labs/skills --skill ${candidate.name}`
-  );
-  return { commands, installed };
+  const steps = installed.map((candidate) => ({
+    command: "npx",
+    args: ["skills", "add", "https://github.com/vercel-labs/skills", "--skill", candidate.name],
+    summary: `Install ${candidate.name}`
+  }));
+  const commands = steps.map((step) => [step.command, ...step.args].join(" "));
+  return { commands, installed, steps };
 }
 
 export async function appendSkillUsageNote(rootDir: string, note: string): Promise<void> {

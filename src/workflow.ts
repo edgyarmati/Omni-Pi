@@ -15,6 +15,12 @@ export interface InitResult {
   repoSignals: Awaited<ReturnType<typeof detectRepoSignals>>;
   skillCandidates: SkillCandidate[];
   installedSkills: SkillCandidate[];
+  installCommands: string[];
+  installSteps: Array<{
+    command: string;
+    args: string[];
+    summary: string;
+  }>;
 }
 
 export interface PlanResult {
@@ -96,7 +102,7 @@ export async function initializeOmniProject(rootDir: string): Promise<InitResult
 
   const repoSignals = await detectRepoSignals(rootDir);
   const skillCandidates = buildSkillCandidates(repoSignals);
-  const { installed: installedSkills, commands: installCommands } = buildSkillInstallPlan(skillCandidates);
+  const { installed: installedSkills, commands: installCommands, steps: installSteps } = buildSkillInstallPlan(skillCandidates);
 
   const skillsPath = path.join(rootDir, ".omni", "SKILLS.md");
   await replaceSection(skillsPath, "## Installed", installedSkills.length > 0 ? installedSkills.map(renderSkillDecision) : ["- None yet"]);
@@ -134,7 +140,9 @@ export async function initializeOmniProject(rootDir: string): Promise<InitResult
     reused,
     repoSignals,
     skillCandidates,
-    installedSkills
+    installedSkills,
+    installCommands,
+    installSteps
   };
 }
 

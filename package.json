@@ -37,6 +37,8 @@
   },
   "pi": {
     "extensions": [
+      "./node_modules/pi-subagents/index.ts",
+      "./node_modules/pi-subagents/notify.ts",
       "./extensions/omni-core/index.ts",
       "./extensions/omni-memory/index.ts",
       "./extensions/omni-skills/index.ts",
@@ -50,6 +52,7 @@
     ]
   },
   "dependencies": {
-    "@mariozechner/pi-coding-agent": "^0.62.0"
+    "@mariozechner/pi-coding-agent": "^0.62.0",
+    "pi-subagents": "^0.11.11"
   }
 }

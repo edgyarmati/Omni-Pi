@@ -311,3 +311,10 @@
 - only targeted `.omni/` files get loaded per step
 - skill install decisions must be logged in `SKILLS.md`
 - escalation history must be persisted per task
+
+## Post-v1 Backlog
+
+- GitHub workflow support for worktrees, explicit commits, pushes, branch management, and merge flows
+- pull request support with project-aware conventions when they exist and detailed PR bodies when they do not
+- PR review support, including review summaries and follow-up task creation
+- richer repository automation around status checks, review feedback, and release readiness
