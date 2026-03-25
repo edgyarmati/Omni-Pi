@@ -2,13 +2,16 @@ import type { ConversationBrief } from "./contracts.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { renderPlainStatus } from "./status.js";
-import type { AppCommandDefinition } from "./pi.js";
+import { renderMetrics, renderPlainStatus } from "./status.js";
+import type { AppCommandDefinition, CommandResult } from "./pi.js";
 import type { WorkEngine } from "./work.js";
 import { prepareNextTaskDispatch } from "./work.js";
-import { appendSkillUsageNote, readSkillRegistry, renderSkillRegistry } from "./skills.js";
-import { createSubagentWorkEngine } from "./subagents.js";
+import { appendSkillUsageNote, applyInstallResults, readSkillRegistry, renderSkillRegistry } from "./skills.js";
+import type { SkillInstallResult } from "./skills.js";
+import { createChainWorkEngine, createSubagentWorkEngine, loadRunHistory } from "./subagents.js";
 import { initializeOmniProject, planOmniProject, readOmniStatus, syncOmniProject, workOnOmniProject } from "./workflow.js";
+import { AVAILABLE_MODELS, readConfig, updateModelConfig, writeConfig } from "./config.js";
+import { commitChanges, createBranch, prepareCommitPlan, stageFiles } from "./git.js";
 
 let runtimeWorkEngineFactory: typeof createSubagentWorkEngine = createSubagentWorkEngine;
 
@@ -65,19 +68,31 @@ export function createOmniCommands(): AppCommandDefinition[] {
       execute: async ({ cwd, runtime }) => {
         const result = await initializeOmniProject(cwd);
         const installNotes: string[] = [];
+        const installResults: SkillInstallResult[] = [];
 
         if (runtime && result.installSteps.length > 0) {
           for (const step of result.installSteps) {
+            const skillName = result.installedSkills.find((s) => step.summary.includes(s.name))?.name ?? step.summary;
             const execResult = await runtime.pi.exec(step.command, step.args, { cwd });
             if (execResult.code === 0) {
               installNotes.push(`${step.summary}: installed`);
+              installResults.push({ name: skillName, success: true });
             } else {
-              installNotes.push(`${step.summary}: failed (${execResult.stderr.trim() || execResult.stdout.trim() || `exit ${execResult.code}`})`);
+              const errorMsg = execResult.stderr.trim() || execResult.stdout.trim() || `exit ${execResult.code}`;
+              installNotes.push(`${step.summary}: failed (${errorMsg})`);
+              installResults.push({ name: skillName, success: false, error: errorMsg });
             }
           }
 
           for (const note of installNotes) {
             await appendSkillUsageNote(cwd, note);
+          }
+
+          if (installResults.some((r) => !r.success)) {
+            const recovery = await applyInstallResults(cwd, installResults);
+            if (recovery.deferred.length > 0) {
+              installNotes.push(`Deferred ${recovery.deferred.join(", ")} to retry later`);
+            }
           }
         }
 
@@ -88,8 +103,36 @@ export function createOmniCommands(): AppCommandDefinition[] {
     {
       name: "omni-plan",
       description: "Create or refresh the current spec, tasks, and tests.",
-      execute: async ({ cwd, args }) => {
+      execute: async ({ cwd, args, runtime }) => {
         const brief = briefFromArgs(args);
+
+        if (runtime) {
+          const ui = runtime.ctx.ui;
+
+          const constraints = await ui.input("Any constraints or requirements to add?", "e.g., must use existing auth system");
+          if (constraints) {
+            brief.constraints.push(constraints);
+          }
+
+          const userContext = await ui.input("Who are the primary users?", "e.g., developers, end users");
+          if (userContext) {
+            brief.userSignals.push(`Primary users: ${userContext}`);
+          }
+
+          const result = await planOmniProject(cwd, brief);
+
+          const approved = await ui.confirm(
+            "Plan generated",
+            `Created spec, ${result.tasksPath}, and ${result.testsPath}. Review .omni/SPEC.md and .omni/TASKS.md. Accept this plan?`
+          );
+
+          if (!approved) {
+            return "Plan generated but not accepted. Run /omni-plan again to refine.";
+          }
+
+          return `Accepted planning artifacts: ${result.specPath}, ${result.tasksPath}, ${result.testsPath}.`;
+        }
+
         const result = await planOmniProject(cwd, brief);
         return `Updated planning artifacts: ${result.specPath}, ${result.tasksPath}, ${result.testsPath}.`;
       }
@@ -100,10 +143,42 @@ export function createOmniCommands(): AppCommandDefinition[] {
       execute: async ({ cwd, runtime }) => {
         if (runtime) {
           try {
-            const engine = await runtimeWorkEngineFactory(cwd, runtime.ctx);
+            const currentSession = runtime.ctx.sessionManager.getSessionFile();
+            const sessionResult = await runtime.ctx.newSession({ parentSession: currentSession });
+            if (sessionResult.cancelled) {
+              return "Omni-Pi task session was cancelled.";
+            }
+            const omniConfig = await readConfig(cwd);
+            const engineFactory = omniConfig.chainEnabled ? createChainWorkEngine : runtimeWorkEngineFactory;
+            const engine = await engineFactory(cwd, runtime.ctx, undefined, {
+              exec: runtime.pi.exec.bind(runtime.pi)
+            });
             const result = await workOnOmniProject(cwd, engine);
             runtime.ctx.ui.setStatus("omni", undefined);
-            return `${result.message} Current phase: ${result.state.currentPhase}.`;
+            const text = `${result.message} Current phase: ${result.state.currentPhase}.`;
+            if (result.kind === "blocked" && result.state.currentPhase === "escalate") {
+              return {
+                text,
+                messageType: "omni-escalation",
+                details: {
+                  taskId: result.taskId,
+                  failedChecks: result.state.blockers,
+                  recoveryOptions: result.state.recoveryOptions
+                }
+              };
+            }
+            if (result.kind === "completed" || result.kind === "expert_completed") {
+              return {
+                text,
+                messageType: "omni-verification",
+                details: {
+                  passed: true,
+                  checksRun: [],
+                  failureSummary: []
+                }
+              };
+            }
+            return text;
           } catch (error) {
             runtime.ctx.ui.notify(
               `pi-subagents integration unavailable, falling back to guided handoff: ${error instanceof Error ? error.message : String(error)}`,
@@ -136,7 +211,33 @@ export function createOmniCommands(): AppCommandDefinition[] {
     {
       name: "omni-status",
       description: "Show the current phase, task, blockers, and next step.",
-      execute: async ({ cwd }) => renderPlainStatus(await readOmniStatus(cwd))
+      execute: async ({ cwd, args, runtime }): Promise<CommandResult> => {
+        if (args?.includes("metrics")) {
+          const history = await loadRunHistory();
+          if (!history) {
+            return "Run history is not available (pi-subagents run-history module not found).";
+          }
+          const workerRuns = history.loadRunsForAgent("omni-worker");
+          const expertRuns = history.loadRunsForAgent("omni-expert");
+          return renderMetrics(workerRuns, expertRuns);
+        }
+
+        const state = await readOmniStatus(cwd);
+        if (runtime) {
+          return {
+            text: renderPlainStatus(state),
+            messageType: "omni-status",
+            details: {
+              phase: state.currentPhase,
+              activeTask: state.activeTask,
+              blockers: state.blockers,
+              nextStep: state.nextStep,
+              recoveryOptions: state.recoveryOptions
+            }
+          };
+        }
+        return renderPlainStatus(state);
+      }
     },
     {
       name: "omni-sync",
@@ -161,6 +262,76 @@ export function createOmniCommands(): AppCommandDefinition[] {
       name: "omni-explain",
       description: "Explain what Omni-Pi is doing and why.",
       execute: async () => "Omni-Pi works in guided steps: understand the goal, plan the next slice, build it, check it, and escalate only when needed."
+    },
+    {
+      name: "omni-model",
+      description: "Interactively select the model for a specific agent role.",
+      execute: async ({ cwd, runtime }) => {
+        if (!runtime) {
+          return "omni-model requires the Pi runtime with an interactive UI.";
+        }
+
+        const ui = runtime.ctx.ui;
+        const agentOptions = ["worker", "expert", "planner", "brain"];
+        const selectedAgent = await ui.select("Select agent role to configure:", agentOptions);
+
+        if (!selectedAgent) {
+          return "Model selection cancelled.";
+        }
+
+        const currentConfig = await readConfig(cwd);
+        const currentModel = currentConfig.models[selectedAgent as keyof typeof currentConfig.models];
+        const modelOptions = AVAILABLE_MODELS.map((model) =>
+          model === currentModel ? `${model} (current)` : model
+        );
+
+        const selectedModelDisplay = await ui.select(`Select model for ${selectedAgent}:`, modelOptions);
+        if (!selectedModelDisplay) {
+          return "Model selection cancelled.";
+        }
+
+        const selectedModel = selectedModelDisplay.replace(" (current)", "");
+        const updatedConfig = await updateModelConfig(cwd, selectedAgent, selectedModel);
+
+        return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;
+      }
+    },
+    {
+      name: "omni-commit",
+      description: "Create a branch and commit for the last completed task.",
+      execute: async ({ cwd, runtime }) => {
+        const plan = await prepareCommitPlan(cwd);
+        if (!plan) {
+          return "No completed tasks found. Run /omni-work first.";
+        }
+
+        if (!runtime) {
+          return `Commit plan for ${plan.taskId}: branch=${plan.branch}, files=${plan.files.join(", ") || "none tracked"}, message=${plan.message.split("\n")[0]}`;
+        }
+
+        const exec = runtime.pi.exec.bind(runtime.pi);
+
+        if (plan.files.length === 0) {
+          return `No modified files tracked for ${plan.taskId}. Stage and commit manually, or ensure /omni-work tracked file changes.`;
+        }
+
+        const branchOk = await createBranch(exec, cwd, plan.branch);
+        if (!branchOk) {
+          return `Failed to create branch ${plan.branch}. It may already exist.`;
+        }
+
+        const stageOk = await stageFiles(exec, cwd, plan.files);
+        if (!stageOk) {
+          return `Failed to stage files for ${plan.taskId}: ${plan.files.join(", ")}`;
+        }
+
+        const commitOk = await commitChanges(exec, cwd, plan.message);
+        if (!commitOk) {
+          return `Failed to commit for ${plan.taskId}. Check git status.`;
+        }
+
+        return `Committed ${plan.taskId} on branch ${plan.branch}. ${plan.files.length} files staged.`;
+      }
     }
   ];
 }

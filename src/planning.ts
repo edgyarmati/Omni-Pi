@@ -1,5 +1,66 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import type { ConversationBrief, ImplementationSpec, TaskBrief } from "./contracts.js";
 import type { RepoSignals } from "./repo.js";
+
+export interface PlanningContext {
+  existingDecisions: string[];
+  sessionNotes: string[];
+  priorScope: string[];
+  completedTaskIds: string[];
+}
+
+export async function gatherPlanningContext(rootDir: string): Promise<PlanningContext> {
+  const ctx: PlanningContext = {
+    existingDecisions: [],
+    sessionNotes: [],
+    priorScope: [],
+    completedTaskIds: []
+  };
+
+  try {
+    const decisions = await readFile(path.join(rootDir, ".omni", "DECISIONS.md"), "utf8");
+    ctx.existingDecisions = decisions
+      .split("\n")
+      .filter((line) => line.trim().startsWith("- Decision:"))
+      .map((line) => line.replace(/^.*- Decision:\s*/u, "").trim())
+      .filter(Boolean);
+  } catch { /* no decisions file yet */ }
+
+  try {
+    const session = await readFile(path.join(rootDir, ".omni", "SESSION-SUMMARY.md"), "utf8");
+    const progressMatch = session.match(/## Recent progress\n\n([\s\S]*?)(?=\n## |$)/u);
+    if (progressMatch) {
+      ctx.sessionNotes = progressMatch[1]
+        .split("\n")
+        .map((line) => line.replace(/^- /u, "").trim())
+        .filter((line) => line.length > 0 && line !== "-");
+    }
+  } catch { /* no session summary yet */ }
+
+  try {
+    const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
+    const scopeMatch = spec.match(/## Scope\n\n([\s\S]*?)(?=\n## |$)/u);
+    if (scopeMatch) {
+      ctx.priorScope = scopeMatch[1]
+        .split("\n")
+        .map((line) => line.replace(/^- /u, "").trim())
+        .filter((line) => line.length > 0);
+    }
+  } catch { /* no spec yet */ }
+
+  try {
+    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    ctx.completedTaskIds = tasks
+      .split("\n")
+      .filter((line) => line.startsWith("| T") && line.includes("| done |"))
+      .map((line) => line.split("|")[1]?.trim())
+      .filter((id): id is string => Boolean(id));
+  } catch { /* no tasks yet */ }
+
+  return ctx;
+}
 
 function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   const tasks: TaskBrief[] = [
@@ -55,21 +116,52 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   return tasks;
 }
 
-export function createInitialSpec(brief: ConversationBrief, repoSignals: RepoSignals): ImplementationSpec {
+export function createInitialSpec(brief: ConversationBrief, repoSignals: RepoSignals, planningCtx?: PlanningContext): ImplementationSpec {
+  const scopeItems = [brief.summary, ...brief.constraints, ...brief.userSignals].filter(Boolean);
+
+  if (planningCtx?.priorScope.length) {
+    for (const item of planningCtx.priorScope) {
+      if (!scopeItems.includes(item)) {
+        scopeItems.push(item);
+      }
+    }
+  }
+
+  const architecture = [
+    "Use `.omni/` as the durable project memory layer.",
+    "Keep the user-facing brain simple and route deeper work through planner, worker, verifier, and expert roles.",
+    `Detected repo signals: languages=${repoSignals.languages.join(", ") || "unknown"}; frameworks=${repoSignals.frameworks.join(", ") || "unknown"}; tools=${repoSignals.tools.join(", ") || "unknown"}.`
+  ];
+
+  if (planningCtx?.existingDecisions.length) {
+    architecture.push(`Prior decisions to honor: ${planningCtx.existingDecisions.join("; ")}`);
+  }
+
+  const acceptanceCriteria = [
+    "The project direction is captured in `.omni/PROJECT.md` and `.omni/SPEC.md`.",
+    "The next tasks are small, verifiable, and ready for guided execution.",
+    "The verification plan names the checks needed for the first slice."
+  ];
+
+  if (planningCtx?.sessionNotes.length) {
+    acceptanceCriteria.push(`Build on recent progress: ${planningCtx.sessionNotes.slice(0, 3).join("; ")}`);
+  }
+
+  const tasks = buildBootstrapTasks(repoSignals);
+  if (planningCtx?.completedTaskIds.length) {
+    for (const task of tasks) {
+      if (planningCtx.completedTaskIds.includes(task.id)) {
+        task.status = "done";
+      }
+    }
+  }
+
   return {
     title: brief.desiredOutcome || "Initial Omni-Pi plan",
-    scope: [brief.summary, ...brief.constraints].filter(Boolean),
-    architecture: [
-      "Use `.omni/` as the durable project memory layer.",
-      "Keep the user-facing brain simple and route deeper work through planner, worker, verifier, and expert roles.",
-      `Detected repo signals: languages=${repoSignals.languages.join(", ") || "unknown"}; frameworks=${repoSignals.frameworks.join(", ") || "unknown"}; tools=${repoSignals.tools.join(", ") || "unknown"}.`
-    ],
-    taskSlices: buildBootstrapTasks(repoSignals),
-    acceptanceCriteria: [
-      "The project direction is captured in `.omni/PROJECT.md` and `.omni/SPEC.md`.",
-      "The next tasks are small, verifiable, and ready for guided execution.",
-      "The verification plan names the checks needed for the first slice."
-    ]
+    scope: scopeItems,
+    architecture,
+    taskSlices: tasks,
+    acceptanceCriteria
   };
 }
 
