@@ -92,12 +92,31 @@ Deliver a usable Pi package scaffold for guided, disk-first project planning and
 - Omni extensions now register commands through Pi's real `ExtensionAPI`
 - `/omni-init` can execute skill-install commands through Pi's runtime `exec()` API
 - `/omni-work` can delegate worker/expert execution to `pi-subagents` while preserving Omni-Pi's retry and state machine
+- subagent raw outputs and per-attempt metadata are persisted into `.omni/tasks/` for later review
+- runtime verification now executes runnable commands from `.omni/TESTS.md` and uses those outcomes as the authoritative pass/fail signal
+- task-specific verification can now filter `.omni/TESTS.md` down to relevant checks for the current task
 - automated tests cover the current implementation surface
+- expert escalation now tracks modified files from worker attempts and surfaces recovery options when both worker and expert fail
+- escalation briefs include verification results and modified files from all prior attempts
+- recovery options are persisted into `.omni/STATE.md` and rendered in plain-English status output
+- Pi-native message renderers for verification results, status summaries, and escalation notices with structured details
+- commands return structured results with dedicated message types when running inside the Pi runtime
+- planning now reads existing `.omni/DECISIONS.md`, `.omni/SESSION-SUMMARY.md`, and prior `.omni/SPEC.md` to incorporate decisions, session notes, and completed tasks
+- skill install failures are tracked and failed skills are moved to the deferred section with error details
+- `applyInstallResults` provides a recovery path that updates the SKILLS.md registry on install failure
+- task-level verification now infers test commands from context files and includes done criteria as expectations
+- verification plans combine project-wide checks, task-specific checks, context-inferred test commands, and done criteria
+- persistent dashboard widget via `ctx.ui.setWidget()` in the `omni-memory` extension, auto-updates on session start, switch, and turn end
+- run history integration via pi-subagents' `recordRun()` and `loadRunsForAgent()`, with `/omni-status metrics` rendering
+- interactive planning refinement via `ctx.ui.input()` and `ctx.ui.confirm()` for constraints, user context, and plan approval
+- skill trigger pattern matching parses SKILL.md descriptions at runtime and injects matched skill content into subagent prompts
+- session branching via `ctx.newSession()` wraps each subagent task execution in an isolated session
+- `/omni-commit` command creates branches, stages modified files, and commits with task-derived messages using `runtime.pi.exec()`
+- chain execution via `createChainWorkEngine` runs a scout agent before the worker, enriching task context with codebase analysis
+- `chainEnabled` config flag controls whether scout-then-worker or single-shot execution is used
 
 ## Remaining gaps
 
-- expert escalation runtime integration
-- richer Pi-native rendering for command output beyond simple notifications
-- richer planning inputs from live user conversations
-- full skill auto-install policy enforcement with runtime feedback and recovery
-- deeper verification command execution from `.omni/TESTS.md` inside the live subagent path
+- parallel task execution for independent tasks with no dependency relationship
+- full end-to-end demo with real subagent execution against a live codebase
+- PR creation and review support
