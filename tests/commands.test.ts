@@ -25,7 +25,9 @@ describe("Omni commands", () => {
       "omni-status",
       "omni-sync",
       "omni-skills",
-      "omni-explain"
+      "omni-explain",
+      "omni-model",
+      "omni-commit"
     ]);
   });
 
@@ -36,22 +38,22 @@ describe("Omni commands", () => {
       registerMessageRenderer() {
         return undefined;
       },
-      registerCommand(name) {
+      registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
       }
-    });
+    } as never);
 
-    expect(registrations).toEqual(["omni-init", "omni-plan", "omni-work", "omni-sync"]);
+    expect(registrations).toEqual(["omni-init", "omni-plan", "omni-work", "omni-sync", "omni-model", "omni-commit"]);
   });
 
   test("omniStatusExtension registers the status commands", () => {
     const registrations: string[] = [];
 
     omniStatusExtension({
-      registerCommand(name) {
+      registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
       }
-    });
+    } as never);
 
     expect(registrations).toEqual(["omni-status", "omni-explain"]);
   });
@@ -60,7 +62,7 @@ describe("Omni commands", () => {
     const registrations: string[] = [];
 
     omniSkillsExtension({
-      registerCommand(name) {
+      registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
       }
     } as never);
@@ -88,7 +90,7 @@ describe("Omni commands", () => {
     const output = await command?.execute({ cwd: rootDir, args: ["Captured", "progress"] });
     const sessionSummary = await readFile(path.join(rootDir, ".omni", "SESSION-SUMMARY.md"), "utf8");
 
-    expect(output).toContain("Synced Omni-Pi memory");
+  expect(output).toContain("Synced Omni-Pi memory");
     expect(sessionSummary).toContain("Captured progress");
   });
 });

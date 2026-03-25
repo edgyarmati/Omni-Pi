@@ -14,20 +14,21 @@ describe("omni launcher", () => {
     expect(resolvePiCliPath().endsWith(path.join("dist", "cli.js"))).toBe(true);
   });
 
-  test("buildOmniEnvironment sets PI_PACKAGE_DIR", () => {
+  test("buildOmniEnvironment preserves caller environment", () => {
     const env = buildOmniEnvironment({ FOO: "bar" });
 
     expect(env.FOO).toBe("bar");
-    expect(env.PI_PACKAGE_DIR).toBe(getOmniPackageDir());
+    expect(env.PI_PACKAGE_DIR).toBeUndefined();
   });
 
-  test("buildPiProcessSpec launches Node with the Pi CLI and forwarded args", () => {
+  test("buildPiProcessSpec launches Node with the Pi CLI and Omni package path", () => {
     const spec = buildPiProcessSpec(["--help"], { TEST_ENV: "1" });
 
     expect(spec.command).toBe(process.execPath);
     expect(spec.args[0]).toBe(resolvePiCliPath());
-    expect(spec.args[1]).toBe("--help");
-    expect(spec.env.PI_PACKAGE_DIR).toBe(getOmniPackageDir());
+    expect(spec.args[1]).toBe("-e");
+    expect(spec.args[2]).toBe(getOmniPackageDir());
+    expect(spec.args[3]).toBe("--help");
     expect(spec.env.TEST_ENV).toBe("1");
   });
 });
