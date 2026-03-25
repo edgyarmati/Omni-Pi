@@ -1,6 +1,9 @@
-# Omni Execution
+---
+name: omni-execution
+description: Implements the next task from .omni/TASKS.md with narrow scope and concise handoff notes. Triggers include "do the next task", "implement", "execute", or when a task is ready for implementation.
+---
 
-Use this skill when implementing the next planned task.
+# Omni Execution
 
 ## Goals
 

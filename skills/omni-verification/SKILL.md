@@ -1,6 +1,9 @@
-# Omni Verification
+---
+name: omni-verification
+description: Runs checks from .omni/TESTS.md after task implementation, summarizes pass/fail, and prepares retry briefs. Triggers include "verify", "test", "check", "did it work", or after completing an implementation task.
+---
 
-Use this skill after a task implementation attempt.
+# Omni Verification
 
 ## Goals
 

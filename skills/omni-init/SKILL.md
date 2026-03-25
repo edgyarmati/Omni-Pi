@@ -1,6 +1,9 @@
-# Omni Init
+---
+name: omni-init
+description: Initializes Omni-Pi in a new or existing project by creating .omni/ folder and capturing project context. Triggers include "initialize", "setup", "new project", "configure", or when .omni/ does not exist.
+---
 
-Use this skill when initializing Omni-Pi in a new or existing project.
+# Omni Init
 
 ## Goals
 

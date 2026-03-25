@@ -1,6 +1,9 @@
-# Omni Escalation
+---
+name: omni-escalation
+description: Expert takeover for tasks that have failed repeatedly or need the strongest reasoning to unblock. Triggers include "stuck", "blocked", "tried multiple times", "keeps failing", or when normal execution cannot make progress.
+---
 
-Use this skill when a task needs expert takeover.
+# Omni Escalation
 
 ## Goals
 

@@ -1,6 +1,9 @@
-# Omni Planning
+---
+name: omni-planning
+description: Produces or refines implementation plans in .omni/SPEC.md, task breakdowns in .omni/TASKS.md, and verification criteria in .omni/TESTS.md. Triggers include "plan", "break down", "what tasks", "how to implement", or when starting a new feature.
+---
 
-Use this skill when Omni-Pi needs to produce or refine an implementation plan.
+# Omni Planning
 
 ## Goals
 
