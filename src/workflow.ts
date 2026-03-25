@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { ConversationBrief, OmniState, SkillCandidate } from "./contracts.js";
 import { buildStarterFileMap, listStarterFiles } from "./memory.js";
-import { createInitialSpec, renderSpecMarkdown, renderTasksMarkdown, renderTestsMarkdown } from "./planning.js";
+import { createInitialSpec, gatherPlanningContext, renderSpecMarkdown, renderTasksMarkdown, renderTestsMarkdown } from "./planning.js";
 import { detectRepoSignals } from "./repo.js";
 import { appendSkillUsageNote, buildSkillInstallPlan, defaultSkillSignals, renderSkillDecision, toSkillCandidate } from "./skills.js";
 import { executeNextTask, type WorkEngine, type WorkResult } from "./work.js";
@@ -61,6 +61,9 @@ async function replaceSection(filePath: string, heading: string, lines: string[]
 
 async function writeState(rootDir: string, state: OmniState): Promise<void> {
   const statePath = path.join(rootDir, ".omni", "STATE.md");
+  const recoverySection = state.recoveryOptions && state.recoveryOptions.length > 0
+    ? `\nRecovery Options:\n${state.recoveryOptions.map((option) => `- ${option}`).join("\n")}\n`
+    : "";
   const content = `# State
 
 Current Phase: ${state.currentPhase[0].toUpperCase()}${state.currentPhase.slice(1)}
@@ -68,7 +71,7 @@ Active Task: ${state.activeTask}
 Status Summary: ${state.statusSummary}
 Blockers: ${state.blockers.length > 0 ? state.blockers.join("; ") : "None"}
 Next Step: ${state.nextStep}
-`;
+${recoverySection}`;
   await writeFile(statePath, content, "utf8");
 }
 
@@ -160,7 +163,8 @@ export async function planOmniProject(rootDir: string, brief: ConversationBrief)
   }
 
   const repoSignals = await detectRepoSignals(rootDir);
-  const spec = createInitialSpec(brief, repoSignals);
+  const planningCtx = await gatherPlanningContext(rootDir);
+  const spec = createInitialSpec(brief, repoSignals, planningCtx);
   await writeFile(specPath, renderSpecMarkdown(spec), "utf8");
   await writeFile(tasksPath, renderTasksMarkdown(spec.taskSlices), "utf8");
   await writeFile(testsPath, renderTestsMarkdown(repoSignals), "utf8");
@@ -186,12 +190,17 @@ export async function readOmniStatus(rootDir: string): Promise<OmniState> {
   };
 
   const blockersValue = matchValue("Blockers");
+  const recoveryMatch = content.match(/Recovery Options:\n((?:- .*\n?)*)/u);
+  const recoveryOptions = recoveryMatch
+    ? recoveryMatch[1].split("\n").map((line) => line.replace(/^- /u, "").trim()).filter(Boolean)
+    : undefined;
   return {
     currentPhase: matchValue("Current Phase").toLowerCase() as OmniState["currentPhase"],
     activeTask: matchValue("Active Task"),
     statusSummary: matchValue("Status Summary"),
     blockers: blockersValue && blockersValue !== "None" ? blockersValue.split(/;\s*/u) : [],
-    nextStep: matchValue("Next Step")
+    nextStep: matchValue("Next Step"),
+    recoveryOptions
   };
 }
 
@@ -209,13 +218,14 @@ export async function workOnOmniProject(rootDir: string, engine: WorkEngine): Pr
     };
   } else if (result.kind === "blocked") {
     state = {
-      currentPhase: "check",
+      currentPhase: result.message.includes("expert escalation") ? "escalate" : "check",
       activeTask: result.taskId ?? "None",
       statusSummary: result.message,
       blockers: result.taskId ? [`Verification failures on ${result.taskId}`] : ["A task is blocked."],
       nextStep: result.message.includes("queued for retry")
         ? "Run /omni-work again to retry the task or inspect `.omni/tasks/` for the failure history."
-        : "Review the escalation notes in `.omni/tasks/` and refine the plan or task inputs."
+        : "Review the escalation notes in `.omni/tasks/` and refine the plan or task inputs.",
+      recoveryOptions: result.recoveryOptions
     };
   } else {
     state = {

@@ -1,5 +1,5 @@
-import type { SkillCandidate, SkillPolicy } from "./contracts.js";
-import { readFile, writeFile } from "node:fs/promises";
+import type { SkillCandidate, SkillPolicy, TaskBrief } from "./contracts.js";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface SkillSignal {
@@ -145,4 +145,102 @@ export async function appendSkillUsageNote(rootDir: string, note: string): Promi
     (_match, section) => `## Usage Notes\n\n${section.trimEnd()}\n- ${note}\n`
   );
   await writeFile(skillPath, next, "utf8");
+}
+
+export interface SkillInstallResult {
+  name: string;
+  success: boolean;
+  error?: string;
+}
+
+function replaceSection(content: string, heading: string, lines: string[]): string {
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sectionRegex = new RegExp(`(${escapedHeading}\\n\\n)([\\s\\S]*?)(?=\\n## |$)`, "u");
+  const replacement = `$1${lines.join("\n")}\n`;
+  return content.match(sectionRegex)
+    ? content.replace(sectionRegex, replacement)
+    : `${content.trimEnd()}\n\n${heading}\n\n${lines.join("\n")}\n`;
+}
+
+export async function applyInstallResults(rootDir: string, results: SkillInstallResult[]): Promise<{ deferred: string[]; installed: string[] }> {
+  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  let content = await readFile(skillPath, "utf8");
+  const registry = parseSkillRegistry(content);
+
+  const installed: string[] = [];
+  const deferred: string[] = [];
+
+  for (const result of results) {
+    if (result.success) {
+      installed.push(result.name);
+      continue;
+    }
+
+    deferred.push(result.name);
+    const existing = registry.installed.find((s) => s.name === result.name);
+    if (existing) {
+      registry.installed = registry.installed.filter((s) => s.name !== result.name);
+      registry.deferred.push({
+        ...existing,
+        policy: "recommend-only",
+        reason: `${existing.reason} (install failed: ${result.error ?? "unknown error"})`
+      });
+    } else {
+      registry.deferred.push({
+        name: result.name,
+        reason: `Install failed: ${result.error ?? "unknown error"}`,
+        confidence: "low",
+        policy: "recommend-only"
+      });
+    }
+  }
+
+  const installedLines = registry.installed.length > 0 ? registry.installed.map(renderSkillDecision) : ["- None yet"];
+  const deferredLines = registry.deferred.length > 0 ? registry.deferred.map(renderSkillDecision) : ["- None yet"];
+  content = replaceSection(content, "## Installed", installedLines);
+  content = replaceSection(content, "## Deferred", deferredLines);
+  await writeFile(skillPath, content, "utf8");
+
+  return { deferred, installed };
+}
+
+export interface SkillTrigger {
+  name: string;
+  triggers: string[];
+  content: string;
+}
+
+function parseTriggers(description: string): string[] {
+  const match = description.match(/Triggers include\s+"([^"]+)"(?:,\s+"([^"]+)")*(?:,?\s+or\s+"([^"]+)")?/iu);
+  if (!match) return [];
+  return [match[1], match[2], match[3]].filter((value): value is string => Boolean(value?.trim()));
+}
+
+export async function loadSkillTriggers(skillsDir: string): Promise<SkillTrigger[]> {
+  const triggers: SkillTrigger[] = [];
+  try {
+    const entries = await readdir(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      try {
+        const content = await readFile(path.join(skillsDir, entry.name, "SKILL.md"), "utf8");
+        const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/u);
+        if (!frontmatterMatch) continue;
+        const descMatch = frontmatterMatch[1].match(/description:\s*(.*)/u);
+        if (!descMatch) continue;
+        const parsed = parseTriggers(descMatch[1]);
+        if (parsed.length > 0) {
+          triggers.push({ name: entry.name, triggers: parsed, content });
+        }
+      } catch { /* skip unreadable skills */ }
+    }
+  } catch { /* skills dir doesn't exist */ }
+  return triggers;
+}
+
+export function matchSkillsForTask(task: TaskBrief, skills: SkillTrigger[]): SkillTrigger[] {
+  const taskText = [task.id, task.title, task.objective, ...task.doneCriteria, ...task.skills].join(" ").toLowerCase();
+  return skills.filter((skill) =>
+    skill.triggers.some((trigger) => taskText.includes(trigger.toLowerCase()))
+  );
 }

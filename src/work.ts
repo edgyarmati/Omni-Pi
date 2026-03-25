@@ -13,6 +13,7 @@ export interface WorkResult {
   kind: "completed" | "expert_completed" | "blocked" | "idle";
   taskId: string | null;
   message: string;
+  recoveryOptions?: string[];
 }
 
 export interface WorkDispatchResult {
@@ -125,6 +126,11 @@ export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDisp
 }
 
 async function writeEscalationBrief(taskDir: string, escalation: EscalationBrief): Promise<void> {
+  const verificationResultsSection = escalation.verificationResults
+    ? escalation.verificationResults.map((r) => `- ${r.command}: ${r.passed ? "passed" : "failed"}`).join("\n")
+    : "- None recorded";
+  const modifiedFilesSection = escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") || "- None recorded";
+
   const content = `# Escalation for ${escalation.taskId}
 
 ## Prior Attempts
@@ -135,6 +141,14 @@ ${escalation.priorAttempts}
 
 ${escalation.failureLogs.map((item) => `- ${item}`).join("\n") || "- None"}
 
+## Verification Results
+
+${verificationResultsSection}
+
+## Modified Files
+
+${modifiedFilesSection}
+
 ## Expert Objective
 
 ${escalation.expertObjective}
@@ -143,12 +157,39 @@ ${escalation.expertObjective}
 }
 
 function createEscalationBrief(task: TaskBrief, history: TaskAttemptResult[]): EscalationBrief {
+  const failureLogs = history
+    .filter((attempt) => !attempt.verification.passed)
+    .map((attempt) => attempt.verification.failureSummary.join("; "))
+    .filter((log) => log.length > 0);
+
+  const verificationResults = history.flatMap((attempt) =>
+    attempt.verification.checksRun.map((command) => ({
+      command,
+      passed: attempt.verification.passed,
+      stdout: "",
+      stderr: attempt.verification.failureSummary.join("\n")
+    }))
+  );
+
+  const modifiedFiles = [...new Set(history.flatMap((attempt) => attempt.modifiedFiles ?? []))];
+
   return {
     taskId: task.id,
     priorAttempts: history.length,
-    failureLogs: history.flatMap((attempt) => attempt.verification.failureSummary),
-    expertObjective: `Complete ${task.title} by resolving the repeated verification failures.`
+    failureLogs,
+    expertObjective: `Resolve the root cause preventing ${task.id} from passing verification and complete the task.`,
+    verificationResults,
+    modifiedFiles
   };
+}
+
+function formatVerificationSummary(result: TaskAttemptResult): string {
+  const checks = result.verification.checksRun.length > 0 ? result.verification.checksRun.join(", ") : "no recorded checks";
+  if (result.verification.passed) {
+    return `Verification passed: ${checks}.`;
+  }
+  const failures = result.verification.failureSummary.length > 0 ? result.verification.failureSummary.join("; ") : "unknown verification failure";
+  return `Verification failed: ${checks}. Reason: ${failures}.`;
 }
 
 export async function executeNextTask(rootDir: string, engine: WorkEngine): Promise<WorkResult> {
@@ -180,7 +221,7 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} with the worker path.`
+      message: `Completed ${nextTask.id} with the worker path. ${formatVerificationSummary(workerResult)}`
     };
   }
 
@@ -189,7 +230,7 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "blocked",
       taskId: nextTask.id,
-      message: `Worker attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry.`
+      message: `Worker attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(workerResult)}`
     };
   }
 
@@ -203,7 +244,7 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "expert_completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} after expert escalation.`
+      message: `Completed ${nextTask.id} after expert escalation. ${formatVerificationSummary(expertResult)}`
     };
   }
 
@@ -211,6 +252,12 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
   return {
     kind: "blocked",
     taskId: nextTask.id,
-    message: `Task ${nextTask.id} remains blocked after worker retries and expert escalation.`
+    message: `Task ${nextTask.id} remains blocked after worker retries and expert escalation. ${formatVerificationSummary(expertResult)}`,
+    recoveryOptions: [
+      "Review the escalation notes in `.omni/tasks/` and refine the task inputs.",
+      "Run /omni-plan to restructure the task into smaller slices.",
+      "Run /omni-sync to capture learnings before attempting a different approach.",
+      "Manually inspect and fix the failing checks listed in `.omni/TESTS.md`."
+    ]
   };
 }
