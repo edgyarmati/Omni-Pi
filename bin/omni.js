@@ -14,15 +14,14 @@ export function resolvePiCliPath() {
 
 export function buildOmniEnvironment(baseEnv = process.env) {
   return {
-    ...baseEnv,
-    PI_PACKAGE_DIR: getOmniPackageDir()
+    ...baseEnv
   };
 }
 
 export function buildPiProcessSpec(argv = process.argv.slice(2), baseEnv = process.env) {
   return {
     command: process.execPath,
-    args: [resolvePiCliPath(), ...argv],
+    args: [resolvePiCliPath(), "-e", getOmniPackageDir(), ...argv],
     env: buildOmniEnvironment(baseEnv)
   };
 }
