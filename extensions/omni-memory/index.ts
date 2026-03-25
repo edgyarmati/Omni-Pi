@@ -1,5 +1,55 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
-export default function omniMemoryExtension(_api: ExtensionAPI): void {
-  // Reserved for future `.omni/` lifecycle hooks.
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+
+import type { OmniState } from "../../src/contracts.js";
+import { renderCompactStatus } from "../../src/status.js";
+
+async function readState(cwd: string): Promise<OmniState | null> {
+  try {
+    const content = await readFile(path.join(cwd, ".omni", "STATE.md"), "utf8");
+    const matchValue = (label: string): string => {
+      const regex = new RegExp(`^${label}:\\s*(.*)$`, "mu");
+      return content.match(regex)?.[1]?.trim() ?? "";
+    };
+    const blockersValue = matchValue("Blockers");
+    const recoveryMatch = content.match(/Recovery Options:\n((?:- .*\n?)*)/u);
+    const recoveryOptions = recoveryMatch
+      ? recoveryMatch[1].split("\n").map((line) => line.replace(/^- /u, "").trim()).filter(Boolean)
+      : undefined;
+    return {
+      currentPhase: matchValue("Current Phase").toLowerCase() as OmniState["currentPhase"],
+      activeTask: matchValue("Active Task"),
+      statusSummary: matchValue("Status Summary"),
+      blockers: blockersValue && blockersValue !== "None" ? blockersValue.split(/;\s*/u) : [],
+      nextStep: matchValue("Next Step"),
+      recoveryOptions
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function updateWidget(ctx: ExtensionContext): Promise<void> {
+  const state = await readState(ctx.cwd);
+  if (state) {
+    ctx.ui.setWidget("omni-dashboard", renderCompactStatus(state), { placement: "aboveEditor" });
+  } else {
+    ctx.ui.setWidget("omni-dashboard", undefined);
+  }
+}
+
+export default function omniMemoryExtension(api: ExtensionAPI): void {
+  api.on("session_start", async (_event, ctx) => {
+    await updateWidget(ctx);
+  });
+
+  api.on("session_switch", async (_event, ctx) => {
+    await updateWidget(ctx);
+  });
+
+  api.on("turn_end", async (_event, ctx) => {
+    await updateWidget(ctx);
+  });
 }
