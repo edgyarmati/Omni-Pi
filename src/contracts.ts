@@ -44,6 +44,7 @@ export interface VerificationResult {
 export interface TaskAttemptResult {
   summary: string;
   verification: VerificationResult;
+  modifiedFiles?: string[];
 }
 
 export interface EscalationBrief {
@@ -51,6 +52,13 @@ export interface EscalationBrief {
   priorAttempts: number;
   failureLogs: string[];
   expertObjective: string;
+  verificationResults?: Array<{
+    command: string;
+    passed: boolean;
+    stdout: string;
+    stderr: string;
+  }>;
+  modifiedFiles?: string[];
 }
 
 export interface SkillCandidate {
@@ -66,4 +74,27 @@ export interface OmniState {
   statusSummary: string;
   blockers: string[];
   nextStep: string;
+  recoveryOptions?: string[];
 }
+
+export interface OmniConfig {
+  models: {
+    worker: string;
+    expert: string;
+    planner: string;
+    brain: string;
+  };
+  retryLimit: number;
+  chainEnabled: boolean;
+}
+
+export const DEFAULT_CONFIG: OmniConfig = {
+  models: {
+    worker: "anthropic/claude-sonnet-4-6",
+    expert: "openai/gpt-5.4",
+    planner: "openai/gpt-5.4",
+    brain: "anthropic/claude-opus-4-6"
+  },
+  retryLimit: 2,
+  chainEnabled: false
+};
