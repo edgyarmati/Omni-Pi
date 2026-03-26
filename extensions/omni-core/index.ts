@@ -5,12 +5,14 @@ import {
   ensureOmniInitialized,
 } from "../../src/brain.js";
 import { renderHeader } from "../../src/header.js";
+import { registerModelCommand } from "../../src/model-command.js";
 import { registerOmniMessageRenderer } from "../../src/pi.js";
 import { createOmniTheme } from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
 
 export default function omniCoreExtension(api: ExtensionAPI): void {
   registerOmniMessageRenderer(api);
+  registerModelCommand(api);
   registerThemeCommand(api);
 
   api.on("session_start", async (_event, ctx) => {
