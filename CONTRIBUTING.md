@@ -13,20 +13,23 @@ Thanks for your interest in contributing.
    npm install
    ```
 
-3. Run the launcher locally:
+3. Run the package locally inside Pi:
 
    ```bash
-   node ./bin/omni.js
+   npm run chat
    ```
 
 ## Development Commands
 
 | Command | Purpose |
 |---------|---------|
+| `npm run chat` | Launch Pi with this checkout loaded as a package |
 | `npm test` | Run the test suite with Vitest |
 | `npm run check` | Run the TypeScript type-check |
 | `npm run lint` | Run Biome lint and format checks |
 | `npm run format` | Auto-fix lint and formatting issues |
+| `npm pack` | Build the npm tarball |
+| `npm publish --dry-run` | Validate the publish artifact without uploading |
 
 ## Code Standards
 
@@ -34,6 +37,7 @@ Thanks for your interest in contributing.
 - Keep TypeScript strict. `npm run check` must pass before submitting changes.
 - Keep Biome clean. Run `npm run lint` and `npm run format` when needed.
 - Prefer small, focused files and avoid unnecessary mutation.
+- Keep the public product language aligned with the current single-brain workflow.
 
 ## Testing
 
@@ -51,12 +55,6 @@ Use conventional commit formatting:
 
 Common types include `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, and `ci`.
 
-Examples:
-
-- `feat: add parallel task execution`
-- `fix: resolve config parsing double-escape`
-- `docs: update install instructions`
-
 ## Pull Request Process
 
 1. Create a feature branch from `main`.
@@ -64,27 +62,33 @@ Examples:
 3. Ensure the checks pass:
 
    ```bash
-   npm test && npm run check && npm run lint
+   npm run check
+   npm run lint
+   npm test
    ```
 
-4. Open a pull request with a clear description of what changed and why.
-5. Link any related issues.
+4. If packaging changed, also run:
 
-## Installing from Source
+   ```bash
+   npm pack
+   npm publish --dry-run
+   ```
 
-To install the branded `omni` command globally from a local checkout:
+5. Open a pull request with a clear description of what changed and why.
+
+## Testing Installs
+
+Test the local package install flow with Pi:
 
 ```bash
-npm install -g .
-omni
+pi install /absolute/path/to/Omni-Pi
 ```
 
-To test the packaged tarball flow:
+Test the packed tarball flow:
 
 ```bash
 npm pack
-npm install -g ./omni-pi-0.1.0.tgz
-omni
+pi install /absolute/path/to/Omni-Pi/omni-pi-<version>.tgz
 ```
 
 ## Questions

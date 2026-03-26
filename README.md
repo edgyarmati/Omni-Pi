@@ -10,12 +10,49 @@ Requires Node.js 22 or newer.
 [![npm version](https://img.shields.io/npm/v/omni-pi.svg)](https://www.npmjs.com/package/omni-pi)
 [![CI](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml/badge.svg)](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml)
 
-## Current Direction
+## What It Does
 
 - One friendly brain talks to the user.
 - `.omni/` remains the durable memory layer for goals, specs, tasks, checks, progress, and decisions.
 - Work is still broken into small, verifiable slices before code changes happen.
 - Verification remains explicit and should be recorded alongside implementation progress.
+
+## Install
+
+Install the package into Pi:
+
+```bash
+pi install npm:omni-pi
+```
+
+For a project-local install instead of a global one:
+
+```bash
+pi install -l npm:omni-pi
+```
+
+For local development from this checkout:
+
+```bash
+pi install /Users/edgy/personal/Omni-Pi
+```
+
+## Use
+
+Start Pi in the project you want to work on, with Omni-Pi installed, and describe what you want.
+
+Example:
+
+```text
+Build a small CLI notes app for me. I want add, list, and search commands. Store data locally in JSON. Ask me any questions you need before you start coding.
+```
+
+Expected behavior:
+
+- Omni-Pi interviews first when the request is underspecified.
+- It writes and updates `.omni/PROJECT.md`, `.omni/SPEC.md`, `.omni/TASKS.md`, `.omni/TESTS.md`, and `.omni/STATE.md`.
+- It hides internal implementation machinery instead of talking about planner/worker/expert handoffs.
+- It implements one bounded slice at a time and runs the planned checks.
 
 ## Durable Memory
 
@@ -36,14 +73,21 @@ npm install
 npm run chat
 ```
 
-`npm run chat` launches Pi with this package loaded, so you can test the real single-brain behavior in an interactive session.
+`npm run chat` launches Pi with this package loaded from the local checkout.
 
 For local verification:
 
 ```bash
-npm test
 npm run check
 npm run lint
+npm test
+```
+
+For package verification:
+
+```bash
+npm pack
+npm publish --dry-run
 ```
 
 ## Attribution

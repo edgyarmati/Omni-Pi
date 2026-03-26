@@ -10,8 +10,8 @@
 
 ## Retry policy
 
-- Worker retries before expert takeover: 2
+- Implementation retries before the plan must be tightened: 2
 
-## Escalation threshold
+## Recovery rule
 
-- Escalate after repeated failures or when the planner marks the task as high-risk.
+- If the same slice fails repeatedly, rewrite the slice, clarify the spec, and retry with a narrower plan.
