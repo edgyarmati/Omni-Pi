@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { OmniConfig } from "./contracts.js";
+import { AVAILABLE_MODELS } from "./providers.js";
 
 export const DEFAULT_CONFIG: OmniConfig = {
   models: {
@@ -138,17 +139,4 @@ export async function updateModelConfig(
   return config;
 }
 
-export const AVAILABLE_MODELS = [
-  "anthropic/claude-sonnet-4-6",
-  "anthropic/claude-opus-4-6",
-  "anthropic/claude-sonnet-4-5",
-  "anthropic/claude-opus-4-1",
-  "openai/gpt-5.4",
-  "openai/gpt-5",
-  "openai/gpt-4.1",
-  "openai/gpt-4o",
-  "openai/o3-mini",
-  "openai/o1",
-  "google/gemini-2.5-pro",
-  "google/gemini-2.5-flash",
-];
+export { AVAILABLE_MODELS };

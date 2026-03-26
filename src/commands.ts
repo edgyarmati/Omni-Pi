@@ -449,6 +449,7 @@ export function createOmniCommands(): AppCommandDefinition[] {
         const modelOptions = AVAILABLE_MODELS.map((model) =>
           model === currentModel ? `${model} (current)` : model,
         );
+        modelOptions.push("Enter custom provider/model");
 
         const selectedModelDisplay = await ui.select(
           `Select model for ${selectedAgent}:`,
@@ -458,7 +459,18 @@ export function createOmniCommands(): AppCommandDefinition[] {
           return "Model selection cancelled.";
         }
 
-        const selectedModel = selectedModelDisplay.replace(" (current)", "");
+        let selectedModel = selectedModelDisplay.replace(" (current)", "");
+        if (selectedModel === "Enter custom provider/model") {
+          const customModel = await ui.input(
+            "Enter model as provider/model",
+            "e.g., openrouter/anthropic/claude-sonnet-4",
+          );
+          if (!customModel?.includes("/")) {
+            return "Custom model cancelled. Use the canonical provider/model format.";
+          }
+          selectedModel = customModel.trim();
+        }
+
         await updateModelConfig(cwd, selectedAgent, selectedModel);
 
         return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;

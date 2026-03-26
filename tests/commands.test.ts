@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { describe, expect, test } from "vitest";
 import omniCoreExtension from "../extensions/omni-core/index.js";
+import omniProvidersExtension from "../extensions/omni-providers/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
 import { createOmniCommands } from "../src/commands.js";
@@ -81,6 +82,32 @@ describe("Omni commands", () => {
     expect(registrations).toEqual(["omni-skills"]);
   });
 
+  test("omniProvidersExtension registers missing upstream providers", async () => {
+    const registrations: string[] = [];
+    const originalFetch = globalThis.fetch;
+
+    globalThis.fetch = (async () => {
+      throw new Error("offline");
+    }) as typeof fetch;
+
+    try {
+      await omniProvidersExtension({
+        registerProvider(name: string) {
+          registrations.push(name);
+        },
+      } as never);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(registrations).toContain("nvidia");
+    expect(registrations).toContain("together");
+    expect(registrations).toContain("moonshot");
+    expect(registrations).toContain("gitlab-duo");
+    expect(registrations).toContain("cloudflare-ai-gateway");
+    expect(registrations).not.toContain("ollama");
+  });
+
   test("/omni-skills renders the current skill registry", async () => {
     const rootDir = await createTempProject("omni-cmd-skills-");
     await initializeOmniProject(rootDir);
@@ -113,5 +140,41 @@ describe("Omni commands", () => {
 
     expect(output).toContain("Synced Omni-Pi memory");
     expect(sessionSummary).toContain("Captured progress");
+  });
+
+  test("/omni-model accepts a custom provider/model reference", async () => {
+    const rootDir = await createTempProject("omni-cmd-model-");
+    await initializeOmniProject(rootDir);
+    const command = createOmniCommands().find(
+      (item) => item.name === "omni-model",
+    );
+
+    const output = await command?.execute({
+      cwd: rootDir,
+      runtime: {
+        pi: {} as never,
+        ctx: {
+          ui: {
+            async select(_title: string, options: string[]) {
+              if (options.includes("worker")) {
+                return "worker";
+              }
+              return "Enter custom provider/model";
+            },
+            async input() {
+              return "openrouter/anthropic/claude-sonnet-4";
+            },
+          },
+        } as never,
+      },
+    });
+
+    const config = await readFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      "utf8",
+    );
+
+    expect(output).toContain("openrouter/anthropic/claude-sonnet-4");
+    expect(config).toContain("openrouter/anthropic/claude-sonnet-4");
   });
 });

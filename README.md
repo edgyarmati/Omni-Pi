@@ -56,6 +56,29 @@ npm install -g omni-pi@latest
 
 Omni-Pi launches the bundled Pi runtime and loads the Omni-Pi package automatically, so you do not need to manually wire extensions, skills, or prompts after installing from npm.
 
+## Model Providers
+
+Omni-Pi now ships the upstream provider mix needed for practical multi-provider use on top of Pi.
+
+- Built into the underlying Pi runtime: `anthropic`, `openai`, `openai-codex`, `google`, `google-vertex`, `amazon-bedrock`, `azure-openai-responses`, `openrouter`, `xai`, `zai`, `mistral`, `groq`, `cerebras`, `huggingface`, `github-copilot`, `kimi-coding`, `minimax`, `minimax-cn`, `opencode`, `opencode-go`
+- Added by Omni-Pi: `nvidia`, `together`, `synthetic`, `nanogpt`, `xiaomi`, `moonshot`, `venice`, `kilo`, `gitlab-duo`, `qwen-portal`, `qianfan`, `cloudflare-ai-gateway`
+- Auto-discovered when running locally: `ollama`, `lm-studio`, `llama.cpp`, `litellm`, `vllm`
+
+Common provider env vars:
+
+- `NVIDIA_API_KEY`, `TOGETHER_API_KEY`, `SYNTHETIC_API_KEY`, `NANO_GPT_API_KEY`
+- `XIAOMI_API_KEY`, `MOONSHOT_API_KEY`, `VENICE_API_KEY`, `KILO_API_KEY`
+- `GITLAB_TOKEN`, `QWEN_OAUTH_TOKEN` or `QWEN_PORTAL_API_KEY`, `QIANFAN_API_KEY`
+- `CLOUDFLARE_AI_GATEWAY_API_KEY` and `CLOUDFLARE_AI_GATEWAY_BASE_URL`
+
+For local providers, Omni-Pi registers models only when the endpoint is reachable:
+
+- `OLLAMA_BASE_URL` / `OLLAMA_API_KEY`
+- `LM_STUDIO_BASE_URL` / `LM_STUDIO_API_KEY`
+- `LLAMA_CPP_BASE_URL` / `LLAMA_CPP_API_KEY`
+- `LITELLM_BASE_URL` / `LITELLM_API_KEY`
+- `VLLM_BASE_URL` / `VLLM_API_KEY`
+
 ## Commands
 
 | Command | Description |
@@ -67,7 +90,7 @@ Omni-Pi launches the bundled Pi runtime and loads the Omni-Pi package automatica
 | `/omni-sync` | Update durable memory files from recent progress |
 | `/omni-skills` | Inspect installed, recommended, deferred, and rejected skills |
 | `/omni-explain` | Explain what Omni-Pi is doing in simple language |
-| `/omni-model` | Interactively select the model for a specific agent role |
+| `/omni-model` | Interactively select the model for a specific agent role, or enter any canonical `provider/model` reference |
 | `/omni-commit` | Create a branch and commit for the last completed task |
 | `/omni-doctor` | Run diagnostic health checks and detect stuck tasks |
 
