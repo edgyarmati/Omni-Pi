@@ -13,6 +13,7 @@ describe("Omni command surface", () => {
   test("omniCoreExtension only registers the message renderer", () => {
     let rendererRegistrations = 0;
     const commands: string[] = [];
+    const events: string[] = [];
 
     omniCoreExtension({
       registerMessageRenderer() {
@@ -21,10 +22,15 @@ describe("Omni command surface", () => {
       registerCommand(name: string) {
         commands.push(name);
       },
+      on(event: string) {
+        events.push(event);
+      },
     } as never);
 
     expect(rendererRegistrations).toBeGreaterThan(0);
     expect(commands).toEqual([]);
+    expect(events).toContain("session_start");
+    expect(events).toContain("before_agent_start");
   });
 
   test("status and skills extensions register no commands", () => {

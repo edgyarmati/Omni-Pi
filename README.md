@@ -33,6 +33,14 @@ Omni-Pi keeps its working notes in `.omni/`:
 git clone https://github.com/EdGy2k/Omni-Pi.git
 cd Omni-Pi
 npm install
+npm run chat
+```
+
+`npm run chat` launches Pi with this package loaded, so you can test the real single-brain behavior in an interactive session.
+
+For local verification:
+
+```bash
 npm test
 npm run check
 npm run lint
