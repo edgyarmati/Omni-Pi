@@ -4,6 +4,8 @@ Omni-Pi: Guided software delivery for everyone.
 
 Omni-Pi is an opinionated Pi package and branded launcher that helps people move from a blank repo to a structured plan, implemented work, and explicit verification without having to assemble the workflow themselves.
 
+Requires Node.js 22 or newer.
+
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/omni-pi.svg)](https://www.npmjs.com/package/omni-pi)
 [![CI](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml/badge.svg)](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml)

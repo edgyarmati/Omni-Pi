@@ -13,6 +13,9 @@
   "bugs": {
     "url": "https://github.com/EdGy2k/Omni-Pi/issues"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "omni": "./bin/omni.js"
   },
@@ -33,13 +36,15 @@
     "src",
     "templates",
     "README.md",
-    "docs"
+    "CREDITS.md"
   ],
   "scripts": {
     "check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pack:check": "npm pack --dry-run",
+    "prepublishOnly": "npm run check && npm run lint && npm test"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.9",
