@@ -459,11 +459,7 @@ export function createOmniCommands(): AppCommandDefinition[] {
         }
 
         const selectedModel = selectedModelDisplay.replace(" (current)", "");
-        const updatedConfig = await updateModelConfig(
-          cwd,
-          selectedAgent,
-          selectedModel,
-        );
+        await updateModelConfig(cwd, selectedAgent, selectedModel);
 
         return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;
       },

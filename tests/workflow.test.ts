@@ -368,10 +368,10 @@ describe("Omni workflow", () => {
     expect(result.kind).toBe("blocked");
     expect(result.message).toContain("expert escalation");
     expect(result.recoveryOptions).toBeDefined();
-    expect(result.recoveryOptions!.length).toBeGreaterThan(0);
+    expect(result.recoveryOptions?.length).toBeGreaterThan(0);
     expect(state.currentPhase).toBe("escalate");
     expect(state.recoveryOptions).toBeDefined();
-    expect(state.recoveryOptions!.length).toBeGreaterThan(0);
+    expect(state.recoveryOptions?.length).toBeGreaterThan(0);
 
     const rendered = renderPlainStatus(state);
     expect(rendered).toContain("Recovery options:");
@@ -568,10 +568,10 @@ describe("Omni workflow", () => {
     const triggers = await loadSkillTriggers(skillsDir);
     const verification = triggers.find((t) => t.name === "omni-verification");
     expect(verification).toBeDefined();
-    expect(verification!.triggers).toContain("verify");
-    expect(verification!.triggers).toContain("test");
-    expect(verification!.triggers).toContain("check");
-    expect(verification!.triggers).toContain("did it work");
+    expect(verification?.triggers).toContain("verify");
+    expect(verification?.triggers).toContain("test");
+    expect(verification?.triggers).toContain("check");
+    expect(verification?.triggers).toContain("did it work");
   });
 
   test("buildBranchName and buildCommitMessage format git artifacts", () => {
@@ -645,9 +645,9 @@ describe("Omni workflow", () => {
     const plan = await prepareCommitPlan(rootDir);
 
     expect(plan).not.toBeNull();
-    expect(plan!.taskId).toBe("T01");
-    expect(plan!.branch).toBe("omni/t01");
-    expect(plan!.message).toContain("T01");
+    expect(plan?.taskId).toBe("T01");
+    expect(plan?.branch).toBe("omni/t01");
+    expect(plan?.message).toContain("T01");
   });
 
   test("userSignals are incorporated into spec scope", async () => {

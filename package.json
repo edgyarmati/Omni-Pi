@@ -3,7 +3,16 @@
   "version": "0.1.0",
   "description": "Opinionated Pi package for guided, beginner-friendly planning and implementation workflows.",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "author": "Eduard-David Gyarmati",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EdGy2k/Omni-Pi.git"
+  },
+  "homepage": "https://github.com/EdGy2k/Omni-Pi#readme",
+  "bugs": {
+    "url": "https://github.com/EdGy2k/Omni-Pi/issues"
+  },
   "bin": {
     "omni": "./bin/omni.js"
   },

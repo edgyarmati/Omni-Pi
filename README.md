@@ -1,94 +1,25 @@
 # Omni-Pi
 
-Omni-Pi is an opinionated Pi package and branded launcher for guided software delivery.
+Omni-Pi: Guided software delivery for everyone.
 
-It is designed to feel simple for beginners while still using a stronger planning model, focused worker subagents, explicit verification, and expert fallback behind the scenes.
+Omni-Pi is an opinionated Pi package and branded launcher that helps people move from a blank repo to a structured plan, implemented work, and explicit verification without having to assemble the workflow themselves.
 
-## Attribution
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/omni-pi.svg)](https://www.npmjs.com/package/omni-pi)
+[![CI](https://img.shields.io/badge/ci-setup%20pending-lightgrey.svg)](#)
 
-Omni-Pi builds on top of the Pi ecosystem and intentionally borrows ideas from earlier community work.
+## Why Omni-Pi
 
-- Pi runtime and package model: [badlogic/pi-mono](https://github.com/badlogic/pi-mono) by Mario Zechner and contributors
-- orchestration and workflow inspiration: [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi)
-- disk-first guided workflow inspiration: [gsd-build/gsd-2](https://github.com/gsd-build/gsd-2)
-- subagent and Pi ecosystem inspiration: nicopreme/nicobailon packages and related Pi community extensions
-- isolated worker/expert execution substrate: [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents)
+- Guided step-by-step workflow keeps the process moving without blank-canvas paralysis.
+- Durable project memory in `.omni/` survives across sessions.
+- Automatic verification infers checks from the language and project shape.
+- Expert fallback takes over when the worker agent gets stuck.
 
-The goal of Omni-Pi is to contribute a distinct, beginner-friendly, opinionated package back into that ecosystem while giving clear credit to the original authors and projects that made it possible.
-
-For a more structured list, see `CREDITS.md`.
-
-## v1 goals
-
-- launch through an `omni` command with Pi batteries included
-- guided step mode only
-- durable project memory in `.omni/`
-- small task slices with explicit done criteria
-- automatic skill discovery and routing
-- plain-English status updates
-
-## Launch model
-
-- install Omni-Pi
-- run `omni`
-- Omni-Pi boots the Pi runtime and loads this package with `-e <path-to-omni-pi>` so the bundled Omni extensions, skills, and prompts are available immediately
-
-## Install
-
-From this repo for local development:
+## Quick Start
 
 ```bash
-npm install
-node ./bin/omni.js
-```
-
-To install the branded `omni` command globally from the local package without `npm link`:
-
-```bash
-npm pack
-npm install -g ./omni-pi-0.1.0.tgz
-omni
-```
-
-You can also install directly from the repo checkout:
-
-```bash
-npm install -g .
-omni
-```
-
-## Update
-
-Updating is straightforward.
-
-- if you installed from a local checkout, run `npm install -g .` again from the updated repo
-- if you installed from a tarball, run `npm pack` again and then `npm install -g ./omni-pi-0.1.0.tgz`
-- once published later, this becomes the normal `npm install -g omni-pi@latest`
-
-So no, it is not hard to update the package.
-
-## Demo flow
-
-In a fresh repo or empty folder:
-
-```bash
-omni --mode json --no-session "/omni-init"
-omni --mode json --no-session "/omni-plan Build a tiny demo feature"
-omni --mode json --no-session "/omni-status"
-omni --mode json --no-session "/omni-work"
-```
-
-What to point out in the demo:
-
-- `.omni/` is created with durable project memory files
-- `.pi/agents/` is created with Omni worker and expert agent definitions
-- `omni-plan` writes `SPEC.md`, `TASKS.md`, and `TESTS.md`
-- `omni-work` routes through isolated worker/expert execution and persists artifacts in `.omni/tasks/`
-- runtime verification runs checks from `.omni/TESTS.md` and drives retry or escalation
-
-For an interactive walkthrough, just run:
-
-```bash
+npm install -g omni-pi
+cd your-project
 omni
 ```
 
@@ -107,50 +38,42 @@ omni
 | `/omni-commit` | Create a branch and commit for the last completed task |
 | `/omni-doctor` | Run diagnostic health checks and detect stuck tasks |
 
-## Repository layout
+## How It Works
 
-- `PLAN.md` - product and implementation plan
-- `templates/omni/` - starter `.omni/` files
-- `src/` - shared data model and helpers
-- `extensions/` - Pi-facing extension scaffolding
-- `agents/` - role definitions for brain, planner, worker, expert
-- `skills/` - bundled workflow skills
-- `prompts/` - prompt templates for brainstorming and planning
+Omni-Pi follows a simple agent pipeline: Brain, Planner, Worker, Expert. The Brain handles conversation, the Planner turns intent into concrete steps and checks, and the Worker executes bounded tasks with filesystem-backed state in `.omni/`.
+
+When the Worker gets stuck or verification fails repeatedly, the Expert role steps in to recover the task, adapt the approach, or surface the blocker clearly instead of letting the session stall.
 
 ## Features
 
-**Core workflow**: Durable `.omni/` project memory, typed contracts for planning/execution/verification/escalation, filesystem-backed init/planning/status, task execution with retry tracking and expert fallback.
-
-**Language-agnostic verification**: Infers test commands for TypeScript, Python, Rust, Go, Ruby, PHP. Supports custom checks in `.omni/TESTS.md`. Runnable command allowlist covers npm, cargo, go, pytest, composer, bundle, make, and more.
-
-**Workflow presets**: `--preset bugfix/feature/refactor/spike/security-audit` configures task shape, verification depth, and interview flow. Auto-detected from branch names and brief text.
-
-**Doctor system**: `/omni-doctor` checks init state, config validity, repo signals, task health, and stuck detection. Runs automatically during `/omni-init`. Dashboard widget shows traffic-light health indicator.
-
-**Plan & progress memory**: Each `/omni-plan` creates a dated plan file in `.omni/plans/` with an `INDEX.md` tracker. `.omni/PROGRESS.md` logs timestamped progress entries. Optional auto-cleanup of completed plans via config.
-
-**Context engineering**: Char-based token budgets (4 chars ≈ 1 token). Phase-aware file selection loads different `.omni/` files for understand/plan/build/check/escalate phases. Pre-reads context directly into worker/expert prompts.
-
-**Subagent integration**: Worker/expert execution via `pi-subagents` with raw output persistence, runtime verification, skill trigger matching, session branching, chain execution mode (scout → worker), and model overrides per agent role.
-
-**Dashboard**: Persistent widget showing phase bar, active task, blockers, next step, and health status. Auto-updates on session start, switch, and turn end.
-
-**Git integration**: `/omni-commit` creates branches, stages files, and commits with task-derived messages.
-
-**Interactive planning**: Refinement prompts for constraints and user context with plan approval confirmation. Skill install tracking with deferred recovery.
+- Core workflow with durable `.omni/` project memory, typed planning and execution contracts, filesystem-backed init/planning/status, and retry-aware task execution.
+- Language-aware verification that infers test commands for common stacks and supports custom checks in `.omni/TESTS.md`.
+- Workflow presets for bugfix, feature, refactor, spike, and security-audit work.
+- Doctor checks for init state, config validity, repo signals, task health, and stuck detection.
+- Plan and progress memory with dated plan files, an index tracker, and timestamped progress logs.
+- Context-aware file selection for different workflow phases.
+- Subagent integration for worker and expert execution with raw output persistence and model overrides.
+- Persistent dashboard state for phase, task, blockers, next step, and health status.
+- Git integration for branch creation and task-derived commits.
+- Interactive planning for constraints, user context, and skill install tracking.
 
 ## Development
 
-- `npm test` - run the automated test suite
-- `npm run check` - type-check the TypeScript code
-- `node ./bin/omni.js --help` - launch the bundled Pi runtime through Omni-Pi
+For contributor setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Next steps
+```bash
+git clone https://github.com/EdGy2k/Omni-Pi.git
+cd Omni-Pi
+npm install
+npm test
+npm run check
+npm run lint
+```
 
-- full end-to-end demo with real subagent execution against a live codebase
-- parallel task execution for independent tasks with bounded concurrency
-- PR creation and review support with follow-up task capture
-- better token estimation (model-aware tokenizer)
-- web dashboard for progress visualization
+## Attribution
 
-See `docs/BACKLOG.md` for the complete backlog.
+Omni-Pi builds on the Pi ecosystem. See [CREDITS.md](CREDITS.md) for full attribution.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

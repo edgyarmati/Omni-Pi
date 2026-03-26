@@ -9,7 +9,6 @@ import {
   type ContextBlock,
   gatherTaskContext,
   renderContextBlocks,
-  renderContextSummary,
 } from "./context.js";
 import type {
   EscalationBrief,
