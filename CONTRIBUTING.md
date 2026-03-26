@@ -23,7 +23,7 @@ Thanks for your interest in contributing.
 
 | Command | Purpose |
 |---------|---------|
-| `npm run chat` | Launch Pi with this checkout loaded as a package |
+| `npm run chat` | Launch the local `omni` executable from this checkout |
 | `npm test` | Run the test suite with Vitest |
 | `npm run check` | Run the TypeScript type-check |
 | `npm run lint` | Run Biome lint and format checks |
@@ -78,17 +78,19 @@ Common types include `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`,
 
 ## Testing Installs
 
-Test the local package install flow with Pi:
+Test the global install flow:
 
 ```bash
-pi install /absolute/path/to/Omni-Pi
+npm install -g .
+omni
 ```
 
 Test the packed tarball flow:
 
 ```bash
 npm pack
-pi install /absolute/path/to/Omni-Pi/omni-pi-<version>.tgz
+npm install -g ./omni-pi-<version>.tgz
+omni
 ```
 
 ## Questions

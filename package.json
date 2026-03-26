@@ -16,6 +16,9 @@
   "engines": {
     "node": ">=22"
   },
+  "bin": {
+    "omni": "./bin/omni.js"
+  },
   "keywords": [
     "pi-package",
     "pi",
@@ -25,6 +28,7 @@
     "interview"
   ],
   "files": [
+    "bin",
     "agents",
     "extensions",
     "prompts",
@@ -35,7 +39,7 @@
     "CREDITS.md"
   ],
   "scripts": {
-    "chat": "node ./node_modules/@mariozechner/pi-coding-agent/dist/cli.js -e .",
+    "chat": "node ./bin/omni.js",
     "check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",

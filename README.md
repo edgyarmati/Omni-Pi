@@ -19,22 +19,26 @@ Requires Node.js 22 or newer.
 
 ## Install
 
-Install the package into Pi:
+Install the standalone executable:
 
 ```bash
-pi install npm:omni-pi
+npm install -g omni-pi
 ```
 
-For a project-local install instead of a global one:
+Then run it in any project:
 
 ```bash
-pi install -l npm:omni-pi
+cd your-project
+omni
 ```
 
 For local development from this checkout:
 
 ```bash
-pi install /Users/edgy/personal/Omni-Pi
+git clone https://github.com/EdGy2k/Omni-Pi.git
+cd Omni-Pi
+npm install
+npm run chat
 ```
 
 ## Use
@@ -66,14 +70,7 @@ Omni-Pi keeps its working notes in `.omni/`:
 
 ## Development
 
-```bash
-git clone https://github.com/EdGy2k/Omni-Pi.git
-cd Omni-Pi
-npm install
-npm run chat
-```
-
-`npm run chat` launches Pi with this package loaded from the local checkout.
+`npm run chat` launches the local `omni` wrapper from this checkout, which in turn starts Pi with this package loaded.
 
 For local verification:
 
