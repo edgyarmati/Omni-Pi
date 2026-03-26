@@ -24,6 +24,8 @@ interface OmniProviderModel {
 interface StaticProviderDefinition {
   name: string;
   apiKey: string;
+  baseUrlEnv?: string;
+  defaultBaseUrl?: string;
   models: OmniProviderModel[];
 }
 
@@ -67,6 +69,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "nvidia",
     apiKey: "NVIDIA_API_KEY",
+    baseUrlEnv: "NVIDIA_BASE_URL",
+    defaultBaseUrl: "https://integrate.api.nvidia.com/v1",
     models: [
       model(
         "deepseek-ai/deepseek-v3.2",
@@ -100,6 +104,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "together",
     apiKey: "TOGETHER_API_KEY",
+    baseUrlEnv: "TOGETHER_BASE_URL",
+    defaultBaseUrl: "https://api.together.xyz/v1",
     models: [
       model(
         "deepseek-ai/DeepSeek-R1",
@@ -133,6 +139,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "synthetic",
     apiKey: "SYNTHETIC_API_KEY",
+    baseUrlEnv: "SYNTHETIC_BASE_URL",
+    defaultBaseUrl: "https://api.synthetic.new/openai/v1",
     models: [
       model(
         "hf:deepseek-ai/DeepSeek-V3.2",
@@ -166,6 +174,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "nanogpt",
     apiKey: "NANO_GPT_API_KEY",
+    baseUrlEnv: "NANO_GPT_BASE_URL",
+    defaultBaseUrl: "https://nano-gpt.com/api/v1",
     models: [
       model(
         "anthropic/claude-sonnet-4.6",
@@ -199,6 +209,7 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "xiaomi",
     apiKey: "XIAOMI_API_KEY",
+    baseUrlEnv: "XIAOMI_BASE_URL",
     models: [
       model(
         "mimo-v2-flash",
@@ -232,6 +243,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "moonshot",
     apiKey: "MOONSHOT_API_KEY",
+    baseUrlEnv: "MOONSHOT_BASE_URL",
+    defaultBaseUrl: "https://api.moonshot.cn/v1",
     models: [
       model(
         "kimi-k2.5",
@@ -247,6 +260,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "venice",
     apiKey: "VENICE_API_KEY",
+    baseUrlEnv: "VENICE_BASE_URL",
+    defaultBaseUrl: "https://api.venice.ai/api/v1",
     models: [
       model(
         "claude-sonnet-4-6",
@@ -280,6 +295,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "kilo",
     apiKey: "KILO_API_KEY",
+    baseUrlEnv: "KILO_BASE_URL",
+    defaultBaseUrl: "https://api.kilo.ai/api/gateway",
     models: [
       model(
         "anthropic/claude-sonnet-4.6",
@@ -313,6 +330,7 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "gitlab-duo",
     apiKey: "GITLAB_TOKEN",
+    baseUrlEnv: "GITLAB_DUO_BASE_URL",
     models: [
       model(
         "duo-chat-sonnet-4-6",
@@ -348,6 +366,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
     apiKey: process.env.QWEN_OAUTH_TOKEN
       ? "QWEN_OAUTH_TOKEN"
       : "QWEN_PORTAL_API_KEY",
+    baseUrlEnv: "QWEN_PORTAL_BASE_URL",
+    defaultBaseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
     models: [
       model(
         "coder-model",
@@ -372,6 +392,8 @@ const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "qianfan",
     apiKey: "QIANFAN_API_KEY",
+    baseUrlEnv: "QIANFAN_BASE_URL",
+    defaultBaseUrl: "https://qianfan.baidubce.com/v2",
     models: [
       model(
         "deepseek-v3.2",
@@ -520,18 +542,18 @@ export const AVAILABLE_MODELS = [
 
 export async function registerOmniProviders(api: ExtensionAPI): Promise<void> {
   for (const provider of STATIC_PROVIDERS) {
-    const baseUrl =
-      provider.name === "cloudflare-ai-gateway"
-        ? (process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL ??
-          "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/anthropic")
-        : undefined;
+    const baseUrl = resolveStaticProviderBaseUrl(provider);
+
+    if (!baseUrl) {
+      continue;
+    }
 
     api.registerProvider(provider.name, {
-      ...(baseUrl ? { baseUrl } : {}),
+      baseUrl,
       apiKey: provider.apiKey,
       models: provider.models.map((entry) => ({
         ...entry,
-        ...(baseUrl ? { baseUrl } : {}),
+        baseUrl,
       })),
     });
   }
@@ -555,6 +577,30 @@ export async function registerOmniProviders(api: ExtensionAPI): Promise<void> {
       models,
     });
   }
+}
+
+function resolveStaticProviderBaseUrl(
+  provider: StaticProviderDefinition,
+): string | undefined {
+  if (provider.baseUrlEnv) {
+    const configuredBaseUrl = process.env[provider.baseUrlEnv];
+    if (configuredBaseUrl) {
+      return configuredBaseUrl;
+    }
+  }
+
+  if (provider.defaultBaseUrl) {
+    return provider.defaultBaseUrl;
+  }
+
+  if (provider.name === "cloudflare-ai-gateway") {
+    return (
+      process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL ??
+      "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/anthropic"
+    );
+  }
+
+  return undefined;
 }
 
 function withV1(baseUrl: string): string {

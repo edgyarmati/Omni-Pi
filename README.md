@@ -78,6 +78,17 @@ Common provider env vars:
 - `GITLAB_TOKEN`, `QWEN_OAUTH_TOKEN` or `QWEN_PORTAL_API_KEY`, `QIANFAN_API_KEY`
 - `CLOUDFLARE_AI_GATEWAY_API_KEY` and `CLOUDFLARE_AI_GATEWAY_BASE_URL`
 
+Omni-Pi now supplies built-in default base URLs for `nvidia`, `together`, `synthetic`, `nanogpt`, `moonshot`, `venice`, `kilo`, `qwen-portal`, and `qianfan`, so those usually only need an API key.
+
+Provider base URL override env vars:
+
+- `NVIDIA_BASE_URL`, `TOGETHER_BASE_URL`, `SYNTHETIC_BASE_URL`, `NANO_GPT_BASE_URL`
+- `MOONSHOT_BASE_URL`, `VENICE_BASE_URL`, `KILO_BASE_URL`
+- `QWEN_PORTAL_BASE_URL`, `QIANFAN_BASE_URL`
+- `XIAOMI_BASE_URL`, `GITLAB_DUO_BASE_URL`, `CLOUDFLARE_AI_GATEWAY_BASE_URL`
+
+`xiaomi` and `gitlab-duo` are only registered when their base URL is configured explicitly.
+
 For local providers, Omni-Pi registers models only when the endpoint is reachable:
 
 - `OLLAMA_BASE_URL` / `OLLAMA_API_KEY`
