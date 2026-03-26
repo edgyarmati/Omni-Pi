@@ -2,7 +2,7 @@
 
 Omni-Pi: Guided software delivery for everyone.
 
-Omni-Pi is an opinionated Pi package and branded launcher that helps people move from a blank repo to a structured plan, implemented work, and explicit verification without having to assemble the workflow themselves.
+Omni-Pi is an opinionated Pi package and branded launcher published on npm as `omni-pi`. It helps people move from a blank repo to a structured plan, implemented work, and explicit verification without having to assemble the workflow themselves.
 
 Requires Node.js 22 or newer.
 
@@ -18,6 +18,8 @@ Requires Node.js 22 or newer.
 - Expert fallback takes over when the worker agent gets stuck.
 
 ## Quick Start
+
+Install the published package, then run it in your project:
 
 ```bash
 npm install -g omni-pi
@@ -61,7 +63,7 @@ When the Worker gets stuck or verification fails repeatedly, the Expert role ste
 
 ## Development
 
-For contributor setup, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For local checkout development, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 git clone https://github.com/EdGy2k/Omni-Pi.git
