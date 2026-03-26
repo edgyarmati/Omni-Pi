@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { OmniState } from "./contracts.js";
+import { ensurePiSettings, loadSavedTheme } from "./theme.js";
 import { initializeOmniProject, readOmniStatus } from "./workflow.js";
 
 const BRAIN_SYSTEM_APPEND = `## Omni-Pi Single-Brain Mode
@@ -69,6 +70,8 @@ function clipSection(value: string | null, maxChars: number): string {
 export async function ensureOmniInitialized(
   cwd: string,
 ): Promise<"initialized" | "existing"> {
+  await ensurePiSettings(cwd);
+  loadSavedTheme(cwd);
   const statePath = path.join(cwd, ".omni", "STATE.md");
   if (await fileExists(statePath)) {
     return "existing";
