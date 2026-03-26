@@ -15,6 +15,7 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
       "omni-work",
       "omni-sync",
       "omni-model",
+      "add-custom-model",
       "omni-commit",
     ].includes(command.name),
   );

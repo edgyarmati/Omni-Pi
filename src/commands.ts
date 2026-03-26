@@ -21,7 +21,10 @@ import {
 } from "./git.js";
 import {
   getAuthenticatedModelOptions,
-  runModelSetupWizard,
+  runBrowserCustomModelSetup,
+  runBrowserModelSelection,
+  runTerminalModelSearch,
+  setupCustomProviderModel,
 } from "./model-setup.js";
 import type { AppCommandDefinition, CommandResult } from "./pi.js";
 import type { SkillInstallResult } from "./skills.js";
@@ -49,6 +52,10 @@ import {
 
 let runtimeWorkEngineFactory: typeof createSubagentWorkEngine =
   createSubagentWorkEngine;
+let runtimeBrowserModelSelectionRunner: typeof runBrowserModelSelection =
+  runBrowserModelSelection;
+let runtimeBrowserCustomModelSetupRunner: typeof runBrowserCustomModelSetup =
+  runBrowserCustomModelSetup;
 
 export function setRuntimeWorkEngineFactoryForTests(
   factory: typeof createSubagentWorkEngine,
@@ -58,6 +65,26 @@ export function setRuntimeWorkEngineFactoryForTests(
 
 export function resetRuntimeWorkEngineFactoryForTests(): void {
   runtimeWorkEngineFactory = createSubagentWorkEngine;
+}
+
+export function setRuntimeBrowserModelSelectionRunnerForTests(
+  runner: typeof runBrowserModelSelection,
+): void {
+  runtimeBrowserModelSelectionRunner = runner;
+}
+
+export function resetRuntimeBrowserModelSelectionRunnerForTests(): void {
+  runtimeBrowserModelSelectionRunner = runBrowserModelSelection;
+}
+
+export function setRuntimeBrowserCustomModelSetupRunnerForTests(
+  runner: typeof runBrowserCustomModelSetup,
+): void {
+  runtimeBrowserCustomModelSetupRunner = runner;
+}
+
+export function resetRuntimeBrowserCustomModelSetupRunnerForTests(): void {
+  runtimeBrowserCustomModelSetupRunner = runBrowserCustomModelSetup;
 }
 
 const placeholderEngine: WorkEngine = {
@@ -456,43 +483,84 @@ export function createOmniCommands(): AppCommandDefinition[] {
               currentModel,
             )
           : AVAILABLE_MODELS;
-        const modelOptions = authenticatedModels.map((model) =>
-          model === currentModel ? `${model} (current)` : model,
-        );
-        modelOptions.push("Set up provider or custom model");
-        modelOptions.push("Enter custom provider/model");
-
-        const selectedModelDisplay = await ui.select(
-          `Select model for ${selectedAgent}:`,
-          modelOptions,
-        );
-        if (!selectedModelDisplay) {
+        const mode = await ui.select(`Configure ${selectedAgent} model:`, [
+          "Use terminal search",
+          "Open browser view",
+        ]);
+        if (!mode) {
           return "Model selection cancelled.";
         }
 
-        let selectedModel = selectedModelDisplay.replace(" (current)", "");
-        if (selectedModel === "Set up provider or custom model") {
-          const setupResult = await runModelSetupWizard(runtime);
-          if (!setupResult.selectedModel) {
-            return setupResult.summary;
-          }
-          selectedModel = setupResult.selectedModel;
-        }
+        let selectedModel = "";
 
-        if (selectedModel === "Enter custom provider/model") {
-          const customModel = await ui.input(
-            "Enter model as provider/model",
-            "e.g., openrouter/anthropic/claude-sonnet-4",
+        if (mode === "Open browser view") {
+          const result = await runtimeBrowserModelSelectionRunner(
+            runtime,
+            selectedAgent,
+            currentModel,
+            authenticatedModels,
           );
-          if (!customModel?.includes("/")) {
-            return "Custom model cancelled. Use the canonical provider/model format.";
+          if (!result.selectedModel) {
+            return result.summary;
           }
-          selectedModel = customModel.trim();
+          selectedModel = result.selectedModel;
+        } else if (mode === "Use terminal search") {
+          const result = await runTerminalModelSearch(
+            runtime,
+            selectedAgent,
+            authenticatedModels,
+            currentModel,
+          );
+          if (result.kind === "cancelled") {
+            return "Model selection cancelled.";
+          }
+          if (result.kind === "browser") {
+            const browserResult = await runtimeBrowserModelSelectionRunner(
+              runtime,
+              selectedAgent,
+              currentModel,
+              authenticatedModels,
+            );
+            if (!browserResult.selectedModel) {
+              return browserResult.summary;
+            }
+            selectedModel = browserResult.selectedModel;
+          } else {
+            selectedModel = result.model;
+          }
+        } else {
+          return "Model selection cancelled.";
         }
 
         await updateModelConfig(cwd, selectedAgent, selectedModel);
 
         return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;
+      },
+    },
+    {
+      name: "add-custom-model",
+      description: "Add a custom provider/model through guided setup.",
+      execute: async ({ runtime }) => {
+        if (!runtime) {
+          return "add-custom-model requires the Pi runtime with an interactive UI.";
+        }
+
+        const ui = runtime.ctx.ui;
+        const mode = await ui.select("Add custom model:", [
+          "Guided terminal setup",
+          "Open browser view",
+        ]);
+        if (!mode) {
+          return "Custom model setup cancelled.";
+        }
+
+        if (mode === "Open browser view") {
+          const result = await runtimeBrowserCustomModelSetupRunner(runtime);
+          return result.summary;
+        }
+
+        const result = await setupCustomProviderModel(runtime);
+        return result.summary;
       },
     },
     {

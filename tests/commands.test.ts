@@ -7,7 +7,13 @@ import omniCoreExtension from "../extensions/omni-core/index.js";
 import omniProvidersExtension from "../extensions/omni-providers/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
-import { createOmniCommands } from "../src/commands.js";
+import {
+  createOmniCommands,
+  resetRuntimeBrowserCustomModelSetupRunnerForTests,
+  resetRuntimeBrowserModelSelectionRunnerForTests,
+  setRuntimeBrowserCustomModelSetupRunnerForTests,
+  setRuntimeBrowserModelSelectionRunnerForTests,
+} from "../src/commands.js";
 import { initializeOmniProject } from "../src/workflow.js";
 
 async function createTempProject(prefix: string): Promise<string> {
@@ -74,6 +80,7 @@ describe("Omni commands", () => {
       "omni-skills",
       "omni-explain",
       "omni-model",
+      "add-custom-model",
       "omni-commit",
       "omni-doctor",
     ]);
@@ -97,6 +104,7 @@ describe("Omni commands", () => {
       "omni-work",
       "omni-sync",
       "omni-model",
+      "add-custom-model",
       "omni-commit",
     ]);
   });
@@ -175,31 +183,41 @@ describe("Omni commands", () => {
     expect(sessionSummary).toContain("Captured progress");
   });
 
-  test("/omni-model accepts a custom provider/model reference", async () => {
+  test("/omni-model uses terminal search to assign an authenticated model", async () => {
     const rootDir = await createTempProject("omni-cmd-model-");
     await initializeOmniProject(rootDir);
     const command = createOmniCommands().find(
       (item) => item.name === "omni-model",
     );
+    const seenSelections: string[][] = [];
 
     const output = await command?.execute({
       cwd: rootDir,
-      runtime: {
-        pi: {} as never,
-        ctx: {
-          ui: {
-            async select(_title: string, options: string[]) {
-              if (options.includes("worker")) {
-                return "worker";
-              }
-              return "Enter custom provider/model";
-            },
-            async input() {
-              return "openrouter/anthropic/claude-sonnet-4";
-            },
+      runtime: createModelRuntime({
+        available: [{ provider: "openai", id: "gpt-5.4" }],
+        all: [
+          { provider: "openai", id: "gpt-5.4" },
+          { provider: "openai", id: "gpt-4.1" },
+        ],
+        ui: {
+          async select(_title: string, options: string[]) {
+            seenSelections.push(options);
+            if (options.includes("worker")) {
+              return "worker";
+            }
+            if (options.includes("Use terminal search")) {
+              return "Use terminal search";
+            }
+            return "openai/gpt-5.4";
           },
-        } as never,
-      },
+          async input() {
+            return "gpt-5.4";
+          },
+          async confirm() {
+            return false;
+          },
+        },
+      }),
     });
 
     const config = await readFile(
@@ -207,8 +225,13 @@ describe("Omni commands", () => {
       "utf8",
     );
 
-    expect(output).toContain("openrouter/anthropic/claude-sonnet-4");
-    expect(config).toContain("openrouter/anthropic/claude-sonnet-4");
+    expect(output).toContain("openai/gpt-5.4");
+    expect(config).toContain("openai/gpt-5.4");
+    expect(seenSelections[1]).toEqual([
+      "Use terminal search",
+      "Open browser view",
+    ]);
+    expect(seenSelections[2]).toContain("Open browser view");
   });
 
   test("/omni-model only lists authenticated models by default", async () => {
@@ -233,10 +256,13 @@ describe("Omni commands", () => {
             if (options.includes("worker")) {
               return "worker";
             }
+            if (options.includes("Use terminal search")) {
+              return "Use terminal search";
+            }
             return "openai/gpt-5.4";
           },
           async input() {
-            return undefined;
+            return "gpt";
           },
           async confirm() {
             return false;
@@ -246,63 +272,100 @@ describe("Omni commands", () => {
     });
 
     expect(output).toContain("openai/gpt-5.4");
-    expect(seenSelections[1]).toContain("openai/gpt-5.4");
-    expect(seenSelections[1]).not.toContain("anthropic/claude-sonnet-4-6");
-    expect(seenSelections[1]).toContain("Set up provider or custom model");
+    expect(seenSelections[2]).toContain("openai/gpt-5.4 (current)");
+    expect(seenSelections[2]).not.toContain("anthropic/claude-sonnet-4-6");
+    expect(seenSelections[2]).toContain("Open browser view");
   });
 
-  test("/omni-model setup wizard can save provider auth before selection", async () => {
+  test("/omni-model can hand off selection to the browser flow", async () => {
     const rootDir = await createTempProject("omni-cmd-model-setup-");
     await initializeOmniProject(rootDir);
     const command = createOmniCommands().find(
       (item) => item.name === "omni-model",
     );
-    const savedAuth: Array<{ provider: string; key: string }> = [];
-
-    const output = await command?.execute({
-      cwd: rootDir,
-      runtime: createModelRuntime({
-        available: [],
-        all: [{ provider: "openai", id: "gpt-5.4" }],
-        onSetAuth(provider, key) {
-          savedAuth.push({ provider, key });
-        },
-        ui: {
-          async select(_title: string, options: string[]) {
-            if (options.includes("worker")) {
-              return "worker";
-            }
-            if (options.includes("Set up provider or custom model")) {
-              return "Set up provider or custom model";
-            }
-            if (options.includes("Known provider with bundled models")) {
-              return "Known provider with bundled models";
-            }
-            if (options.some((entry) => entry.includes("[openai]"))) {
-              return options.find((entry) => entry.includes("[openai]"));
-            }
-            return "openai/gpt-5.4";
-          },
-          async input(title: string) {
-            if (title.includes("API key")) {
-              return "sk-test";
-            }
-            return undefined;
-          },
-          async confirm() {
-            return false;
-          },
-        },
-      }),
-    });
-
-    const config = await readFile(
-      path.join(rootDir, ".omni", "CONFIG.md"),
-      "utf8",
+    setRuntimeBrowserModelSelectionRunnerForTests(
+      async (_runtime, role, currentModel, models) => {
+        expect(role).toBe("worker");
+        expect(currentModel).toBe("openai/gpt-5.4");
+        expect(models).toContain("openai/gpt-5.4");
+        return {
+          selectedModel: "openai/gpt-4.1",
+          summary: "Selected openai/gpt-4.1 for worker.",
+        };
+      },
     );
 
-    expect(savedAuth).toEqual([{ provider: "openai", key: "sk-test" }]);
-    expect(output).toContain("openai/gpt-5.4");
-    expect(config).toContain("openai/gpt-5.4");
+    try {
+      const output = await command?.execute({
+        cwd: rootDir,
+        runtime: createModelRuntime({
+          available: [
+            { provider: "openai", id: "gpt-5.4" },
+            { provider: "openai", id: "gpt-4.1" },
+          ],
+          all: [
+            { provider: "openai", id: "gpt-5.4" },
+            { provider: "openai", id: "gpt-4.1" },
+          ],
+          ui: {
+            async select(_title: string, options: string[]) {
+              if (options.includes("worker")) {
+                return "worker";
+              }
+              return "Open browser view";
+            },
+            async input() {
+              return undefined;
+            },
+            async confirm() {
+              return false;
+            },
+          },
+        }),
+      });
+
+      const config = await readFile(
+        path.join(rootDir, ".omni", "CONFIG.md"),
+        "utf8",
+      );
+
+      expect(output).toContain("openai/gpt-4.1");
+      expect(config).toContain("openai/gpt-4.1");
+    } finally {
+      resetRuntimeBrowserModelSelectionRunnerForTests();
+    }
+  });
+
+  test("/add-custom-model can use the browser setup flow", async () => {
+    const command = createOmniCommands().find(
+      (item) => item.name === "add-custom-model",
+    );
+    setRuntimeBrowserCustomModelSetupRunnerForTests(async () => ({
+      selectedModel: "my-proxy/gpt-oss-120b",
+      summary: "Saved custom provider model my-proxy/gpt-oss-120b.",
+    }));
+
+    try {
+      const output = await command?.execute({
+        cwd: await createTempProject("omni-cmd-add-custom-browser-"),
+        runtime: createModelRuntime({
+          ui: {
+            async select() {
+              return "Open browser view";
+            },
+            async input() {
+              return undefined;
+            },
+            async confirm() {
+              return false;
+            },
+          },
+        }),
+      });
+
+      expect(output).toContain("my-proxy/gpt-oss-120b");
+    } finally {
+      resetRuntimeBrowserCustomModelSetupRunnerForTests();
+    }
   });
 });

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 
@@ -42,6 +43,21 @@ interface ModelRegistryLike {
 
 interface RuntimeLike {
   ctx: ExtensionCommandContext;
+}
+
+export interface BrowserModelSelectionResult {
+  selectedModel?: string;
+  summary: string;
+}
+
+interface BrowserCustomModelSubmission {
+  providerId: string;
+  modelId: string;
+  api: SupportedApi;
+  baseUrl: string;
+  apiKey?: string;
+  reasoning: boolean;
+  imageInput: boolean;
 }
 
 interface KnownProviderSetup {
@@ -264,6 +280,30 @@ function canonicalSort(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function openExternalUrl(url: string): void {
+  const platform = process.platform;
+  const command =
+    platform === "darwin"
+      ? { cmd: "open", args: [url] }
+      : platform === "win32"
+        ? { cmd: "cmd", args: ["/c", "start", "", url] }
+        : { cmd: "xdg-open", args: [url] };
+
+  const child = spawn(command.cmd, command.args, {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+}
+
 function getKnownProviderModels(
   registry: ModelRegistryLike,
   provider: string,
@@ -310,20 +350,8 @@ async function maybeOpenBrowser(
     return;
   }
 
-  const platform = process.platform;
-  const command =
-    platform === "darwin"
-      ? { cmd: "open", args: [url] }
-      : platform === "win32"
-        ? { cmd: "cmd", args: ["/c", "start", "", url] }
-        : { cmd: "xdg-open", args: [url] };
-
   try {
-    const child = spawn(command.cmd, command.args, {
-      detached: true,
-      stdio: "ignore",
-    });
-    child.unref();
+    openExternalUrl(url);
   } catch {
     ui.notify(
       `Could not open the browser automatically. Visit ${url}`,
@@ -464,10 +492,10 @@ function normalizeBaseUrl(input: string): string {
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
 }
 
-async function setupCustomProviderModel(
+export async function setupCustomProviderModel(
   runtime: RuntimeLike,
 ): Promise<{ selectedModel?: string; summary: string }> {
-  const { ui, modelRegistry } = runtime.ctx;
+  const { ui } = runtime.ctx;
 
   const providerInput = await ui.input("Custom provider id:", "e.g., my-proxy");
   if (!providerInput?.trim()) {
@@ -516,43 +544,63 @@ async function setupCustomProviderModel(
     `Should ${provider}/${modelId.trim()} accept image input?`,
   );
 
+  const selectedModel = await persistCustomProviderModel(runtime, {
+    providerId: provider,
+    modelId: modelId.trim(),
+    api: apiChoice as SupportedApi,
+    baseUrl,
+    apiKey,
+    reasoning,
+    imageInput,
+  });
+
+  return {
+    selectedModel,
+    summary: `Saved custom provider ${provider} and model ${selectedModel} to ${getModelsPath().replace(os.homedir(), "~")}.`,
+  };
+}
+
+async function persistCustomProviderModel(
+  runtime: RuntimeLike,
+  submission: BrowserCustomModelSubmission,
+): Promise<string> {
+  const { modelRegistry } = runtime.ctx;
+  const provider = sanitizeProviderId(submission.providerId);
+  const modelId = submission.modelId.trim();
+
   await upsertProviderConfig(provider, (current) => {
     const existingModels = current.models ?? [];
-    const filtered = existingModels.filter(
-      (entry) => entry.id !== modelId.trim(),
-    );
+    const filtered = existingModels.filter((entry) => entry.id !== modelId);
 
     return {
       ...current,
-      baseUrl: normalizeBaseUrl(baseUrl),
-      api: apiChoice as SupportedApi,
-      apiKey: apiKey.trim() || current.apiKey || `${provider}-local-key`,
+      baseUrl: normalizeBaseUrl(submission.baseUrl),
+      api: submission.api,
+      apiKey:
+        submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
       authHeader:
-        apiChoice === "openai-completions" || apiChoice === "openai-responses",
+        submission.api === "openai-completions" ||
+        submission.api === "openai-responses",
       models: [
         ...filtered,
         {
-          id: modelId.trim(),
-          reasoning,
-          input: imageInput ? ["text", "image"] : ["text"],
+          id: modelId,
+          reasoning: submission.reasoning,
+          input: submission.imageInput ? ["text", "image"] : ["text"],
         },
       ],
     };
   });
 
-  if (apiKey.trim()) {
+  if (submission.apiKey?.trim()) {
     modelRegistry.authStorage.set(provider, {
       type: "api_key",
-      key: apiKey.trim(),
+      key: submission.apiKey.trim(),
     });
   }
 
   modelRegistry.refresh();
-
-  return {
-    selectedModel: `${provider}/${modelId.trim()}`,
-    summary: `Saved custom provider ${provider} and model ${provider}/${modelId.trim()} to ${getModelsPath().replace(os.homedir(), "~")}.`,
-  };
+  return `${provider}/${modelId}`;
 }
 
 export async function runModelSetupWizard(
@@ -605,4 +653,382 @@ export async function runModelSetupWizard(
   }
 
   return setupKnownProvider(runtime, provider);
+}
+
+function searchModels(models: string[], query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return models.slice(0, 50);
+  }
+
+  return models
+    .filter((model) => model.toLowerCase().includes(normalized))
+    .slice(0, 50);
+}
+
+export async function runTerminalModelSearch(
+  runtime: RuntimeLike,
+  role: string,
+  models: string[],
+  currentModel?: string,
+): Promise<
+  | { kind: "selected"; model: string }
+  | { kind: "browser" }
+  | { kind: "cancelled" }
+> {
+  const { ui } = runtime.ctx;
+
+  while (true) {
+    const query = await ui.input(
+      `Search available models for ${role}:`,
+      currentModel ?? "provider or model id",
+    );
+    if (query === undefined) {
+      return { kind: "cancelled" };
+    }
+
+    const exact = models.find((model) => model === query.trim());
+    if (exact) {
+      return { kind: "selected", model: exact };
+    }
+
+    const filtered = searchModels(models, query);
+    const options = filtered.map((model) =>
+      model === currentModel ? `${model} (current)` : model,
+    );
+    options.push("Search again");
+    options.push("Open browser view");
+
+    const selected = await ui.select(`Matching models for ${role}:`, options);
+
+    if (!selected || selected === "Search again") {
+      continue;
+    }
+    if (selected === "Open browser view") {
+      return { kind: "browser" };
+    }
+
+    return { kind: "selected", model: selected.replace(" (current)", "") };
+  }
+}
+
+function renderBrowserModelSelectionPage(
+  role: string,
+  currentModel: string | undefined,
+  models: string[],
+): string {
+  const modelsJson = JSON.stringify(models);
+  const current = currentModel ?? "";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Omni Model Picker</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe6;
+        --panel: rgba(255, 252, 247, 0.96);
+        --ink: #1f1b16;
+        --muted: #6f6358;
+        --line: #d9ccbd;
+        --accent: #a3482f;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, #efe4d5, var(--bg)); }
+      main { max-width: 880px; margin: 48px auto; padding: 0 20px 40px; }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 24px 64px rgba(31, 27, 22, 0.08); padding: 24px; }
+      h1 { margin: 0 0 8px; font-size: 2rem; }
+      p { color: var(--muted); line-height: 1.5; }
+      input, button { width: 100%; border-radius: 14px; padding: 12px 14px; font: inherit; }
+      input { border: 1px solid var(--line); margin-top: 8px; }
+      button { border: none; background: var(--accent); color: white; font-weight: 700; margin-top: 20px; cursor: pointer; }
+      .list { margin-top: 20px; border: 1px solid var(--line); border-radius: 18px; background: white; max-height: 420px; overflow: auto; }
+      .item { padding: 12px 14px; border-bottom: 1px solid #eee3d5; cursor: pointer; }
+      .item:last-child { border-bottom: none; }
+      .item.active { background: #f7ede2; }
+      .meta { color: var(--muted); font-size: 0.92rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h1>Select ${escapeHtml(role)} model</h1>
+        <p>Search the same available models Pi exposes by default, then submit the model you want Omni-Pi to assign to ${escapeHtml(role)}.</p>
+        <label>
+          Search
+          <input id="search" placeholder="Filter by provider or model id" />
+        </label>
+        <label>
+          Selected model
+          <input id="selected" value="${escapeHtml(current)}" />
+        </label>
+        <div id="results" class="list"></div>
+        <button id="save">Save Model</button>
+      </section>
+    </main>
+    <script>
+      const models = ${modelsJson};
+      const searchEl = document.getElementById("search");
+      const selectedEl = document.getElementById("selected");
+      const resultsEl = document.getElementById("results");
+      const current = ${JSON.stringify(current)};
+
+      const render = () => {
+        const query = searchEl.value.trim().toLowerCase();
+        const filtered = models
+          .filter((model) => !query || model.toLowerCase().includes(query))
+          .slice(0, 100);
+        resultsEl.innerHTML = filtered.map((model) => {
+          const active = selectedEl.value === model;
+          const currentBadge = model === current ? '<div class="meta">Current selection</div>' : '';
+          return '<div class="item' + (active ? ' active' : '') + '" data-model="' + model.replaceAll('"', '&quot;') + '"><div>' + model + '</div>' + currentBadge + '</div>';
+        }).join('');
+        for (const item of resultsEl.querySelectorAll('.item')) {
+          item.addEventListener('click', () => {
+            selectedEl.value = item.dataset.model || '';
+            render();
+          });
+        }
+      };
+
+      searchEl.addEventListener('input', render);
+      render();
+
+      document.getElementById('save').addEventListener('click', async () => {
+        const response = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selectedModel: selectedEl.value })
+        });
+        if (response.ok) {
+          document.body.innerHTML = '<main style="max-width:760px;margin:72px auto;font-family:ui-sans-serif,system-ui,sans-serif;padding:0 20px;"><h1>Omni-Pi model saved</h1><p>Return to Omni-Pi.</p></main>';
+        }
+      });
+    </script>
+  </body>
+</html>`;
+}
+
+export async function runBrowserModelSelection(
+  _runtime: RuntimeLike,
+  role: string,
+  currentModel: string | undefined,
+  models: string[],
+): Promise<BrowserModelSelectionResult> {
+  return new Promise((resolve) => {
+    const server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderBrowserModelSelectionPage(role, currentModel, models));
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/submit") {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        req.on("end", () => {
+          try {
+            const parsed = JSON.parse(
+              Buffer.concat(chunks).toString("utf8"),
+            ) as { selectedModel?: string };
+            res.writeHead(204).end();
+            clearTimeout(timeout);
+            server.close(() =>
+              resolve({
+                selectedModel: parsed.selectedModel?.trim(),
+                summary: parsed.selectedModel?.trim()
+                  ? `Selected ${parsed.selectedModel.trim()} for ${role}.`
+                  : "Model selection cancelled.",
+              }),
+            );
+          } catch {
+            res.writeHead(400).end();
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404).end();
+    });
+
+    const timeout = setTimeout(
+      () => {
+        server.close(() =>
+          resolve({ summary: "Browser model selection timed out." }),
+        );
+      },
+      15 * 60 * 1000,
+    );
+
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        clearTimeout(timeout);
+        server.close(() =>
+          resolve({ summary: "Could not start browser model selection." }),
+        );
+        return;
+      }
+
+      try {
+        openExternalUrl(`http://127.0.0.1:${address.port}/`);
+      } catch {
+        clearTimeout(timeout);
+        server.close(() =>
+          resolve({ summary: "Could not open browser model selection." }),
+        );
+      }
+    });
+  });
+}
+
+function renderBrowserCustomModelPage(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Add Custom Model</title>
+    <style>
+      :root { color-scheme: light; --bg: #f4efe6; --panel: rgba(255,252,247,0.96); --ink: #1f1b16; --line: #d9ccbd; --accent: #a3482f; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, #efe4d5, var(--bg)); }
+      main { max-width: 760px; margin: 48px auto; padding: 0 20px 40px; }
+      .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 24px 64px rgba(31,27,22,0.08); padding: 24px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+      label { display: block; font-weight: 600; margin-bottom: 8px; }
+      input, select, button { width: 100%; border-radius: 14px; padding: 12px 14px; font: inherit; }
+      input, select { border: 1px solid var(--line); margin-top: 6px; }
+      button { border: none; background: var(--accent); color: white; font-weight: 700; margin-top: 20px; cursor: pointer; }
+      .check { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-weight: 600; }
+      .check input { width: auto; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <h1>Add custom model</h1>
+        <div class="grid">
+          <label>Provider ID<input id="providerId" placeholder="e.g. my-proxy" /></label>
+          <label>Model ID<input id="modelId" placeholder="e.g. gpt-oss-120b" /></label>
+          <label>API
+            <select id="api">
+              <option value="openai-completions">openai-completions</option>
+              <option value="openai-responses">openai-responses</option>
+              <option value="anthropic-messages">anthropic-messages</option>
+              <option value="google-generative-ai">google-generative-ai</option>
+            </select>
+          </label>
+          <label>Base URL<input id="baseUrl" placeholder="https://api.example.com/v1" /></label>
+          <label>API Key<input id="apiKey" placeholder="optional for local/no-auth servers" /></label>
+        </div>
+        <label class="check"><input type="checkbox" id="reasoning" />Reasoning-capable model</label>
+        <label class="check"><input type="checkbox" id="imageInput" />Supports image input</label>
+        <button id="save">Save custom model</button>
+      </section>
+    </main>
+    <script>
+      document.getElementById('save').addEventListener('click', async () => {
+        const payload = {
+          providerId: document.getElementById('providerId').value,
+          modelId: document.getElementById('modelId').value,
+          api: document.getElementById('api').value,
+          baseUrl: document.getElementById('baseUrl').value,
+          apiKey: document.getElementById('apiKey').value,
+          reasoning: document.getElementById('reasoning').checked,
+          imageInput: document.getElementById('imageInput').checked
+        };
+        const response = await fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (response.ok) {
+          document.body.innerHTML = '<main style="max-width:760px;margin:72px auto;font-family:ui-sans-serif,system-ui,sans-serif;padding:0 20px;"><h1>Custom model saved</h1><p>Return to Omni-Pi.</p></main>';
+        }
+      });
+    </script>
+  </body>
+</html>`;
+}
+
+export async function runBrowserCustomModelSetup(
+  runtime: RuntimeLike,
+): Promise<{ selectedModel?: string; summary: string }> {
+  return new Promise((resolve) => {
+    const server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderBrowserCustomModelPage());
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/submit") {
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        req.on("end", async () => {
+          try {
+            const parsed = JSON.parse(
+              Buffer.concat(chunks).toString("utf8"),
+            ) as BrowserCustomModelSubmission;
+            const selectedModel = await persistCustomProviderModel(
+              runtime,
+              parsed,
+            );
+            res.writeHead(204).end();
+            clearTimeout(timeout);
+            server.close(() =>
+              resolve({
+                selectedModel,
+                summary: `Saved custom provider model ${selectedModel}.`,
+              }),
+            );
+          } catch (error) {
+            res
+              .writeHead(400)
+              .end(error instanceof Error ? error.message : String(error));
+          }
+        });
+        return;
+      }
+
+      res.writeHead(404).end();
+    });
+
+    const timeout = setTimeout(
+      () => {
+        server.close(() =>
+          resolve({ summary: "Browser custom model setup timed out." }),
+        );
+      },
+      15 * 60 * 1000,
+    );
+
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        clearTimeout(timeout);
+        server.close(() =>
+          resolve({ summary: "Could not start browser custom model setup." }),
+        );
+        return;
+      }
+
+      try {
+        openExternalUrl(`http://127.0.0.1:${address.port}/`);
+      } catch {
+        clearTimeout(timeout);
+        server.close(() =>
+          resolve({ summary: "Could not open browser custom model setup." }),
+        );
+      }
+    });
+  });
 }
