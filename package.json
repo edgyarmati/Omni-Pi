@@ -1,6 +1,6 @@
 {
   "name": "omni-pi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Opinionated Pi package for guided, beginner-friendly planning and implementation workflows.",
   "type": "module",
   "license": "MIT",
