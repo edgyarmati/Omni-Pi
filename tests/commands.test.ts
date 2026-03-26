@@ -28,7 +28,7 @@ describe("Omni command surface", () => {
     } as never);
 
     expect(rendererRegistrations).toBeGreaterThan(0);
-    expect(commands).toEqual([]);
+    expect(commands).toEqual(["theme"]);
     expect(events).toContain("session_start");
     expect(events).toContain("before_agent_start");
   });

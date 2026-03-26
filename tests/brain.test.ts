@@ -48,6 +48,7 @@ describe("Omni brain runtime", () => {
       registerMessageRenderer() {
         return undefined;
       },
+      registerCommand() {},
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, handler);
       },
@@ -58,6 +59,9 @@ describe("Omni brain runtime", () => {
       {
         cwd: rootDir,
         ui: {
+          setTitle() {},
+          setTheme() {},
+          setHeader() {},
           setStatus(_key: string, value: string | undefined) {
             statuses.push(value);
           },
