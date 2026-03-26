@@ -19,13 +19,42 @@ Requires Node.js 22 or newer.
 
 ## Quick Start
 
-Install the published package, then run it in your project:
+Install Omni-Pi from npm, then run it in your project:
 
 ```bash
 npm install -g omni-pi
 cd your-project
 omni
 ```
+
+## Install
+
+Install the published package globally with npm:
+
+```bash
+npm install -g omni-pi
+```
+
+Confirm the launcher is available:
+
+```bash
+omni --help
+```
+
+Then open any project directory and start Omni-Pi:
+
+```bash
+cd your-project
+omni
+```
+
+To upgrade later:
+
+```bash
+npm install -g omni-pi@latest
+```
+
+Omni-Pi launches the bundled Pi runtime and loads the Omni-Pi package automatically, so you do not need to manually wire extensions, skills, or prompts after installing from npm.
 
 ## Commands
 
@@ -47,6 +76,8 @@ omni
 Omni-Pi follows a simple agent pipeline: Brain, Planner, Worker, Expert. The Brain handles conversation, the Planner turns intent into concrete steps and checks, and the Worker executes bounded tasks with filesystem-backed state in `.omni/`.
 
 When the Worker gets stuck or verification fails repeatedly, the Expert role steps in to recover the task, adapt the approach, or surface the blocker clearly instead of letting the session stall.
+
+On first use inside a project, Omni-Pi creates and updates `.omni/` state so plans, task progress, verification steps, and recovery context persist across sessions.
 
 ## Features
 
