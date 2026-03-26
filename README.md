@@ -6,7 +6,7 @@ Omni-Pi is an opinionated Pi package and branded launcher that helps people move
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/omni-pi.svg)](https://www.npmjs.com/package/omni-pi)
-[![CI](https://img.shields.io/badge/ci-setup%20pending-lightgrey.svg)](#)
+[![CI](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml/badge.svg)](https://github.com/EdGy2k/Omni-Pi/actions/workflows/ci.yml)
 
 ## Why Omni-Pi
 
