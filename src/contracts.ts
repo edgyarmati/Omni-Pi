@@ -4,13 +4,17 @@ export type OmniPhase = "understand" | "plan" | "build" | "check" | "escalate";
 
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done";
 
-export type SkillPolicy = "auto-install" | "recommend-only" | "never-auto-install";
+export type SkillPolicy =
+  | "auto-install"
+  | "recommend-only"
+  | "never-auto-install";
 
 export interface ConversationBrief {
   summary: string;
   desiredOutcome: string;
   constraints: string[];
   userSignals: string[];
+  preset?: WorkflowPreset;
 }
 
 export interface ImplementationSpec {
@@ -77,6 +81,85 @@ export interface OmniState {
   recoveryOptions?: string[];
 }
 
+export type WorkflowPreset =
+  | "bugfix"
+  | "feature"
+  | "refactor"
+  | "spike"
+  | "security-audit";
+
+export interface PresetConfig {
+  name: WorkflowPreset;
+  description: string;
+  maxTasks: number;
+  skipInterview: boolean;
+  requireVerification: boolean;
+  workerHint: string;
+}
+
+export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
+  bugfix: {
+    name: "bugfix",
+    description:
+      "Quick fix for a known bug. Minimal planning, regression test required.",
+    maxTasks: 2,
+    skipInterview: true,
+    requireVerification: true,
+    workerHint:
+      "Focus on the root cause. Write a regression test before fixing.",
+  },
+  feature: {
+    name: "feature",
+    description:
+      "New feature implementation. Full planning flow with user interview.",
+    maxTasks: 8,
+    skipInterview: false,
+    requireVerification: true,
+    workerHint: "Follow the spec. Keep tasks bounded and verifiable.",
+  },
+  refactor: {
+    name: "refactor",
+    description: "Code restructuring. Existing tests must stay green.",
+    maxTasks: 5,
+    skipInterview: true,
+    requireVerification: true,
+    workerHint:
+      "Preserve all existing behavior. Run the full test suite after each change.",
+  },
+  spike: {
+    name: "spike",
+    description:
+      "Exploratory work. No verification required, no commit artifacts.",
+    maxTasks: 1,
+    skipInterview: true,
+    requireVerification: false,
+    workerHint: "Explore freely. Document findings in .omni/research/.",
+  },
+  "security-audit": {
+    name: "security-audit",
+    description: "Security review. Read-only analysis, produce a report.",
+    maxTasks: 3,
+    skipInterview: true,
+    requireVerification: false,
+    workerHint:
+      "Analyze for OWASP Top 10, secrets in code, dependency vulnerabilities. Do not modify source code.",
+  },
+};
+
+export function detectPreset(
+  branchName: string,
+  brief: string,
+): WorkflowPreset | null {
+  const lower = `${branchName} ${brief}`.toLowerCase();
+  if (/\b(fix|bug|hotfix)\b/u.test(lower)) return "bugfix";
+  if (/\b(refactor|clean\s*up|restructure)\b/u.test(lower)) return "refactor";
+  if (/\b(spike|explore|experiment|prototype)\b/u.test(lower)) return "spike";
+  if (/\b(security|audit|vulnerability|cve)\b/u.test(lower))
+    return "security-audit";
+  if (/\b(feat|feature|add|implement|build)\b/u.test(lower)) return "feature";
+  return null;
+}
+
 export interface OmniConfig {
   models: {
     worker: string;
@@ -86,15 +169,15 @@ export interface OmniConfig {
   };
   retryLimit: number;
   chainEnabled: boolean;
+  cleanupCompletedPlans: boolean;
 }
 
-export const DEFAULT_CONFIG: OmniConfig = {
-  models: {
-    worker: "anthropic/claude-sonnet-4-6",
-    expert: "openai/gpt-5.4",
-    planner: "openai/gpt-5.4",
-    brain: "anthropic/claude-opus-4-6"
-  },
-  retryLimit: 2,
-  chainEnabled: false
-};
+export type PlanStatus = "active" | "completed" | "discarded";
+
+export interface PlanEntry {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  createdAt: string;
+  completedAt?: string;
+}
