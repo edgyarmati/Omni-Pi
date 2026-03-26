@@ -8,7 +8,7 @@ import type {
 
 import type { OmniState } from "../../src/contracts.js";
 import { runDoctor } from "../../src/doctor.js";
-import { renderCompactStatus } from "../../src/status.js";
+import { renderCompactStatusWidget } from "../../src/status.js";
 
 async function readState(cwd: string): Promise<OmniState | null> {
   try {
@@ -49,7 +49,7 @@ async function updateWidget(ctx: ExtensionContext): Promise<void> {
     const report = await runDoctor(ctx.cwd);
     ctx.ui.setWidget(
       "omni-dashboard",
-      renderCompactStatus(state, report.overall),
+      (_tui, theme) => renderCompactStatusWidget(state, theme, report.overall),
       { placement: "aboveEditor" },
     );
   } else {

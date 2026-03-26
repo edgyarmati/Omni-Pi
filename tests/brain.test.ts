@@ -41,15 +41,12 @@ describe("Omni brain runtime", () => {
 
   test("omniCoreExtension bootstraps startup messaging and prompt injection", async () => {
     const rootDir = await createTempProject("omni-brain-ext-");
-    const sentMessages: Array<{ customType: string; content: string }> = [];
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
+    const statuses: Array<string | undefined> = [];
 
     omniCoreExtension({
       registerMessageRenderer() {
         return undefined;
-      },
-      sendMessage(message: { customType: string; content: string }) {
-        sentMessages.push(message);
       },
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, handler);
@@ -58,7 +55,14 @@ describe("Omni brain runtime", () => {
 
     await handlers.get("session_start")?.(
       { type: "session_start" },
-      { cwd: rootDir },
+      {
+        cwd: rootDir,
+        ui: {
+          setStatus(_key: string, value: string | undefined) {
+            statuses.push(value);
+          },
+        },
+      },
     );
     const beforeStart = await handlers.get("before_agent_start")?.(
       {
@@ -69,9 +73,7 @@ describe("Omni brain runtime", () => {
       { cwd: rootDir },
     );
 
-    expect(sentMessages).toHaveLength(1);
-    expect(sentMessages[0].customType).toBe("omni-status");
-    expect(sentMessages[0].content).toContain("Single-brain mode is active");
+    expect(statuses).toEqual([undefined]);
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
   });

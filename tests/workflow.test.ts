@@ -487,10 +487,33 @@ describe("Omni workflow", () => {
     const state = await readOmniStatus(rootDir);
     const lines = renderCompactStatus(state);
 
-    expect(lines[0]).toContain("Omni-Pi");
-    expect(lines[0]).toContain("[Understand]");
-    expect(lines.some((l) => l.includes("Task:"))).toBe(true);
+    expect(lines[0]).toContain("Omni-Pi Brain");
+    expect(lines.some((l) => l.includes("Focus:"))).toBe(true);
     expect(lines.some((l) => l.includes("Next:"))).toBe(true);
+  });
+
+  test("renderCompactStatus falls back gracefully for unknown phases", () => {
+    const lines = renderCompactStatus({
+      currentPhase: "weird-phase" as never,
+      activeTask: "Await user feedback",
+      statusSummary: "Waiting for clarification.",
+      blockers: [],
+      nextStep: "Answer the open questions.",
+    });
+
+    expect(lines[0]).toBe("Omni-Pi Brain");
+  });
+
+  test("renderCompactStatus shows working only when not awaiting user input", () => {
+    const lines = renderCompactStatus({
+      currentPhase: "build",
+      activeTask: "Implement the next slice",
+      statusSummary: "Implementing the requested change.",
+      blockers: [],
+      nextStep: "Run the planned verification checks.",
+    });
+
+    expect(lines[0]).toContain("[Working]");
   });
 
   test("renderMetrics formats agent run history", () => {
