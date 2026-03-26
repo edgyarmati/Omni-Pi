@@ -14,8 +14,8 @@ Requires Node.js 22 or newer.
 
 - One friendly brain talks to the user.
 - `.omni/` remains the durable memory layer for goals, specs, tasks, checks, progress, and decisions.
-- Work is still broken into small, verifiable slices before code changes happen.
-- Verification remains explicit and should be recorded alongside implementation progress.
+- Work is broken into small, verifiable slices before code changes happen.
+- Verification is explicit and recorded alongside implementation progress.
 
 ## Install
 

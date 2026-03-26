@@ -12,11 +12,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Omni-Pi boots the Pi runtime with bundled extensions, skills, agents, and prompts loaded via `-e <path-to-omni-pi>`.
+Omni-Pi is currently being simplified around a single user-facing brain.
 
-**Agent roles**: Brain (conversational) → Planner (spec/tasks/tests) → Worker (bounded task execution) → Expert (failure recovery after retry threshold)
+**Agent flow**: one conversational brain interviews the user, writes the exact spec into `.omni/`, breaks the work into bounded slices, implements them, and records verification/results in durable memory.
 
-**Memory**: `.omni/` files hold runtime project state — not source code. They are written and read by Omni-Pi during `omni` sessions.
+**Memory**: `.omni/` files hold runtime project state — not source code. They are written and read during planning, implementation, and verification.
 
 **Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Entrypoints live in `extensions/`.
 
@@ -36,7 +36,7 @@ Always document plans and progress. Before making changes, state what you intend
 
 ## Testing
 
-Tests live in `tests/`. Vitest mocks Pi runtime internals — not all behavior is observable without running the real `omni` command.
+Tests live in `tests/`. Vitest covers the durable planning/implementation workflow and extension wiring.
 
 ## Model API Keys
 

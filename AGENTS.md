@@ -30,6 +30,7 @@ Always document plans and progress. Before making changes, state what you intend
 
 - ES modules only — NodeNext module resolution, `import.meta.url` for paths. No CommonJS in `src/` or `extensions/`.
 - Strict mode enabled. `npm run check` must pass before committing.
+
 ## Testing
 
 Tests live in `tests/`. Vitest covers the durable planning/implementation workflow and extension wiring.
