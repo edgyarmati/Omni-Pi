@@ -1,3 +1,5 @@
+import { mkdtemp, symlink } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
@@ -6,6 +8,7 @@ import {
   buildOmniEnvironment,
   buildPiProcessSpec,
   getOmniPackageDir,
+  isOmniEntrypointInvocation,
   resolvePiCliPath,
 } from "../bin/omni.js";
 
@@ -35,5 +38,17 @@ describe("omni launcher", () => {
     expect(spec.args[2]).toBe(getOmniPackageDir());
     expect(spec.args[3]).toBe("--help");
     expect(spec.env.TEST_ENV).toBe("1");
+  });
+
+  test("isOmniEntrypointInvocation resolves symlinked global bins", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "omni-launcher-"));
+    const symlinkPath = path.join(tempDir, "omni");
+
+    await symlink(
+      path.join(getOmniPackageDir(), "bin", "omni.js"),
+      symlinkPath,
+    );
+
+    expect(isOmniEntrypointInvocation(symlinkPath)).toBe(true);
   });
 });

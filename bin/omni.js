@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -70,8 +71,22 @@ export async function runOmni(argv = process.argv.slice(2), options = {}) {
   });
 }
 
-const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) {
+export function isOmniEntrypointInvocation(
+  argvPath = process.argv[1],
+  moduleUrl = import.meta.url,
+) {
+  if (!argvPath) {
+    return false;
+  }
+
+  try {
+    return realpathSync(argvPath) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return path.resolve(argvPath) === fileURLToPath(moduleUrl);
+  }
+}
+
+if (isOmniEntrypointInvocation()) {
   runOmni().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
