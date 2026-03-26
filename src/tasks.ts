@@ -2,11 +2,52 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import type { TaskBrief, TaskStatus } from "./contracts.js";
 
-function parseRow(row: string): TaskBrief | null {
-  const columns = row
-    .split("|")
+export function escapeTaskTableCell(value: string): string {
+  return value.replaceAll("\\", "\\\\").replaceAll("|", "\\|");
+}
+
+function unescapeTaskTableCell(value: string): string {
+  return value.replace(/\\([\\|])/gu, "$1");
+}
+
+function splitMarkdownTableRow(row: string): string[] {
+  const columns: string[] = [];
+  let current = "";
+  let escaped = false;
+
+  for (const char of row) {
+    if (escaped) {
+      current += `\\${char}`;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+
+    if (char === "|") {
+      columns.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaped) {
+    current += "\\";
+  }
+
+  columns.push(current.trim());
+  return columns;
+}
+
+export function parseTaskRow(row: string): TaskBrief | null {
+  const columns = splitMarkdownTableRow(row)
     .slice(1, -1)
-    .map((column) => column.trim());
+    .map(unescapeTaskTableCell);
 
   if (columns.length !== 6) {
     return null;
@@ -43,7 +84,7 @@ export async function readTasks(taskPath: string): Promise<TaskBrief[]> {
   return content
     .split("\n")
     .filter((line) => line.startsWith("| T"))
-    .map(parseRow)
+    .map(parseTaskRow)
     .filter((task): task is TaskBrief => task !== null);
 }
 
@@ -53,7 +94,7 @@ export function renderTaskTable(tasks: TaskBrief[]): string {
       task.dependsOn.length > 0 ? task.dependsOn.join(", ") : "-";
     const doneCriteria =
       task.doneCriteria.length > 0 ? task.doneCriteria.join("; ") : "-";
-    return `| ${task.id} | ${task.title} | ${task.role} | ${dependsOn} | ${task.status} | ${doneCriteria} |`;
+    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(task.role)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
   });
 
   return `# Tasks

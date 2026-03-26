@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { TaskBrief } from "./contracts.js";
+import { parseTaskRow } from "./tasks.js";
 
 type ExecFn = (
   command: string,
@@ -61,37 +62,9 @@ export async function readLastCompletedTask(
     if (doneRows.length === 0) return null;
 
     const lastRow = doneRows[doneRows.length - 1];
-    const columns = lastRow
-      .split("|")
-      .slice(1, -1)
-      .map((col) => col.trim());
-    if (columns.length < 6) return null;
-
-    const [id, title, role, dependsOn, , doneCriteria] = columns;
-    const task: TaskBrief = {
-      id,
-      title,
-      objective: title,
-      contextFiles: [],
-      skills: [],
-      doneCriteria:
-        doneCriteria === "-"
-          ? []
-          : doneCriteria
-              .split(";")
-              .map((s) => s.trim())
-              .filter(Boolean),
-      role: role === "expert" ? "expert" : "worker",
-      status: "done",
-      dependsOn:
-        dependsOn === "-"
-          ? []
-          : dependsOn
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean),
-    };
-    return { taskId: id, task };
+    const task = parseTaskRow(lastRow);
+    if (!task || task.status !== "done") return null;
+    return { taskId: task.id, task };
   } catch {
     return null;
   }

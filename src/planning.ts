@@ -9,6 +9,7 @@ import type {
 } from "./contracts.js";
 import { WORKFLOW_PRESETS } from "./contracts.js";
 import type { RepoSignals } from "./repo.js";
+import { escapeTaskTableCell } from "./tasks.js";
 
 export interface PlanningContext {
   existingDecisions: string[];
@@ -257,7 +258,7 @@ export function renderTasksMarkdown(tasks: TaskBrief[]): string {
     const dependsOn =
       task.dependsOn.length > 0 ? task.dependsOn.join(", ") : "-";
     const doneCriteria = task.doneCriteria.join("; ");
-    return `| ${task.id} | ${task.title} | ${task.role} | ${dependsOn} | ${task.status} | ${doneCriteria} |`;
+    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(task.role)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
   });
 
   return `# Tasks

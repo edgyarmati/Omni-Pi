@@ -22,7 +22,7 @@ import {
   generatePrBody,
   prepareCommitPlan,
 } from "../src/git.js";
-import { gatherPlanningContext } from "../src/planning.js";
+import { gatherPlanningContext, renderTasksMarkdown } from "../src/planning.js";
 import {
   appendProgress,
   cleanupCompletedPlans,
@@ -1240,6 +1240,110 @@ describe("Omni workflow", () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].id).toBe("T01");
     expect(parsed[0].doneCriteria).toEqual(["Passes tests", "Compiles"]);
+  });
+
+  test("renderTaskTable round-trips titles with pipe characters", async () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Build auth | login flow",
+        objective: "Build auth | login flow",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: ["Passes tests"],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: [],
+      },
+    ];
+
+    const rootDir = await createTempProject("omni-tasks-pipe-title-");
+    const tasksPath = path.join(rootDir, "tasks.md");
+    await writeFile(tasksPath, renderTaskTable(tasks), "utf8");
+
+    const content = await readFile(tasksPath, "utf8");
+    expect(content).toContain("Build auth \\| login flow");
+
+    const parsed = await readTasks(tasksPath);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].title).toBe("Build auth | login flow");
+  });
+
+  test("renderTaskTable round-trips done criteria with pipe characters", async () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Build feature",
+        objective: "Build feature",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: ["CLI shows a | separator", "Compiles"],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: [],
+      },
+    ];
+
+    const rootDir = await createTempProject("omni-tasks-pipe-criteria-");
+    const tasksPath = path.join(rootDir, "tasks.md");
+    await writeFile(tasksPath, renderTaskTable(tasks), "utf8");
+
+    const parsed = await readTasks(tasksPath);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].doneCriteria).toEqual([
+      "CLI shows a | separator",
+      "Compiles",
+    ]);
+  });
+
+  test("renderTasksMarkdown escapes pipe characters in planned tasks", () => {
+    const content = renderTasksMarkdown([
+      {
+        id: "T01",
+        title: "Build auth | login flow",
+        objective: "Build auth | login flow",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: ["CLI shows a | separator", "Compiles"],
+        role: "worker",
+        status: "todo",
+        dependsOn: [],
+      },
+    ]);
+
+    expect(content).toContain("Build auth \\| login flow");
+    expect(content).toContain("CLI shows a \\| separator; Compiles");
+  });
+
+  test("prepareCommitPlan parses escaped pipes from completed task rows", async () => {
+    const rootDir = await createTempProject("omni-commit-plan-pipes-");
+    await initializeOmniProject(rootDir);
+    await writeFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      `# Tasks
+
+## Task slices
+
+| ID | Title | Role | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- | --- |
+| T01 | Fix auth \\| login flow | worker | - | done | CLI shows a \\| separator; Tests pass |
+`,
+      "utf8",
+    );
+    await mkdir(path.join(rootDir, ".omni", "tasks"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, ".omni", "tasks", "T01.history.json"),
+      JSON.stringify([{ modifiedFiles: ["src/auth.ts"] }]),
+      "utf8",
+    );
+
+    const plan = await prepareCommitPlan(rootDir);
+
+    expect(plan).not.toBeNull();
+    expect(plan?.taskId).toBe("T01");
+    expect(plan?.message).toContain("Fix auth | login flow");
+    expect(plan?.message).toContain("CLI shows a | separator; Tests pass");
+    expect(plan?.files).toEqual(["src/auth.ts"]);
   });
 
   test("initializeOmniProject includes diagnostics in result", async () => {
