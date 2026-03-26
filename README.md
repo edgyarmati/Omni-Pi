@@ -64,6 +64,13 @@ Omni-Pi now ships the upstream provider mix needed for practical multi-provider 
 - Added by Omni-Pi: `nvidia`, `together`, `synthetic`, `nanogpt`, `xiaomi`, `moonshot`, `venice`, `kilo`, `gitlab-duo`, `qwen-portal`, `qianfan`, `cloudflare-ai-gateway`
 - Auto-discovered when running locally: `ollama`, `lm-studio`, `llama.cpp`, `litellm`, `vllm`
 
+For users who do not want to rely on Anthropic OAuth inside Pi, Omni-Pi also exposes opt-in Claude Agent SDK model aliases:
+
+- `claude-agent/claude-sonnet-4-6`
+- `claude-agent/claude-opus-4-6`
+
+These are intended for Omni-Pi's worker and expert subagents. Configure a role with `/omni-model` and Omni-Pi will run that subagent through the Claude Agent SDK instead of Pi's normal Anthropic provider path.
+
 Common provider env vars:
 
 - `NVIDIA_API_KEY`, `TOGETHER_API_KEY`, `SYNTHETIC_API_KEY`, `NANO_GPT_API_KEY`

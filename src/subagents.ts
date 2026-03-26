@@ -69,6 +69,54 @@ interface SubagentDeps {
   loadRunsForAgent?: (agent: string) => RunHistoryEntry[];
 }
 
+interface ClaudeAgentTextBlock {
+  type: string;
+  text?: string;
+}
+
+interface ClaudeAgentAssistantMessage {
+  type: "assistant";
+  message?: {
+    content?: ClaudeAgentTextBlock[];
+  };
+}
+
+interface ClaudeAgentResultMessage {
+  type: "result";
+  result?: string;
+  subtype?: string;
+  errors?: string[];
+}
+
+interface ClaudeAgentProgressMessage {
+  type: "tool_progress" | "session_state_changed";
+  title?: string;
+  data?: {
+    toolName?: string;
+    status?: string;
+  };
+}
+
+type ClaudeAgentMessage =
+  | ClaudeAgentAssistantMessage
+  | ClaudeAgentResultMessage
+  | ClaudeAgentProgressMessage
+  | { type: string };
+
+interface ClaudeAgentDeps {
+  query: (input: {
+    prompt: string;
+    options: {
+      cwd: string;
+      model: string;
+      permissionMode: "bypassPermissions";
+      allowDangerouslySkipPermissions: boolean;
+      canUseTool: () => Promise<{ behavior: "allow" }>;
+      env: Record<string, string | undefined>;
+    };
+  }) => AsyncIterable<ClaudeAgentMessage>;
+}
+
 export interface RunHistoryEntry {
   agent: string;
   task: string;
@@ -193,6 +241,13 @@ export async function loadSubagentDeps(
     recordRun,
     loadRunsForAgent,
   } as SubagentDeps;
+}
+
+export async function loadClaudeAgentDeps(): Promise<ClaudeAgentDeps> {
+  const sdkModule = await import("@anthropic-ai/claude-agent-sdk");
+  return {
+    query: sdkModule.query,
+  };
 }
 
 export async function loadRunHistory(
@@ -711,6 +766,145 @@ function findAgent(
   return fallback;
 }
 
+function getAgentConfig(
+  agents: SubagentConfig[],
+  preferred: string,
+  fallback: string,
+): SubagentConfig | undefined {
+  return (
+    agents.find((agent) => agent.name === preferred) ??
+    agents.find((agent) => agent.name === fallback)
+  );
+}
+
+function isClaudeAgentModel(model: string | undefined): boolean {
+  return model?.startsWith("claude-agent/") ?? false;
+}
+
+function stripClaudeAgentPrefix(model: string): string {
+  return model.replace(/^claude-agent\//u, "");
+}
+
+function isClaudeAgentResultMessage(
+  message: ClaudeAgentMessage,
+): message is ClaudeAgentResultMessage {
+  return message.type === "result";
+}
+
+function isClaudeAgentAssistantMessage(
+  message: ClaudeAgentMessage,
+): message is ClaudeAgentAssistantMessage {
+  return message.type === "assistant";
+}
+
+function isClaudeAgentProgressMessage(
+  message: ClaudeAgentMessage,
+): message is ClaudeAgentProgressMessage {
+  return (
+    message.type === "tool_progress" || message.type === "session_state_changed"
+  );
+}
+
+function extractClaudeAgentRawOutput(messages: ClaudeAgentMessage[]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      isClaudeAgentResultMessage(message) &&
+      typeof message.result === "string" &&
+      message.result.trim().length > 0
+    ) {
+      return message.result;
+    }
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (
+      isClaudeAgentResultMessage(message) &&
+      Array.isArray(message.errors) &&
+      message.errors.length > 0
+    ) {
+      return message.errors.join("\n");
+    }
+  }
+
+  const assistantText = messages
+    .flatMap((message) =>
+      isClaudeAgentAssistantMessage(message)
+        ? (message.message?.content
+            ?.filter(
+              (block): block is ClaudeAgentTextBlock & { text: string } =>
+                typeof block.text === "string" && block.text.trim().length > 0,
+            )
+            .map((block) => block.text) ?? [])
+        : [],
+    )
+    .join("\n\n")
+    .trim();
+
+  return assistantText;
+}
+
+async function runClaudeAgentTask(
+  rootDir: string,
+  ctx: ExtensionCommandContext,
+  claudeDeps: ClaudeAgentDeps,
+  agentName: string,
+  agentModel: string,
+  prompt: string,
+): Promise<SubagentSingleResult> {
+  const messages: ClaudeAgentMessage[] = [];
+
+  try {
+    const query = claudeDeps.query({
+      prompt,
+      options: {
+        cwd: rootDir,
+        model: stripClaudeAgentPrefix(agentModel),
+        permissionMode: "bypassPermissions",
+        allowDangerouslySkipPermissions: true,
+        canUseTool: async () => ({ behavior: "allow" }),
+        env: {
+          ...process.env,
+          CLAUDE_AGENT_SDK_CLIENT_APP: "omni-pi",
+        },
+      },
+    });
+
+    for await (const message of query) {
+      messages.push(message);
+      if (
+        isClaudeAgentProgressMessage(message) &&
+        message.type === "tool_progress"
+      ) {
+        const toolName = message.data?.toolName ?? message.title ?? "working";
+        ctx.ui.setStatus("omni", `${agentName}: ${toolName}`);
+      } else if (
+        isClaudeAgentProgressMessage(message) &&
+        message.type === "session_state_changed"
+      ) {
+        const status = message.data?.status;
+        if (status) {
+          ctx.ui.setStatus("omni", `${agentName}: ${status}`);
+        }
+      }
+    }
+
+    return {
+      agent: agentName,
+      exitCode: 0,
+      messages,
+    };
+  } catch (error) {
+    return {
+      agent: agentName,
+      exitCode: 1,
+      messages,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 const AGENT_ROLE_MAP: Record<string, keyof OmniConfig["models"]> = {
   "omni-worker": "worker",
   "omni-expert": "expert",
@@ -740,13 +934,25 @@ export async function createSubagentWorkEngine(
   ctx: ExtensionCommandContext,
   deps?: SubagentDeps,
   verificationExecutor?: VerificationExecutor,
+  claudeDeps?: ClaudeAgentDeps,
 ): Promise<WorkEngine> {
   const subagentDeps = deps ?? (await loadSubagentDeps());
+  const resolvedClaudeDeps = claudeDeps;
   const config = await readConfig(rootDir);
   const discovery = subagentDeps.discoverAgents(rootDir, "both");
   const agentsWithOverrides = applyModelOverrides(discovery.agents, config);
   const workerAgent = findAgent(agentsWithOverrides, "omni-worker", "worker");
   const expertAgent = findAgent(agentsWithOverrides, "omni-expert", "reviewer");
+  const workerAgentConfig = getAgentConfig(
+    agentsWithOverrides,
+    "omni-worker",
+    "worker",
+  );
+  const expertAgentConfig = getAgentConfig(
+    agentsWithOverrides,
+    "omni-expert",
+    "reviewer",
+  );
   const sessionDir = path.join(rootDir, ".omni", "subagent-sessions");
   const packageDir = omniPackageDir();
   const skillTriggers = await loadSkillTriggers(
@@ -768,37 +974,51 @@ export async function createSubagentWorkEngine(
     runWorkerTask: async (task, attempt) => {
       const verificationPlan = await readVerificationPlan(rootDir, task);
       const preReadContext = await gatherTaskContext(rootDir, task, 4000);
+      const workerPrompt = buildWorkerPrompt(
+        task,
+        verificationPlan,
+        getSkillContext(task),
+        preReadContext,
+      );
       ctx.ui.setStatus(
         "omni",
         `Worker ${workerAgent} is handling ${task.id} (attempt ${attempt})`,
       );
       const startTime = Date.now();
-      const result = await subagentDeps.runSync(
-        rootDir,
-        agentsWithOverrides,
-        workerAgent,
-        buildWorkerPrompt(
-          task,
-          verificationPlan,
-          getSkillContext(task),
-          preReadContext,
-        ),
-        {
-          cwd: rootDir,
-          runId: randomUUID(),
-          sessionDir,
-          onUpdate: (update) => {
-            const progress = update.details?.progress?.[0];
-            if (progress) {
-              ctx.ui.setStatus(
-                "omni",
-                `${progress.agent}: ${progress.currentTool ?? "working"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
-              );
-            }
-          },
-        },
-      );
-      const raw = subagentDeps.getFinalOutput(result.messages);
+      const result =
+        workerAgentConfig?.model && isClaudeAgentModel(workerAgentConfig.model)
+          ? await runClaudeAgentTask(
+              rootDir,
+              ctx,
+              resolvedClaudeDeps ?? (await loadClaudeAgentDeps()),
+              workerAgent,
+              workerAgentConfig.model,
+              workerPrompt,
+            )
+          : await subagentDeps.runSync(
+              rootDir,
+              agentsWithOverrides,
+              workerAgent,
+              workerPrompt,
+              {
+                cwd: rootDir,
+                runId: randomUUID(),
+                sessionDir,
+                onUpdate: (update) => {
+                  const progress = update.details?.progress?.[0];
+                  if (progress) {
+                    ctx.ui.setStatus(
+                      "omni",
+                      `${progress.agent}: ${progress.currentTool ?? "working"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
+                    );
+                  }
+                },
+              },
+            );
+      const raw =
+        workerAgentConfig?.model && isClaudeAgentModel(workerAgentConfig.model)
+          ? extractClaudeAgentRawOutput(result.messages as ClaudeAgentMessage[])
+          : subagentDeps.getFinalOutput(result.messages);
       const rawOutputPath = path.join(
         rootDir,
         ".omni",
@@ -871,34 +1091,48 @@ export async function createSubagentWorkEngine(
         `Escalating ${task.id} to expert after ${escalation.priorAttempts} failed attempts. Failed checks: ${failedChecksSummary}`,
       );
       const preReadContext = await gatherTaskContext(rootDir, task, 6000);
-      const expertStartTime = Date.now();
-      const result = await subagentDeps.runSync(
-        rootDir,
-        agentsWithOverrides,
-        expertAgent,
-        buildExpertPrompt(
-          task,
-          escalation,
-          verificationPlan,
-          getSkillContext(task),
-          preReadContext,
-        ),
-        {
-          cwd: rootDir,
-          runId: randomUUID(),
-          sessionDir,
-          onUpdate: (update) => {
-            const progress = update.details?.progress?.[0];
-            if (progress) {
-              ctx.ui.setStatus(
-                "omni",
-                `${progress.agent}: ${progress.currentTool ?? "resolving"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
-              );
-            }
-          },
-        },
+      const expertPrompt = buildExpertPrompt(
+        task,
+        escalation,
+        verificationPlan,
+        getSkillContext(task),
+        preReadContext,
       );
-      const raw = subagentDeps.getFinalOutput(result.messages);
+      const expertStartTime = Date.now();
+      const result =
+        expertAgentConfig?.model && isClaudeAgentModel(expertAgentConfig.model)
+          ? await runClaudeAgentTask(
+              rootDir,
+              ctx,
+              resolvedClaudeDeps ?? (await loadClaudeAgentDeps()),
+              expertAgent,
+              expertAgentConfig.model,
+              expertPrompt,
+            )
+          : await subagentDeps.runSync(
+              rootDir,
+              agentsWithOverrides,
+              expertAgent,
+              expertPrompt,
+              {
+                cwd: rootDir,
+                runId: randomUUID(),
+                sessionDir,
+                onUpdate: (update) => {
+                  const progress = update.details?.progress?.[0];
+                  if (progress) {
+                    ctx.ui.setStatus(
+                      "omni",
+                      `${progress.agent}: ${progress.currentTool ?? "resolving"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
+                    );
+                  }
+                },
+              },
+            );
+      const raw =
+        expertAgentConfig?.model && isClaudeAgentModel(expertAgentConfig.model)
+          ? extractClaudeAgentRawOutput(result.messages as ClaudeAgentMessage[])
+          : subagentDeps.getFinalOutput(result.messages);
       const rawOutputPath = path.join(
         rootDir,
         ".omni",

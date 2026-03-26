@@ -511,4 +511,102 @@ describe("Omni runtime integration", () => {
     expect(meta).toContain('"verificationCommands"');
     expect(meta).toContain('"command": "npm test"');
   });
+
+  test("createSubagentWorkEngine can run worker tasks through the Claude Agent SDK path", async () => {
+    const rootDir = await createTempProject("omni-runtime-claude-agent-");
+    await initializeOmniProject(rootDir);
+    await writeFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      `# Omni-Pi Configuration
+
+## Models
+
+| Agent | Model |
+|-------|-------|
+| worker | claude-agent/claude-sonnet-4-6 |
+| expert | anthropic/claude-sonnet-4-6 |
+| planner | anthropic/claude-sonnet-4-6 |
+| brain | anthropic/claude-sonnet-4-6 |
+
+## Retry Policy
+
+Worker retries before expert takeover: 2
+
+## Execution
+
+Chain execution enabled: false
+
+## Memory
+
+Delete completed plan files: true
+`,
+      "utf8",
+    );
+
+    let piSubagentsUsed = false;
+    const statuses: string[] = [];
+    const engine = await createSubagentWorkEngine(
+      rootDir,
+      {
+        ui: {
+          setStatus: (_key, value) => {
+            if (value) {
+              statuses.push(value);
+            }
+          },
+        },
+      } as never,
+      {
+        discoverAgents: () => ({
+          agents: [{ name: "omni-worker", systemPrompt: "worker" }],
+        }),
+        runSync: async () => {
+          piSubagentsUsed = true;
+          throw new Error("pi-subagents should not be used for claude-agent");
+        },
+        getFinalOutput: () => "",
+      },
+      undefined,
+      {
+        query: async function* ({ options }) {
+          expect(options.model).toBe("claude-sonnet-4-6");
+          yield {
+            type: "tool_progress",
+            data: { toolName: "WriteFile" },
+          };
+          yield {
+            type: "result",
+            result:
+              '{"summary":"done through claude agent","verification":{"passed":true,"checksRun":["sdk"],"failureSummary":[],"retryRecommended":false}}',
+          };
+        },
+      },
+    );
+
+    const result = await engine.runWorkerTask(
+      {
+        id: "T07",
+        title: "Implement feature with Claude Agent",
+        objective: "Use the SDK path",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: ["It works"],
+        role: "worker",
+        status: "todo",
+        dependsOn: [],
+      },
+      1,
+    );
+
+    expect(piSubagentsUsed).toBe(false);
+    expect(result.summary).toContain("claude agent");
+    expect(result.verification.passed).toBe(true);
+    expect(statuses).toContain("omni-worker: WriteFile");
+
+    const workerMeta = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T07-worker-attempt-1.json"),
+      "utf8",
+    );
+    expect(workerMeta).toContain('"agent": "omni-worker"');
+  });
 });

@@ -482,6 +482,8 @@ const LOCAL_PROVIDERS: LocalDiscoveryDefinition[] = [
 ];
 
 export const AVAILABLE_MODELS = [
+  "claude-agent/claude-sonnet-4-6",
+  "claude-agent/claude-opus-4-6",
   "anthropic/claude-sonnet-4-6",
   "anthropic/claude-opus-4-6",
   "anthropic/claude-sonnet-4-5",
