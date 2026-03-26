@@ -80,6 +80,8 @@ Common provider env vars:
 
 Omni-Pi ships bundled fallback model metadata for its added providers and also attempts live model discovery against provider endpoints when available.
 
+`/omni-model` now reads Pi's authenticated model registry, so the picker defaults to models that already have credentials available. If a provider is not ready yet, the command can walk you through saving an API key, opening the provider website in your browser, or creating a custom OpenAI-compatible provider entry in `~/.pi/agent/models.json`.
+
 Provider base URL override env vars:
 
 - `NVIDIA_BASE_URL`, `TOGETHER_BASE_URL`, `SYNTHETIC_BASE_URL`, `NANO_GPT_BASE_URL`
@@ -108,7 +110,7 @@ For local providers, Omni-Pi registers models only when the endpoint is reachabl
 | `/omni-sync` | Update durable memory files from recent progress |
 | `/omni-skills` | Inspect installed, recommended, deferred, and rejected skills |
 | `/omni-explain` | Explain what Omni-Pi is doing in simple language |
-| `/omni-model` | Interactively select the model for a specific agent role, or enter any canonical `provider/model` reference |
+| `/omni-model` | Interactively select the model for a specific agent role, show only authenticated models by default, and launch a setup wizard for provider auth or custom models |
 | `/omni-commit` | Create a branch and commit for the last completed task |
 | `/omni-doctor` | Run diagnostic health checks and detect stuck tasks |
 

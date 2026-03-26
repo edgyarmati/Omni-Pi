@@ -19,6 +19,10 @@ import {
   prepareCommitPlan,
   stageFiles,
 } from "./git.js";
+import {
+  getAuthenticatedModelOptions,
+  runModelSetupWizard,
+} from "./model-setup.js";
 import type { AppCommandDefinition, CommandResult } from "./pi.js";
 import type { SkillInstallResult } from "./skills.js";
 import {
@@ -446,9 +450,16 @@ export function createOmniCommands(): AppCommandDefinition[] {
           currentConfig.models[
             selectedAgent as keyof typeof currentConfig.models
           ];
-        const modelOptions = AVAILABLE_MODELS.map((model) =>
+        const authenticatedModels = runtime.ctx.modelRegistry
+          ? getAuthenticatedModelOptions(
+              runtime.ctx.modelRegistry,
+              currentModel,
+            )
+          : AVAILABLE_MODELS;
+        const modelOptions = authenticatedModels.map((model) =>
           model === currentModel ? `${model} (current)` : model,
         );
+        modelOptions.push("Set up provider or custom model");
         modelOptions.push("Enter custom provider/model");
 
         const selectedModelDisplay = await ui.select(
@@ -460,6 +471,14 @@ export function createOmniCommands(): AppCommandDefinition[] {
         }
 
         let selectedModel = selectedModelDisplay.replace(" (current)", "");
+        if (selectedModel === "Set up provider or custom model") {
+          const setupResult = await runModelSetupWizard(runtime);
+          if (!setupResult.selectedModel) {
+            return setupResult.summary;
+          }
+          selectedModel = setupResult.selectedModel;
+        }
+
         if (selectedModel === "Enter custom provider/model") {
           const customModel = await ui.input(
             "Enter model as provider/model",
