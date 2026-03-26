@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -15,7 +15,7 @@ import {
   renderContextSummary,
 } from "../src/context.js";
 import { detectPreset } from "../src/contracts.js";
-import { renderDoctorReport, runDoctor } from "../src/doctor.js";
+import { detectStuck, renderDoctorReport, runDoctor } from "../src/doctor.js";
 import {
   buildBranchName,
   buildCommitMessage,
@@ -43,6 +43,12 @@ import {
   renderMetrics,
   renderPlainStatus,
 } from "../src/status.js";
+import {
+  findNextExecutableTask,
+  readTasks,
+  renderTaskTable,
+  updateTaskStatus,
+} from "../src/tasks.js";
 import type { WorkEngine } from "../src/work.js";
 import {
   initializeOmniProject,
@@ -949,5 +955,400 @@ describe("Omni workflow", () => {
     expect(summary).toContain("30 tokens");
     expect(summary).toContain("2 files");
     expect(summary).toContain("SPEC.md (10t)");
+  });
+
+  // --- detectStuck tests ---
+
+  test("detectStuck returns not detected when no tasks exist", async () => {
+    const rootDir = await createTempProject("omni-stuck-none-");
+    const result = await detectStuck(rootDir);
+    expect(result.detected).toBe(false);
+  });
+
+  test("detectStuck returns not detected with fewer than 3 failures", async () => {
+    const rootDir = await createTempProject("omni-stuck-few-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "test",
+      desiredOutcome: "test",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const taskDir = path.join(rootDir, ".omni", "tasks");
+    await mkdir(taskDir, { recursive: true });
+    const history = [
+      { verification: { passed: false, failureSummary: ["err1"] } },
+      { verification: { passed: false, failureSummary: ["err2"] } },
+    ];
+    await writeFile(
+      path.join(taskDir, "T01.history.json"),
+      JSON.stringify(history),
+      "utf8",
+    );
+
+    const result = await detectStuck(rootDir);
+    expect(result.detected).toBe(false);
+  });
+
+  test("detectStuck detects 3+ identical failures", async () => {
+    const rootDir = await createTempProject("omni-stuck-same-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "test",
+      desiredOutcome: "test",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const taskDir = path.join(rootDir, ".omni", "tasks");
+    await mkdir(taskDir, { recursive: true });
+    const history = [
+      { verification: { passed: false, failureSummary: ["type error"] } },
+      { verification: { passed: false, failureSummary: ["type error"] } },
+      { verification: { passed: false, failureSummary: ["type error"] } },
+    ];
+    await writeFile(
+      path.join(taskDir, "T01.history.json"),
+      JSON.stringify(history),
+      "utf8",
+    );
+
+    const result = await detectStuck(rootDir);
+    expect(result.detected).toBe(true);
+    expect(result.reason).toContain("same error");
+    expect(result.taskId).toBe("T01");
+  });
+
+  test("detectStuck detects 3+ different failures", async () => {
+    const rootDir = await createTempProject("omni-stuck-diff-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "test",
+      desiredOutcome: "test",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const taskDir = path.join(rootDir, ".omni", "tasks");
+    await mkdir(taskDir, { recursive: true });
+    const history = [
+      { verification: { passed: false, failureSummary: ["err1"] } },
+      { verification: { passed: false, failureSummary: ["err2"] } },
+      { verification: { passed: false, failureSummary: ["err3"] } },
+    ];
+    await writeFile(
+      path.join(taskDir, "T01.history.json"),
+      JSON.stringify(history),
+      "utf8",
+    );
+
+    const result = await detectStuck(rootDir);
+    expect(result.detected).toBe(true);
+    expect(result.reason).toContain("3 failures");
+    expect(result.taskId).toBe("T01");
+  });
+
+  test("detectStuck returns not detected with no history file", async () => {
+    const rootDir = await createTempProject("omni-stuck-nohist-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "test",
+      desiredOutcome: "test",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const result = await detectStuck(rootDir);
+    expect(result.detected).toBe(false);
+    expect(result.reason).toBe("No stuck signals.");
+  });
+
+  // --- tasks.ts unit tests ---
+
+  test("readTasks parses markdown task table", async () => {
+    const rootDir = await createTempProject("omni-tasks-parse-");
+    const tasksPath = path.join(rootDir, "tasks.md");
+    await writeFile(
+      tasksPath,
+      `# Tasks
+
+## Task slices
+
+| ID | Title | Role | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- | --- |
+| T01 | First task | worker | - | todo | Passes tests |
+| T02 | Second task | expert | T01 | todo | Compiles |
+`,
+      "utf8",
+    );
+
+    const tasks = await readTasks(tasksPath);
+    expect(tasks).toHaveLength(2);
+    expect(tasks[0].id).toBe("T01");
+    expect(tasks[0].dependsOn).toEqual([]);
+    expect(tasks[1].dependsOn).toEqual(["T01"]);
+    expect(tasks[1].role).toBe("expert");
+  });
+
+  test("readTasks skips malformed rows", async () => {
+    const rootDir = await createTempProject("omni-tasks-bad-");
+    const tasksPath = path.join(rootDir, "tasks.md");
+    await writeFile(
+      tasksPath,
+      `# Tasks
+
+## Task slices
+
+| ID | Title | Role | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- | --- |
+| T01 | Good row | worker | - | todo | OK |
+| Too few columns |
+| T03 | Another good | worker | - | done | Done |
+`,
+      "utf8",
+    );
+
+    const tasks = await readTasks(tasksPath);
+    expect(tasks).toHaveLength(2);
+    expect(tasks[0].id).toBe("T01");
+    expect(tasks[1].id).toBe("T03");
+  });
+
+  test("findNextExecutableTask respects dependencies", () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "First",
+        objective: "First",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: [],
+      },
+      {
+        id: "T02",
+        title: "Second",
+        objective: "Second",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: ["T01"],
+      },
+    ];
+
+    // T01 is executable, T02 is blocked
+    expect(findNextExecutableTask(tasks)?.id).toBe("T01");
+
+    // After T01 is done, T02 becomes executable
+    const updated = updateTaskStatus(tasks, "T01", "done");
+    expect(findNextExecutableTask(updated)?.id).toBe("T02");
+  });
+
+  test("findNextExecutableTask returns null when all done", () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Done task",
+        objective: "Done",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "done" as const,
+        dependsOn: [],
+      },
+    ];
+
+    expect(findNextExecutableTask(tasks)).toBeNull();
+  });
+
+  test("findNextExecutableTask skips blocked dependencies", () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Blocked",
+        objective: "Blocked",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "blocked" as const,
+        dependsOn: [],
+      },
+      {
+        id: "T02",
+        title: "Depends on blocked",
+        objective: "Waiting",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: ["T01"],
+      },
+    ];
+
+    // T01 is blocked (not todo), T02 depends on T01 which isn't done
+    expect(findNextExecutableTask(tasks)).toBeNull();
+  });
+
+  test("updateTaskStatus returns new array without mutating", () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Task",
+        objective: "Task",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: [],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: [],
+      },
+    ];
+
+    const updated = updateTaskStatus(tasks, "T01", "done");
+    expect(updated[0].status).toBe("done");
+    expect(tasks[0].status).toBe("todo"); // original unchanged
+  });
+
+  test("renderTaskTable round-trips through readTasks", async () => {
+    const tasks = [
+      {
+        id: "T01",
+        title: "Build feature",
+        objective: "Build feature",
+        contextFiles: [],
+        skills: [],
+        doneCriteria: ["Passes tests", "Compiles"],
+        role: "worker" as const,
+        status: "todo" as const,
+        dependsOn: [],
+      },
+    ];
+
+    const rootDir = await createTempProject("omni-tasks-roundtrip-");
+    const tasksPath = path.join(rootDir, "tasks.md");
+    await writeFile(tasksPath, renderTaskTable(tasks), "utf8");
+
+    const parsed = await readTasks(tasksPath);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].id).toBe("T01");
+    expect(parsed[0].doneCriteria).toEqual(["Passes tests", "Compiles"]);
+  });
+
+  test("initializeOmniProject includes diagnostics in result", async () => {
+    const rootDir = await createTempProject("omni-init-diag-");
+    const result = await initializeOmniProject(rootDir);
+
+    expect(result.diagnostics).toBeDefined();
+    expect(result.diagnostics.overall).toBeDefined();
+    expect(result.diagnostics.checks.length).toBeGreaterThan(0);
+  });
+
+  // --- config edge case tests ---
+
+  test("readConfig returns defaults for missing CONFIG.md", async () => {
+    const rootDir = await createTempProject("omni-config-missing-");
+    const config = await readConfig(rootDir);
+    expect(config.models.worker).toBe("anthropic/claude-sonnet-4-6");
+    expect(config.retryLimit).toBe(2);
+    expect(config.chainEnabled).toBe(false);
+    expect(config.cleanupCompletedPlans).toBe(false);
+  });
+
+  test("readConfig handles CONFIG.md with extra whitespace", async () => {
+    const rootDir = await createTempProject("omni-config-ws-");
+    await mkdir(path.join(rootDir, ".omni"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      `# Omni-Pi Configuration
+
+## Models
+
+| Agent | Model |
+|-------|-------|
+|  worker  |  anthropic/claude-sonnet-4-5  |
+| expert |openai/gpt-5|
+| planner | openai/gpt-5.4 |
+| brain | anthropic/claude-opus-4-6 |
+
+## Retry Policy
+
+Worker retries before expert takeover: 3
+
+## Execution
+
+Chain execution enabled: true
+`,
+      "utf8",
+    );
+
+    const config = await readConfig(rootDir);
+    expect(config.models.worker).toBe("anthropic/claude-sonnet-4-5");
+    expect(config.models.expert).toBe("openai/gpt-5");
+    expect(config.retryLimit).toBe(3);
+    expect(config.chainEnabled).toBe(true);
+  });
+
+  test("readConfig handles CONFIG.md missing Memory section", async () => {
+    const rootDir = await createTempProject("omni-config-nomem-");
+    await mkdir(path.join(rootDir, ".omni"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      `# Omni-Pi Configuration
+
+## Models
+
+| Agent | Model |
+|-------|-------|
+| worker | anthropic/claude-sonnet-4-6 |
+| expert | openai/gpt-5.4 |
+| planner | openai/gpt-5.4 |
+| brain | anthropic/claude-opus-4-6 |
+
+## Retry Policy
+
+Worker retries before expert takeover: 2
+
+## Execution
+
+Chain execution enabled: false
+`,
+      "utf8",
+    );
+
+    const config = await readConfig(rootDir);
+    // Missing Memory section → uses default
+    expect(config.cleanupCompletedPlans).toBe(false);
+  });
+
+  test("readConfig handles empty model values gracefully", async () => {
+    const rootDir = await createTempProject("omni-config-empty-");
+    await mkdir(path.join(rootDir, ".omni"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      `# Omni-Pi Configuration
+
+## Models
+
+| Agent | Model |
+|-------|-------|
+| worker |  |
+| expert | openai/gpt-5.4 |
+| planner | openai/gpt-5.4 |
+| brain | anthropic/claude-opus-4-6 |
+`,
+      "utf8",
+    );
+
+    const config = await readConfig(rootDir);
+    // Empty worker value — should fall back to default
+    expect(config.models.expert).toBe("openai/gpt-5.4");
   });
 });

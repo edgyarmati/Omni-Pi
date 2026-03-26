@@ -46,7 +46,14 @@ export async function runOmni(argv = process.argv.slice(2), options = {}) {
       stdio: "inherit",
     });
 
+    const forwardSignal = (sig) => child.kill(sig);
+    process.on("SIGINT", forwardSignal);
+    process.on("SIGTERM", forwardSignal);
+
     child.on("exit", (code, signal) => {
+      process.off("SIGINT", forwardSignal);
+      process.off("SIGTERM", forwardSignal);
+
       if (signal) {
         reject(new Error(`omni terminated with signal ${signal}`));
         return;
@@ -55,7 +62,11 @@ export async function runOmni(argv = process.argv.slice(2), options = {}) {
       process.exitCode = code ?? 0;
       resolve(code ?? 0);
     });
-    child.on("error", reject);
+    child.on("error", (err) => {
+      process.off("SIGINT", forwardSignal);
+      process.off("SIGTERM", forwardSignal);
+      reject(err);
+    });
   });
 }
 
