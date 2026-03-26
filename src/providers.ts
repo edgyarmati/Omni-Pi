@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import providerCatalog from "./provider-catalog.json" with { type: "json" };
 
 type ModelApi =
   | "anthropic-messages"
@@ -9,6 +10,7 @@ interface OmniProviderModel {
   id: string;
   name: string;
   api: ModelApi;
+  baseUrl?: string;
   reasoning: boolean;
   input: Array<"text" | "image">;
   cost: {
@@ -48,6 +50,29 @@ interface OpenAICompatibleModelRecord {
   [key: string]: unknown;
 }
 
+interface StaticProviderCatalogEntry {
+  id: string;
+  name: string;
+  api: ModelApi;
+  provider?: string;
+  baseUrl?: string;
+  reasoning: boolean;
+  input: Array<"text" | "image">;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
+  contextWindow: number;
+  maxTokens: number;
+}
+
+type StaticProviderCatalog = Record<
+  string,
+  Record<string, StaticProviderCatalogEntry>
+>;
+
 const ZERO_COST = {
   input: 0,
   output: 0,
@@ -63,11 +88,13 @@ function model(
   input: Array<"text" | "image">,
   contextWindow: number,
   maxTokens: number,
+  baseUrl?: string,
 ): OmniProviderModel {
   return {
     id,
     name,
     api,
+    ...(baseUrl ? { baseUrl } : {}),
     reasoning,
     input,
     cost: ZERO_COST,
@@ -76,381 +103,113 @@ function model(
   };
 }
 
+const STATIC_PROVIDER_CATALOG = providerCatalog as StaticProviderCatalog;
+
+function getStaticProviderCatalogModels(provider: string): OmniProviderModel[] {
+  return Object.values(STATIC_PROVIDER_CATALOG[provider] ?? {}).map(
+    (entry) => ({
+      id: entry.id,
+      name: entry.name,
+      api: entry.api,
+      ...(entry.baseUrl ? { baseUrl: entry.baseUrl } : {}),
+      reasoning: entry.reasoning,
+      input: entry.input,
+      cost: entry.cost,
+      contextWindow: entry.contextWindow,
+      maxTokens: entry.maxTokens,
+    }),
+  );
+}
+
+function getStaticProviderCatalogBaseUrl(provider: string): string | undefined {
+  return Object.values(STATIC_PROVIDER_CATALOG[provider] ?? {})[0]?.baseUrl;
+}
+
 const STATIC_PROVIDERS: StaticProviderDefinition[] = [
   {
     name: "nvidia",
     apiKey: "NVIDIA_API_KEY",
     baseUrlEnv: "NVIDIA_BASE_URL",
-    defaultBaseUrl: "https://integrate.api.nvidia.com/v1",
-    models: [
-      model(
-        "deepseek-ai/deepseek-v3.2",
-        "DeepSeek V3.2",
-        "openai-completions",
-        true,
-        ["text"],
-        163840,
-        65536,
-      ),
-      model(
-        "deepseek-ai/deepseek-r1-0528",
-        "DeepSeek R1 0528",
-        "openai-completions",
-        true,
-        ["text"],
-        128000,
-        4096,
-      ),
-      model(
-        "meta/llama-3.3-70b-instruct",
-        "Llama 3.3 70B Instruct",
-        "openai-completions",
-        false,
-        ["text"],
-        128000,
-        4096,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("nvidia"),
+    models: getStaticProviderCatalogModels("nvidia"),
   },
   {
     name: "together",
     apiKey: "TOGETHER_API_KEY",
     baseUrlEnv: "TOGETHER_BASE_URL",
-    defaultBaseUrl: "https://api.together.xyz/v1",
-    models: [
-      model(
-        "deepseek-ai/DeepSeek-R1",
-        "DeepSeek R1",
-        "openai-completions",
-        true,
-        ["text"],
-        131072,
-        8192,
-      ),
-      model(
-        "moonshotai/Kimi-K2.5",
-        "Kimi K2.5",
-        "openai-completions",
-        true,
-        ["text", "image"],
-        262144,
-        32768,
-      ),
-      model(
-        "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-        "Llama 3.3 70B Instruct Turbo",
-        "openai-completions",
-        false,
-        ["text"],
-        131072,
-        8192,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("together"),
+    models: getStaticProviderCatalogModels("together"),
   },
   {
     name: "synthetic",
     apiKey: "SYNTHETIC_API_KEY",
     baseUrlEnv: "SYNTHETIC_BASE_URL",
-    defaultBaseUrl: "https://api.synthetic.new/openai/v1",
-    models: [
-      model(
-        "hf:deepseek-ai/DeepSeek-V3.2",
-        "DeepSeek V3.2",
-        "openai-completions",
-        false,
-        ["text"],
-        162816,
-        8192,
-      ),
-      model(
-        "hf:moonshotai/Kimi-K2-Instruct-0905",
-        "Kimi K2 Instruct 0905",
-        "openai-completions",
-        false,
-        ["text"],
-        262144,
-        8192,
-      ),
-      model(
-        "hf:meta-llama/Llama-3.3-70B-Instruct",
-        "Llama 3.3 70B Instruct",
-        "openai-completions",
-        false,
-        ["text"],
-        131072,
-        8192,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("synthetic"),
+    models: getStaticProviderCatalogModels("synthetic"),
   },
   {
     name: "nanogpt",
     apiKey: "NANO_GPT_API_KEY",
     baseUrlEnv: "NANO_GPT_BASE_URL",
-    defaultBaseUrl: "https://nano-gpt.com/api/v1",
-    models: [
-      model(
-        "anthropic/claude-sonnet-4.6",
-        "Claude Sonnet 4.6",
-        "openai-completions",
-        true,
-        ["text"],
-        222222,
-        8888,
-      ),
-      model(
-        "anthropic/claude-opus-4.6",
-        "Claude Opus 4.6",
-        "openai-completions",
-        true,
-        ["text"],
-        222222,
-        8888,
-      ),
-      model(
-        "baseten/Kimi-K2-Instruct-FP4",
-        "Kimi K2 Instruct FP4",
-        "openai-completions",
-        false,
-        ["text"],
-        222222,
-        8888,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("nanogpt"),
+    models: getStaticProviderCatalogModels("nanogpt"),
   },
   {
     name: "xiaomi",
     apiKey: "XIAOMI_API_KEY",
     baseUrlEnv: "XIAOMI_BASE_URL",
-    models: [
-      model(
-        "mimo-v2-flash",
-        "MiMo-V2-Flash",
-        "anthropic-messages",
-        true,
-        ["text"],
-        256000,
-        64000,
-      ),
-      model(
-        "mimo-v2-omni",
-        "MiMo-V2-Omni",
-        "anthropic-messages",
-        true,
-        ["text", "image"],
-        256000,
-        128000,
-      ),
-      model(
-        "mimo-v2-pro",
-        "MiMo-V2-Pro",
-        "anthropic-messages",
-        true,
-        ["text"],
-        1000000,
-        128000,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("xiaomi"),
+    models: getStaticProviderCatalogModels("xiaomi"),
   },
   {
     name: "moonshot",
     apiKey: "MOONSHOT_API_KEY",
     baseUrlEnv: "MOONSHOT_BASE_URL",
-    defaultBaseUrl: "https://api.moonshot.cn/v1",
-    models: [
-      model(
-        "kimi-k2.5",
-        "Kimi K2.5",
-        "openai-completions",
-        true,
-        ["text", "image"],
-        262144,
-        65536,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("moonshot"),
+    models: getStaticProviderCatalogModels("moonshot"),
   },
   {
     name: "venice",
     apiKey: "VENICE_API_KEY",
     baseUrlEnv: "VENICE_BASE_URL",
-    defaultBaseUrl: "https://api.venice.ai/api/v1",
-    models: [
-      model(
-        "claude-sonnet-4-6",
-        "Claude Sonnet 4.6",
-        "openai-completions",
-        true,
-        ["text", "image"],
-        1000000,
-        64000,
-      ),
-      model(
-        "claude-opus-4-6",
-        "Claude Opus 4.6",
-        "openai-completions",
-        true,
-        ["text", "image"],
-        1000000,
-        128000,
-      ),
-      model(
-        "deepseek-v3.2",
-        "DeepSeek V3.2",
-        "openai-completions",
-        true,
-        ["text"],
-        160000,
-        8192,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("venice"),
+    models: getStaticProviderCatalogModels("venice"),
   },
   {
     name: "kilo",
     apiKey: "KILO_API_KEY",
     baseUrlEnv: "KILO_BASE_URL",
-    defaultBaseUrl: "https://api.kilo.ai/api/gateway",
-    models: [
-      model(
-        "anthropic/claude-sonnet-4.6",
-        "Claude Sonnet 4.6",
-        "openai-completions",
-        true,
-        ["text"],
-        222222,
-        8888,
-      ),
-      model(
-        "deepseek/deepseek-r1",
-        "DeepSeek R1",
-        "openai-completions",
-        false,
-        ["text"],
-        222222,
-        8888,
-      ),
-      model(
-        "arcee-ai/coder-large",
-        "Arcee Coder Large",
-        "openai-completions",
-        false,
-        ["text"],
-        222222,
-        8888,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("kilo"),
+    models: getStaticProviderCatalogModels("kilo"),
   },
   {
     name: "gitlab-duo",
     apiKey: "GITLAB_TOKEN",
     baseUrlEnv: "GITLAB_DUO_BASE_URL",
-    models: [
-      model(
-        "duo-chat-sonnet-4-6",
-        "Duo Chat Sonnet 4.6",
-        "anthropic-messages",
-        true,
-        ["text", "image"],
-        200000,
-        64000,
-      ),
-      model(
-        "duo-chat-opus-4-6",
-        "Duo Chat Opus 4.6",
-        "anthropic-messages",
-        true,
-        ["text", "image"],
-        200000,
-        64000,
-      ),
-      model(
-        "duo-chat-gpt-5-2-codex",
-        "Duo Chat GPT-5.2 Codex",
-        "openai-responses",
-        true,
-        ["text", "image"],
-        272000,
-        128000,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("gitlab-duo"),
+    models: getStaticProviderCatalogModels("gitlab-duo"),
   },
   {
     name: "qwen-portal",
     apiKey: () =>
       process.env.QWEN_OAUTH_TOKEN ? "QWEN_OAUTH_TOKEN" : "QWEN_PORTAL_API_KEY",
     baseUrlEnv: "QWEN_PORTAL_BASE_URL",
-    defaultBaseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    models: [
-      model(
-        "coder-model",
-        "Qwen Coder",
-        "openai-completions",
-        false,
-        ["text"],
-        128000,
-        8192,
-      ),
-      model(
-        "vision-model",
-        "Qwen Vision",
-        "openai-completions",
-        false,
-        ["text", "image"],
-        128000,
-        8192,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("qwen-portal"),
+    models: getStaticProviderCatalogModels("qwen-portal"),
   },
   {
     name: "qianfan",
     apiKey: "QIANFAN_API_KEY",
     baseUrlEnv: "QIANFAN_BASE_URL",
-    defaultBaseUrl: "https://qianfan.baidubce.com/v2",
-    models: [
-      model(
-        "deepseek-v3.2",
-        "DeepSeek V3.2",
-        "openai-completions",
-        false,
-        ["text"],
-        98304,
-        32768,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("qianfan"),
+    models: getStaticProviderCatalogModels("qianfan"),
   },
   {
     name: "cloudflare-ai-gateway",
     apiKey: "CLOUDFLARE_AI_GATEWAY_API_KEY",
     baseUrlEnv: "CLOUDFLARE_AI_GATEWAY_BASE_URL",
-    defaultBaseUrl:
-      "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>/anthropic",
-    models: [
-      model(
-        "anthropic/claude-sonnet-4-6",
-        "Claude Sonnet 4.6",
-        "anthropic-messages",
-        true,
-        ["text", "image"],
-        200000,
-        64000,
-      ),
-      model(
-        "anthropic/claude-opus-4-6",
-        "Claude Opus 4.6",
-        "anthropic-messages",
-        true,
-        ["text", "image"],
-        200000,
-        32000,
-      ),
-      model(
-        "openai/gpt-5.1",
-        "GPT-5.1",
-        "openai-completions",
-        true,
-        ["text", "image"],
-        400000,
-        128000,
-      ),
-    ],
+    defaultBaseUrl: getStaticProviderCatalogBaseUrl("cloudflare-ai-gateway"),
+    models: getStaticProviderCatalogModels("cloudflare-ai-gateway"),
   },
 ];
 
@@ -567,7 +326,7 @@ export async function registerOmniProviders(api: ExtensionAPI): Promise<void> {
       const models = mergeProviderModels(provider.models, discovered).map(
         (entry) => ({
           ...entry,
-          baseUrl,
+          baseUrl: entry.baseUrl ?? baseUrl,
         }),
       );
 
@@ -663,6 +422,7 @@ function mergeProviderModels(
     merged.set(discoveredModel.id, {
       ...existing,
       ...discoveredModel,
+      baseUrl: discoveredModel.baseUrl ?? existing.baseUrl,
       name: discoveredModel.name || existing.name,
       reasoning: existing.reasoning || discoveredModel.reasoning,
       input:
