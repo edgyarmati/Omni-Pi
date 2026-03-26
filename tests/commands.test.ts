@@ -200,13 +200,13 @@ describe("Omni commands", () => {
           { provider: "openai", id: "gpt-4.1" },
         ],
         ui: {
-          async select(_title: string, options: string[]) {
+          async select(title: string, options: string[]) {
             seenSelections.push(options);
+            if (title === "Configure Omni-Pi models:") {
+              return "Use terminal search";
+            }
             if (options.includes("worker")) {
               return "worker";
-            }
-            if (options.includes("Use terminal search")) {
-              return "Use terminal search";
             }
             return "openai/gpt-5.4";
           },
@@ -226,12 +226,12 @@ describe("Omni commands", () => {
     );
 
     expect(output).toContain("openai/gpt-5.4");
-    expect(config).toContain("openai/gpt-5.4");
-    expect(seenSelections[1]).toEqual([
-      "Use terminal search",
+    expect(seenSelections[0]).toEqual([
       "Open browser view",
+      "Use terminal search",
     ]);
     expect(seenSelections[2]).toContain("Open browser view");
+    expect(config).toContain("openai/gpt-5.4");
   });
 
   test("/omni-model only lists authenticated models by default", async () => {
@@ -251,13 +251,13 @@ describe("Omni commands", () => {
           { provider: "anthropic", id: "claude-sonnet-4-6" },
         ],
         ui: {
-          async select(_title: string, options: string[]) {
+          async select(title: string, options: string[]) {
             seenSelections.push(options);
+            if (title === "Configure Omni-Pi models:") {
+              return "Use terminal search";
+            }
             if (options.includes("worker")) {
               return "worker";
-            }
-            if (options.includes("Use terminal search")) {
-              return "Use terminal search";
             }
             return "openai/gpt-5.4";
           },
@@ -277,20 +277,27 @@ describe("Omni commands", () => {
     expect(seenSelections[2]).toContain("Open browser view");
   });
 
-  test("/omni-model can hand off selection to the browser flow", async () => {
+  test("/omni-model browser flow can update all roles at once", async () => {
     const rootDir = await createTempProject("omni-cmd-model-setup-");
     await initializeOmniProject(rootDir);
     const command = createOmniCommands().find(
       (item) => item.name === "omni-model",
     );
     setRuntimeBrowserModelSelectionRunnerForTests(
-      async (_runtime, role, currentModel, models) => {
-        expect(role).toBe("worker");
-        expect(currentModel).toBe("openai/gpt-5.4");
+      async (_runtime, currentModels, models) => {
+        expect(currentModels.worker).toBeTruthy();
+        expect(currentModels.expert).toBeTruthy();
+        expect(currentModels.planner).toBeTruthy();
+        expect(currentModels.brain).toBeTruthy();
         expect(models).toContain("openai/gpt-5.4");
         return {
-          selectedModel: "openai/gpt-4.1",
-          summary: "Selected openai/gpt-4.1 for worker.",
+          selectedModels: {
+            worker: "openai/gpt-4.1",
+            expert: "openai/gpt-5.4",
+            planner: "openai/gpt-4.1",
+            brain: "openai/gpt-5.4",
+          },
+          summary: "Updated model assignments from browser view.",
         };
       },
     );
@@ -308,10 +315,7 @@ describe("Omni commands", () => {
             { provider: "openai", id: "gpt-4.1" },
           ],
           ui: {
-            async select(_title: string, options: string[]) {
-              if (options.includes("worker")) {
-                return "worker";
-              }
+            async select(_title: string, _options: string[]) {
               return "Open browser view";
             },
             async input() {
@@ -329,8 +333,13 @@ describe("Omni commands", () => {
         "utf8",
       );
 
-      expect(output).toContain("openai/gpt-4.1");
+      expect(output).toContain(
+        "Updated worker, expert, planner, and brain models",
+      );
       expect(config).toContain("openai/gpt-4.1");
+      expect(config).toContain("| expert | openai/gpt-5.4 |");
+      expect(config).toContain("| planner | openai/gpt-4.1 |");
+      expect(config).toContain("| brain | openai/gpt-5.4 |");
     } finally {
       resetRuntimeBrowserModelSelectionRunnerForTests();
     }

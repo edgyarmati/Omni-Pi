@@ -462,79 +462,75 @@ export function createOmniCommands(): AppCommandDefinition[] {
         }
 
         const ui = runtime.ctx.ui;
-        const agentOptions = ["worker", "expert", "planner", "brain"];
-        const selectedAgent = await ui.select(
-          "Select agent role to configure:",
-          agentOptions,
-        );
-
-        if (!selectedAgent) {
-          return "Model selection cancelled.";
-        }
-
         const currentConfig = await readConfig(cwd);
-        const currentModel =
-          currentConfig.models[
-            selectedAgent as keyof typeof currentConfig.models
-          ];
         const authenticatedModels = runtime.ctx.modelRegistry
-          ? getAuthenticatedModelOptions(
-              runtime.ctx.modelRegistry,
-              currentModel,
-            )
+          ? getAuthenticatedModelOptions(runtime.ctx.modelRegistry, undefined)
           : AVAILABLE_MODELS;
-        const mode = await ui.select(`Configure ${selectedAgent} model:`, [
-          "Use terminal search",
+        const mode = await ui.select("Configure Omni-Pi models:", [
           "Open browser view",
+          "Use terminal search",
         ]);
         if (!mode) {
           return "Model selection cancelled.";
         }
 
-        let selectedModel = "";
-
         if (mode === "Open browser view") {
           const result = await runtimeBrowserModelSelectionRunner(
             runtime,
-            selectedAgent,
-            currentModel,
+            currentConfig.models,
             authenticatedModels,
           );
-          if (!result.selectedModel) {
+          if (!result.selectedModels) {
             return result.summary;
           }
-          selectedModel = result.selectedModel;
-        } else if (mode === "Use terminal search") {
-          const result = await runTerminalModelSearch(
-            runtime,
-            selectedAgent,
-            authenticatedModels,
-            currentModel,
-          );
-          if (result.kind === "cancelled") {
-            return "Model selection cancelled.";
-          }
-          if (result.kind === "browser") {
-            const browserResult = await runtimeBrowserModelSelectionRunner(
-              runtime,
-              selectedAgent,
-              currentModel,
-              authenticatedModels,
-            );
-            if (!browserResult.selectedModel) {
-              return browserResult.summary;
-            }
-            selectedModel = browserResult.selectedModel;
-          } else {
-            selectedModel = result.model;
-          }
-        } else {
+          await writeConfig(cwd, {
+            ...currentConfig,
+            models: result.selectedModels,
+          });
+          return "Updated worker, expert, planner, and brain models. Configuration saved to .omni/CONFIG.md";
+        }
+
+        const agentOptions = ["worker", "expert", "planner", "brain"];
+        const selectedAgent = await ui.select(
+          "Select agent role to configure:",
+          agentOptions,
+        );
+        if (!selectedAgent) {
           return "Model selection cancelled.";
         }
 
-        await updateModelConfig(cwd, selectedAgent, selectedModel);
+        const currentModel =
+          currentConfig.models[
+            selectedAgent as keyof typeof currentConfig.models
+          ];
+        const result = await runTerminalModelSearch(
+          runtime,
+          selectedAgent,
+          authenticatedModels,
+          currentModel,
+        );
+        if (result.kind === "cancelled") {
+          return "Model selection cancelled.";
+        }
+        if (result.kind === "browser") {
+          const browserResult = await runtimeBrowserModelSelectionRunner(
+            runtime,
+            currentConfig.models,
+            authenticatedModels,
+          );
+          if (!browserResult.selectedModels) {
+            return browserResult.summary;
+          }
+          await writeConfig(cwd, {
+            ...currentConfig,
+            models: browserResult.selectedModels,
+          });
+          return "Updated worker, expert, planner, and brain models. Configuration saved to .omni/CONFIG.md";
+        }
 
-        return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;
+        await updateModelConfig(cwd, selectedAgent, result.model);
+
+        return `Updated ${selectedAgent} model to ${result.model}. Configuration saved to .omni/CONFIG.md`;
       },
     },
     {

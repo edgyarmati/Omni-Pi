@@ -10,6 +10,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
+import type { OmniConfig } from "./contracts.js";
 import { AVAILABLE_MODELS } from "./providers.js";
 
 type SupportedApi =
@@ -46,7 +47,7 @@ interface RuntimeLike {
 }
 
 export interface BrowserModelSelectionResult {
-  selectedModel?: string;
+  selectedModels?: OmniConfig["models"];
   summary: string;
 }
 
@@ -713,12 +714,11 @@ export async function runTerminalModelSearch(
 }
 
 function renderBrowserModelSelectionPage(
-  role: string,
-  currentModel: string | undefined,
+  currentModels: OmniConfig["models"],
   models: string[],
 ): string {
   const modelsJson = JSON.stringify(models);
-  const current = currentModel ?? "";
+  const currentModelsJson = JSON.stringify(currentModels);
 
   return `<!doctype html>
 <html lang="en">
@@ -738,7 +738,7 @@ function renderBrowserModelSelectionPage(
       }
       * { box-sizing: border-box; }
       body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, #efe4d5, var(--bg)); }
-      main { max-width: 880px; margin: 48px auto; padding: 0 20px 40px; }
+      main { max-width: 1080px; margin: 48px auto; padding: 0 20px 40px; }
       .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 24px 64px rgba(31, 27, 22, 0.08); padding: 24px; }
       h1 { margin: 0 0 8px; font-size: 2rem; }
       p { color: var(--muted); line-height: 1.5; }
@@ -750,61 +750,92 @@ function renderBrowserModelSelectionPage(
       .item:last-child { border-bottom: none; }
       .item.active { background: #f7ede2; }
       .meta { color: var(--muted); font-size: 0.92rem; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 24px; }
+      .role { border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,0.72); padding: 16px; }
+      h2 { margin: 0 0 10px; font-size: 1.1rem; text-transform: capitalize; }
     </style>
   </head>
   <body>
     <main>
       <section class="panel">
-        <h1>Select ${escapeHtml(role)} model</h1>
-        <p>Search the same available models Pi exposes by default, then submit the model you want Omni-Pi to assign to ${escapeHtml(role)}.</p>
-        <label>
-          Search
-          <input id="search" placeholder="Filter by provider or model id" />
-        </label>
-        <label>
-          Selected model
-          <input id="selected" value="${escapeHtml(current)}" />
-        </label>
-        <div id="results" class="list"></div>
-        <button id="save">Save Model</button>
+        <h1>Configure Omni-Pi models</h1>
+        <p>Search Pi's available models for each role, then save all assignments in one pass.</p>
+        <div class="grid">
+          <section class="role" data-role="worker">
+            <h2>worker</h2>
+            <label>Search<input id="search-worker" placeholder="Filter models" /></label>
+            <label>Selected model<input id="selected-worker" value="${escapeHtml(currentModels.worker)}" /></label>
+            <div id="results-worker" class="list"></div>
+          </section>
+          <section class="role" data-role="expert">
+            <h2>expert</h2>
+            <label>Search<input id="search-expert" placeholder="Filter models" /></label>
+            <label>Selected model<input id="selected-expert" value="${escapeHtml(currentModels.expert)}" /></label>
+            <div id="results-expert" class="list"></div>
+          </section>
+          <section class="role" data-role="planner">
+            <h2>planner</h2>
+            <label>Search<input id="search-planner" placeholder="Filter models" /></label>
+            <label>Selected model<input id="selected-planner" value="${escapeHtml(currentModels.planner)}" /></label>
+            <div id="results-planner" class="list"></div>
+          </section>
+          <section class="role" data-role="brain">
+            <h2>brain</h2>
+            <label>Search<input id="search-brain" placeholder="Filter models" /></label>
+            <label>Selected model<input id="selected-brain" value="${escapeHtml(currentModels.brain)}" /></label>
+            <div id="results-brain" class="list"></div>
+          </section>
+        </div>
+        <button id="save">Save Model Assignments</button>
       </section>
     </main>
     <script>
       const models = ${modelsJson};
-      const searchEl = document.getElementById("search");
-      const selectedEl = document.getElementById("selected");
-      const resultsEl = document.getElementById("results");
-      const current = ${JSON.stringify(current)};
+      const currentModels = ${currentModelsJson};
+      const roles = ['worker', 'expert', 'planner', 'brain'];
 
-      const render = () => {
+      const renderRole = (role) => {
+        const searchEl = document.getElementById('search-' + role);
+        const selectedEl = document.getElementById('selected-' + role);
+        const resultsEl = document.getElementById('results-' + role);
         const query = searchEl.value.trim().toLowerCase();
         const filtered = models
           .filter((model) => !query || model.toLowerCase().includes(query))
           .slice(0, 100);
         resultsEl.innerHTML = filtered.map((model) => {
           const active = selectedEl.value === model;
-          const currentBadge = model === current ? '<div class="meta">Current selection</div>' : '';
+          const currentBadge = model === currentModels[role] ? '<div class="meta">Current selection</div>' : '';
           return '<div class="item' + (active ? ' active' : '') + '" data-model="' + model.replaceAll('"', '&quot;') + '"><div>' + model + '</div>' + currentBadge + '</div>';
         }).join('');
         for (const item of resultsEl.querySelectorAll('.item')) {
           item.addEventListener('click', () => {
             selectedEl.value = item.dataset.model || '';
-            render();
+            renderRole(role);
           });
         }
       };
 
-      searchEl.addEventListener('input', render);
-      render();
+      for (const role of roles) {
+        document.getElementById('search-' + role).addEventListener('input', () => renderRole(role));
+        document.getElementById('selected-' + role).addEventListener('input', () => renderRole(role));
+        renderRole(role);
+      }
 
       document.getElementById('save').addEventListener('click', async () => {
         const response = await fetch('/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selectedModel: selectedEl.value })
+          body: JSON.stringify({
+            selectedModels: {
+              worker: document.getElementById('selected-worker').value,
+              expert: document.getElementById('selected-expert').value,
+              planner: document.getElementById('selected-planner').value,
+              brain: document.getElementById('selected-brain').value
+            }
+          })
         });
         if (response.ok) {
-          document.body.innerHTML = '<main style="max-width:760px;margin:72px auto;font-family:ui-sans-serif,system-ui,sans-serif;padding:0 20px;"><h1>Omni-Pi model saved</h1><p>Return to Omni-Pi.</p></main>';
+          document.body.innerHTML = '<main style="max-width:760px;margin:72px auto;font-family:ui-sans-serif,system-ui,sans-serif;padding:0 20px;"><h1>Omni-Pi models saved</h1><p>Return to Omni-Pi.</p></main>';
         }
       });
     </script>
@@ -814,15 +845,14 @@ function renderBrowserModelSelectionPage(
 
 export async function runBrowserModelSelection(
   _runtime: RuntimeLike,
-  role: string,
-  currentModel: string | undefined,
+  currentModels: OmniConfig["models"],
   models: string[],
 ): Promise<BrowserModelSelectionResult> {
   return new Promise((resolve) => {
     const server = createServer((req, res) => {
       if (req.method === "GET" && req.url === "/") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderBrowserModelSelectionPage(role, currentModel, models));
+        res.end(renderBrowserModelSelectionPage(currentModels, models));
         return;
       }
 
@@ -835,14 +865,14 @@ export async function runBrowserModelSelection(
           try {
             const parsed = JSON.parse(
               Buffer.concat(chunks).toString("utf8"),
-            ) as { selectedModel?: string };
+            ) as { selectedModels?: OmniConfig["models"] };
             res.writeHead(204).end();
             clearTimeout(timeout);
             server.close(() =>
               resolve({
-                selectedModel: parsed.selectedModel?.trim(),
-                summary: parsed.selectedModel?.trim()
-                  ? `Selected ${parsed.selectedModel.trim()} for ${role}.`
+                selectedModels: parsed.selectedModels,
+                summary: parsed.selectedModels
+                  ? "Updated model assignments from browser view."
                   : "Model selection cancelled.",
               }),
             );
