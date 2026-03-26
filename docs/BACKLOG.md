@@ -151,8 +151,7 @@ Different phases get different context mixes:
 ## Future / Parking Lot
 
 - Better token estimation (model-aware tokenizer instead of char-based)
-- Quick-start wizard that asks about plan cleanup preference
 - Background memory extraction with cheap model (if markdown-based memory proves insufficient)
-- `/omni-auto` single-command autonomous loop (deferred — needs stuck detection first)
 - Parallel task execution in separate worktrees
 - Web dashboard for progress visualization
+- Document `agents/` vs `.pi/agents/` relationship: root `agents/` contains Pi-level role definitions with placeholder model names; `.pi/agents/` starters are per-project files installed by `initializeOmniProject`. Add a `README.md` in `agents/` explaining this and update placeholder model names to match `DEFAULT_CONFIG`.

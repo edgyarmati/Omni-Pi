@@ -92,17 +92,20 @@ For an interactive walkthrough, just run:
 omni
 ```
 
-## Planned commands
+## Commands
 
-- `/omni-init` - initialize `.omni/` and analyze the project
-- `/omni-status` - explain current state and next step
-- `/omni-plan` - create or refresh spec, tasks, and tests
-- `/omni-work` - run the next task through worker, verifier, and expert fallback
-- `/omni-sync` - update durable memory files from recent progress
-- `/omni-skills` - inspect installed and recommended skills
-- `/omni-explain` - explain what Omni-Pi is doing in simple language
-- `/omni-model` - interactively select the model for a specific agent role
-- `/omni-commit` - create a branch and commit for the last completed task
+| Command | Description |
+|---------|-------------|
+| `/omni-init` | Initialize `.omni/` project memory, scan repo signals, run health checks |
+| `/omni-plan` | Create or refresh spec, tasks, and tests (supports `--preset bugfix/feature/refactor/spike/security-audit`) |
+| `/omni-work` | Run the next task through worker, verifier, and expert fallback |
+| `/omni-status` | Show current phase, task, blockers, next step (add `metrics` for agent stats) |
+| `/omni-sync` | Update durable memory files from recent progress |
+| `/omni-skills` | Inspect installed, recommended, deferred, and rejected skills |
+| `/omni-explain` | Explain what Omni-Pi is doing in simple language |
+| `/omni-model` | Interactively select the model for a specific agent role |
+| `/omni-commit` | Create a branch and commit for the last completed task |
+| `/omni-doctor` | Run diagnostic health checks and detect stuck tasks |
 
 ## Repository layout
 
@@ -114,38 +117,27 @@ omni
 - `skills/` - bundled workflow skills
 - `prompts/` - prompt templates for brainstorming and planning
 
-## Current state
+## Features
 
-This repository now contains a tested v1 foundation:
+**Core workflow**: Durable `.omni/` project memory, typed contracts for planning/execution/verification/escalation, filesystem-backed init/planning/status, task execution with retry tracking and expert fallback.
 
-- durable `.omni/` starter templates
-- typed contracts for planning, execution, verification, and escalation
-- filesystem-backed init, planning, and status core logic
-- task execution state machine with retry tracking, task briefs, and expert escalation scaffolding
-- skill registry parsing, install planning, and persistent usage notes in `.omni/SKILLS.md`
-- sync support that writes recent progress back into durable memory files
-- command registration scaffolding for `/omni-init`, `/omni-plan`, `/omni-status`, `/omni-sync`, `/omni-skills`, and `/omni-explain`
-- a branded `omni` launcher in `bin/omni.js` that boots the Pi runtime with Omni-Pi resources loaded
-- real Pi extension entrypoints that register Omni commands through Pi's `ExtensionAPI`
-- `/omni-init` can execute planned skill-install commands through Pi's runtime when launched inside `omni`
-- `/omni-work` uses `pi-subagents` as the isolated worker/expert execution substrate when available, while Omni-Pi keeps orchestration and memory ownership
-- `pi-subagents` runs now persist raw outputs and per-attempt metadata into `.omni/tasks/`
-- live runtime verification now executes runnable commands from `.omni/TESTS.md` and uses those results for retry/escalation decisions
-- task-specific verification now selects only relevant checks when `.omni/TESTS.md` includes targeted commands or expectations
-- expert escalation tracks modified files from worker attempts and surfaces recovery options on failure
-- Pi-native message renderers for verification results, status summaries, and escalation notices
-- planning incorporates existing decisions, session notes, and prior scope from `.omni/` memory files
-- skill install failures are tracked and failed skills are moved to the deferred section with recovery guidance
-- task-level verification infers test commands from context files and includes done criteria as expectations
-- persistent dashboard widget via `setWidget` in the `omni-memory` extension, auto-updating on session start, switch, and turn end
-- run history integration with `/omni-status metrics` rendering success rates and durations
-- interactive planning refinement prompts for constraints and user context, with plan approval confirmation
-- skill trigger pattern matching injects matched skill guidance into subagent prompts at runtime
-- session branching isolates each task execution in its own Pi session
-- `/omni-commit` creates branches, stages files, and commits with task-derived messages
-- chain execution mode runs a scout agent before the worker for richer codebase context (configurable via `chainEnabled`)
-- starter agent, skill, and prompt definitions
-- automated tests covering initialization, repo signals, planning, status, escalation, skills, git, metrics, widgets, triggers, and launcher
+**Language-agnostic verification**: Infers test commands for TypeScript, Python, Rust, Go, Ruby, PHP. Supports custom checks in `.omni/TESTS.md`. Runnable command allowlist covers npm, cargo, go, pytest, composer, bundle, make, and more.
+
+**Workflow presets**: `--preset bugfix/feature/refactor/spike/security-audit` configures task shape, verification depth, and interview flow. Auto-detected from branch names and brief text.
+
+**Doctor system**: `/omni-doctor` checks init state, config validity, repo signals, task health, and stuck detection. Runs automatically during `/omni-init`. Dashboard widget shows traffic-light health indicator.
+
+**Plan & progress memory**: Each `/omni-plan` creates a dated plan file in `.omni/plans/` with an `INDEX.md` tracker. `.omni/PROGRESS.md` logs timestamped progress entries. Optional auto-cleanup of completed plans via config.
+
+**Context engineering**: Char-based token budgets (4 chars ≈ 1 token). Phase-aware file selection loads different `.omni/` files for understand/plan/build/check/escalate phases. Pre-reads context directly into worker/expert prompts.
+
+**Subagent integration**: Worker/expert execution via `pi-subagents` with raw output persistence, runtime verification, skill trigger matching, session branching, chain execution mode (scout → worker), and model overrides per agent role.
+
+**Dashboard**: Persistent widget showing phase bar, active task, blockers, next step, and health status. Auto-updates on session start, switch, and turn end.
+
+**Git integration**: `/omni-commit` creates branches, stages files, and commits with task-derived messages.
+
+**Interactive planning**: Refinement prompts for constraints and user context with plan approval confirmation. Skill install tracking with deferred recovery.
 
 ## Development
 
@@ -155,12 +147,10 @@ This repository now contains a tested v1 foundation:
 
 ## Next steps
 
-- parallel task execution for independent tasks with bounded concurrency
 - full end-to-end demo with real subagent execution against a live codebase
+- parallel task execution for independent tasks with bounded concurrency
 - PR creation and review support with follow-up task capture
+- better token estimation (model-aware tokenizer)
+- web dashboard for progress visualization
 
-## Backlog
-
-- PR review support, review summaries, and follow-up task capture
-- worktree-based branch isolation for safer concurrent work
-- agent performance analytics dashboard
+See `docs/BACKLOG.md` for the complete backlog.

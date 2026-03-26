@@ -6,6 +6,7 @@ import type {
   OmniState,
   SkillCandidate,
 } from "./contracts.js";
+import { type DoctorReport, runDoctor } from "./doctor.js";
 import { buildStarterFileMap, listStarterFiles } from "./memory.js";
 import {
   createInitialSpec,
@@ -38,6 +39,7 @@ export interface InitResult {
     args: string[];
     summary: string;
   }>;
+  diagnostics: DoctorReport;
 }
 
 export interface PlanResult {
@@ -194,6 +196,8 @@ export async function initializeOmniProject(
     );
   }
 
+  const diagnostics = await runDoctor(rootDir);
+
   await writeState(rootDir, {
     currentPhase: "understand",
     activeTask: "Initialize Omni-Pi",
@@ -201,7 +205,9 @@ export async function initializeOmniProject(
       "Omni-Pi has created its project memory files and scanned the repository for useful signals.",
     blockers: [],
     nextStep:
-      "Run /omni-plan to turn the current project context into a spec and first task slices.",
+      diagnostics.overall === "red"
+        ? "Run /omni-doctor to review issues before proceeding."
+        : "Run /omni-plan to turn the current project context into a spec and first task slices.",
   });
 
   return {
@@ -212,6 +218,7 @@ export async function initializeOmniProject(
     installedSkills,
     installCommands,
     installSteps,
+    diagnostics,
   };
 }
 

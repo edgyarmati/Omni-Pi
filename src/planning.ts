@@ -241,6 +241,14 @@ ${spec.architecture.map((item) => `- ${item}`).join("\n")}
 ## Acceptance Criteria
 
 ${spec.acceptanceCriteria.map((item) => `- ${item}`).join("\n")}
+
+## Risks
+
+- To be identified during planning.
+
+## Open Questions
+
+- To be captured during the understand phase.
 `;
 }
 

@@ -168,7 +168,13 @@ export function createOmniCommands(): AppCommandDefinition[] {
             : result.installCommands.length > 0
               ? ` Planned install commands: ${result.installCommands.join("; ")}.`
               : "";
-        return `Initialized Omni-Pi in ${cwd}. Created ${result.created.length} files, reused ${result.reused.length}, and identified ${result.skillCandidates.length} skill candidates.${installSummary}`;
+        const healthNote =
+          result.diagnostics.overall === "red"
+            ? " Health: FAIL — run /omni-doctor for details."
+            : result.diagnostics.overall === "yellow"
+              ? " Health: WARN — run /omni-doctor to review."
+              : " Health: OK.";
+        return `Initialized Omni-Pi in ${cwd}. Created ${result.created.length} files, reused ${result.reused.length}, and identified ${result.skillCandidates.length} skill candidates.${installSummary}${healthNote}`;
       },
     },
     {
