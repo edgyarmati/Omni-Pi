@@ -17,14 +17,19 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function readPackageJson(rootDir: string): Promise<Record<string, unknown> | null> {
+async function readPackageJson(
+  rootDir: string,
+): Promise<Record<string, unknown> | null> {
   const packageJsonPath = path.join(rootDir, "package.json");
   if (!(await exists(packageJsonPath))) {
     return null;
   }
 
   try {
-    return JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<string, unknown>;
+    return JSON.parse(await readFile(packageJsonPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
   } catch {
     return null;
   }
@@ -54,6 +59,19 @@ export async function detectRepoSignals(rootDir: string): Promise<RepoSignals> {
   const filesToCheck = [
     "package.json",
     "Cargo.toml",
+    "go.mod",
+    "requirements.txt",
+    "pyproject.toml",
+    "setup.py",
+    "Gemfile",
+    "composer.json",
+    "mix.exs",
+    "build.gradle",
+    "build.gradle.kts",
+    "pom.xml",
+    "Makefile",
+    "CMakeLists.txt",
+    "Package.swift",
     "playwright.config.ts",
     "playwright.config.js",
     "cypress.config.ts",
@@ -61,12 +79,18 @@ export async function detectRepoSignals(rootDir: string): Promise<RepoSignals> {
     "vite.config.ts",
     "next.config.js",
     "next.config.mjs",
-    "tsconfig.json"
+    "tsconfig.json",
+    "pytest.ini",
+    "setup.cfg",
+    "tox.ini",
+    ".rspec",
   ];
 
   const presentFiles = (
     await Promise.all(
-      filesToCheck.map(async (file) => ((await exists(path.join(rootDir, file))) ? file : null))
+      filesToCheck.map(async (file) =>
+        (await exists(path.join(rootDir, file))) ? file : null,
+      ),
     )
   ).filter((value): value is string => value !== null);
 
@@ -81,19 +105,83 @@ export async function detectRepoSignals(rootDir: string): Promise<RepoSignals> {
     languages.add("rust");
   }
 
-  if (presentFiles.includes("tsconfig.json") || packageNames.some((name) => name.includes("typescript"))) {
+  if (
+    presentFiles.includes("tsconfig.json") ||
+    packageNames.some((name) => name.includes("typescript"))
+  ) {
     languages.add("typescript");
+  }
+
+  if (presentFiles.includes("go.mod")) {
+    languages.add("go");
+  }
+
+  if (
+    presentFiles.includes("requirements.txt") ||
+    presentFiles.includes("pyproject.toml") ||
+    presentFiles.includes("setup.py")
+  ) {
+    languages.add("python");
+  }
+
+  if (presentFiles.includes("Gemfile")) {
+    languages.add("ruby");
+  }
+
+  if (presentFiles.includes("composer.json")) {
+    languages.add("php");
+  }
+
+  if (presentFiles.includes("mix.exs")) {
+    languages.add("elixir");
+  }
+
+  if (
+    presentFiles.includes("build.gradle") ||
+    presentFiles.includes("build.gradle.kts") ||
+    presentFiles.includes("pom.xml")
+  ) {
+    languages.add("java");
+  }
+
+  if (presentFiles.includes("Package.swift")) {
+    languages.add("swift");
+  }
+
+  if (
+    presentFiles.includes("CMakeLists.txt") &&
+    !presentFiles.includes("Cargo.toml")
+  ) {
+    languages.add("cpp");
+  }
+
+  if (presentFiles.includes("pytest.ini") || presentFiles.includes("tox.ini")) {
+    tools.add("pytest");
+  }
+
+  if (presentFiles.includes(".rspec")) {
+    tools.add("rspec");
+  }
+
+  if (presentFiles.includes("Makefile")) {
+    tools.add("make");
   }
 
   if (packageNames.includes("react") || packageNames.includes("next")) {
     frameworks.add("react");
   }
 
-  if (packageNames.includes("next") || presentFiles.some((file) => file.startsWith("next.config"))) {
+  if (
+    packageNames.includes("next") ||
+    presentFiles.some((file) => file.startsWith("next.config"))
+  ) {
     frameworks.add("nextjs");
   }
 
-  if (packageNames.includes("vite") || presentFiles.includes("vite.config.ts")) {
+  if (
+    packageNames.includes("vite") ||
+    presentFiles.includes("vite.config.ts")
+  ) {
     tools.add("vite");
   }
 
@@ -117,6 +205,6 @@ export async function detectRepoSignals(rootDir: string): Promise<RepoSignals> {
     languages: [...languages].sort(),
     frameworks: [...frameworks].sort(),
     tools: [...tools].sort(),
-    files: presentFiles.sort()
+    files: presentFiles.sort(),
   };
 }

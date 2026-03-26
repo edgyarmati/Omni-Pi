@@ -1,12 +1,32 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { EscalationBrief, TaskAttemptResult, TaskBrief } from "./contracts.js";
-import { findNextExecutableTask, readTasks, updateTaskStatus, writeTasks } from "./tasks.js";
+import {
+  gatherTaskContext,
+  renderContextBlocks,
+  renderContextSummary,
+} from "./context.js";
+import type {
+  EscalationBrief,
+  TaskAttemptResult,
+  TaskBrief,
+} from "./contracts.js";
+import {
+  findNextExecutableTask,
+  readTasks,
+  updateTaskStatus,
+  writeTasks,
+} from "./tasks.js";
 
 export interface WorkEngine {
-  runWorkerTask: (task: TaskBrief, attempt: number) => Promise<TaskAttemptResult>;
-  runExpertTask: (task: TaskBrief, escalation: EscalationBrief) => Promise<TaskAttemptResult>;
+  runWorkerTask: (
+    task: TaskBrief,
+    attempt: number,
+  ) => Promise<TaskAttemptResult>;
+  runExpertTask: (
+    task: TaskBrief,
+    escalation: EscalationBrief,
+  ) => Promise<TaskAttemptResult>;
 }
 
 export interface WorkResult {
@@ -29,7 +49,9 @@ const DEFAULT_RETRY_LIMIT = 2;
 async function readRetryLimit(testsPath: string): Promise<number> {
   try {
     const content = await readFile(testsPath, "utf8");
-    const match = content.match(/Worker retries before expert takeover:\s*(\d+)/u);
+    const match = content.match(
+      /Worker retries before expert takeover:\s*(\d+)/u,
+    );
     return match ? Number.parseInt(match[1], 10) : DEFAULT_RETRY_LIMIT;
   } catch {
     return DEFAULT_RETRY_LIMIT;
@@ -46,16 +68,29 @@ function historyPath(taskDir: string, taskId: string): string {
   return path.join(taskDir, `${taskId}.history.json`);
 }
 
-async function readTaskHistory(taskDir: string, taskId: string): Promise<TaskAttemptResult[]> {
+async function readTaskHistory(
+  taskDir: string,
+  taskId: string,
+): Promise<TaskAttemptResult[]> {
   try {
-    return JSON.parse(await readFile(historyPath(taskDir, taskId), "utf8")) as TaskAttemptResult[];
+    return JSON.parse(
+      await readFile(historyPath(taskDir, taskId), "utf8"),
+    ) as TaskAttemptResult[];
   } catch {
     return [];
   }
 }
 
-async function writeTaskHistory(taskDir: string, taskId: string, history: TaskAttemptResult[]): Promise<void> {
-  await writeFile(historyPath(taskDir, taskId), JSON.stringify(history, null, 2), "utf8");
+async function writeTaskHistory(
+  taskDir: string,
+  taskId: string,
+  history: TaskAttemptResult[],
+): Promise<void> {
+  await writeFile(
+    historyPath(taskDir, taskId),
+    JSON.stringify(history, null, 2),
+    "utf8",
+  );
 }
 
 async function writeTaskBrief(taskDir: string, task: TaskBrief): Promise<void> {
@@ -80,7 +115,9 @@ ${task.contextFiles.map((item) => `- ${item}`).join("\n") || "- None"}
   await writeFile(path.join(taskDir, `${task.id}-BRIEF.md`), content, "utf8");
 }
 
-export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDispatchResult> {
+export async function prepareNextTaskDispatch(
+  rootDir: string,
+): Promise<WorkDispatchResult> {
   const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
   const tasks = await readTasks(tasksPath);
   const nextTask = findNextExecutableTask(tasks);
@@ -90,15 +127,20 @@ export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDisp
       kind: "idle",
       taskId: null,
       prompt: "",
-      message: "No executable tasks are available. Refresh the plan or complete dependencies first."
+      message:
+        "No executable tasks are available. Refresh the plan or complete dependencies first.",
     };
   }
 
   const taskDir = await ensureTaskDir(rootDir);
   await writeTaskBrief(taskDir, nextTask);
-  await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "in_progress"));
+  await writeTasks(
+    tasksPath,
+    updateTaskStatus(tasks, nextTask.id, "in_progress"),
+  );
 
   const briefPath = path.join(taskDir, `${nextTask.id}-BRIEF.md`);
+  const preReadContext = await gatherTaskContext(rootDir, nextTask, 4000);
   const prompt = [
     "You are working inside an Omni-Pi guided task session.",
     "",
@@ -113,7 +155,18 @@ export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDisp
     ...nextTask.contextFiles.map((file) => `- ${file}`),
     "",
     "Then implement the task, explain the change briefly, and run the planned verification steps before finishing.",
-    nextTask.skills.length > 0 ? `Relevant skills: ${nextTask.skills.join(", ")}` : "Relevant skills: none explicitly listed"
+    nextTask.skills.length > 0
+      ? `Relevant skills: ${nextTask.skills.join(", ")}`
+      : "Relevant skills: none explicitly listed",
+    ...(preReadContext.length > 0
+      ? [
+          "",
+          renderContextSummary(preReadContext),
+          "",
+          "Pre-loaded context (already read for you):",
+          renderContextBlocks(preReadContext),
+        ]
+      : []),
   ].join("\n");
 
   return {
@@ -121,15 +174,22 @@ export async function prepareNextTaskDispatch(rootDir: string): Promise<WorkDisp
     taskId: nextTask.id,
     prompt,
     briefPath,
-    message: `Prepared ${nextTask.id} for a focused worker session.`
+    message: `Prepared ${nextTask.id} for a focused worker session.`,
   };
 }
 
-async function writeEscalationBrief(taskDir: string, escalation: EscalationBrief): Promise<void> {
+async function writeEscalationBrief(
+  taskDir: string,
+  escalation: EscalationBrief,
+): Promise<void> {
   const verificationResultsSection = escalation.verificationResults
-    ? escalation.verificationResults.map((r) => `- ${r.command}: ${r.passed ? "passed" : "failed"}`).join("\n")
+    ? escalation.verificationResults
+        .map((r) => `- ${r.command}: ${r.passed ? "passed" : "failed"}`)
+        .join("\n")
     : "- None recorded";
-  const modifiedFilesSection = escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") || "- None recorded";
+  const modifiedFilesSection =
+    escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") ||
+    "- None recorded";
 
   const content = `# Escalation for ${escalation.taskId}
 
@@ -153,10 +213,17 @@ ${modifiedFilesSection}
 
 ${escalation.expertObjective}
 `;
-  await writeFile(path.join(taskDir, `${escalation.taskId}-ESCALATION.md`), content, "utf8");
+  await writeFile(
+    path.join(taskDir, `${escalation.taskId}-ESCALATION.md`),
+    content,
+    "utf8",
+  );
 }
 
-function createEscalationBrief(task: TaskBrief, history: TaskAttemptResult[]): EscalationBrief {
+function createEscalationBrief(
+  task: TaskBrief,
+  history: TaskAttemptResult[],
+): EscalationBrief {
   const failureLogs = history
     .filter((attempt) => !attempt.verification.passed)
     .map((attempt) => attempt.verification.failureSummary.join("; "))
@@ -167,11 +234,13 @@ function createEscalationBrief(task: TaskBrief, history: TaskAttemptResult[]): E
       command,
       passed: attempt.verification.passed,
       stdout: "",
-      stderr: attempt.verification.failureSummary.join("\n")
-    }))
+      stderr: attempt.verification.failureSummary.join("\n"),
+    })),
   );
 
-  const modifiedFiles = [...new Set(history.flatMap((attempt) => attempt.modifiedFiles ?? []))];
+  const modifiedFiles = [
+    ...new Set(history.flatMap((attempt) => attempt.modifiedFiles ?? [])),
+  ];
 
   return {
     taskId: task.id,
@@ -179,20 +248,29 @@ function createEscalationBrief(task: TaskBrief, history: TaskAttemptResult[]): E
     failureLogs,
     expertObjective: `Resolve the root cause preventing ${task.id} from passing verification and complete the task.`,
     verificationResults,
-    modifiedFiles
+    modifiedFiles,
   };
 }
 
 function formatVerificationSummary(result: TaskAttemptResult): string {
-  const checks = result.verification.checksRun.length > 0 ? result.verification.checksRun.join(", ") : "no recorded checks";
+  const checks =
+    result.verification.checksRun.length > 0
+      ? result.verification.checksRun.join(", ")
+      : "no recorded checks";
   if (result.verification.passed) {
     return `Verification passed: ${checks}.`;
   }
-  const failures = result.verification.failureSummary.length > 0 ? result.verification.failureSummary.join("; ") : "unknown verification failure";
+  const failures =
+    result.verification.failureSummary.length > 0
+      ? result.verification.failureSummary.join("; ")
+      : "unknown verification failure";
   return `Verification failed: ${checks}. Reason: ${failures}.`;
 }
 
-export async function executeNextTask(rootDir: string, engine: WorkEngine): Promise<WorkResult> {
+export async function executeNextTask(
+  rootDir: string,
+  engine: WorkEngine,
+): Promise<WorkResult> {
   const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
   const testsPath = path.join(rootDir, ".omni", "TESTS.md");
   const tasks = await readTasks(tasksPath);
@@ -202,7 +280,8 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "idle",
       taskId: null,
-      message: "No executable tasks are available. Complete dependencies or refresh the plan first."
+      message:
+        "No executable tasks are available. Complete dependencies or refresh the plan first.",
     };
   }
 
@@ -221,7 +300,7 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} with the worker path. ${formatVerificationSummary(workerResult)}`
+      message: `Completed ${nextTask.id} with the worker path. ${formatVerificationSummary(workerResult)}`,
     };
   }
 
@@ -230,21 +309,24 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
     return {
       kind: "blocked",
       taskId: nextTask.id,
-      message: `Worker attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(workerResult)}`
+      message: `Worker attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(workerResult)}`,
     };
   }
 
   const escalation = createEscalationBrief(nextTask, workerHistory);
   await writeEscalationBrief(taskDir, escalation);
   const expertResult = await engine.runExpertTask(nextTask, escalation);
-  await writeTaskHistory(taskDir, nextTask.id, [...workerHistory, expertResult]);
+  await writeTaskHistory(taskDir, nextTask.id, [
+    ...workerHistory,
+    expertResult,
+  ]);
 
   if (expertResult.verification.passed) {
     await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "done"));
     return {
       kind: "expert_completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} after expert escalation. ${formatVerificationSummary(expertResult)}`
+      message: `Completed ${nextTask.id} after expert escalation. ${formatVerificationSummary(expertResult)}`,
     };
   }
 
@@ -257,7 +339,7 @@ export async function executeNextTask(rootDir: string, engine: WorkEngine): Prom
       "Review the escalation notes in `.omni/tasks/` and refine the task inputs.",
       "Run /omni-plan to restructure the task into smaller slices.",
       "Run /omni-sync to capture learnings before attempting a different approach.",
-      "Manually inspect and fix the failing checks listed in `.omni/TESTS.md`."
-    ]
+      "Manually inspect and fix the failing checks listed in `.omni/TESTS.md`.",
+    ],
   };
 }

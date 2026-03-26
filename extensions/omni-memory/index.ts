@@ -1,9 +1,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+} from "@mariozechner/pi-coding-agent";
 
 import type { OmniState } from "../../src/contracts.js";
+import { runDoctor } from "../../src/doctor.js";
 import { renderCompactStatus } from "../../src/status.js";
 
 async function readState(cwd: string): Promise<OmniState | null> {
@@ -16,15 +20,23 @@ async function readState(cwd: string): Promise<OmniState | null> {
     const blockersValue = matchValue("Blockers");
     const recoveryMatch = content.match(/Recovery Options:\n((?:- .*\n?)*)/u);
     const recoveryOptions = recoveryMatch
-      ? recoveryMatch[1].split("\n").map((line) => line.replace(/^- /u, "").trim()).filter(Boolean)
+      ? recoveryMatch[1]
+          .split("\n")
+          .map((line) => line.replace(/^- /u, "").trim())
+          .filter(Boolean)
       : undefined;
     return {
-      currentPhase: matchValue("Current Phase").toLowerCase() as OmniState["currentPhase"],
+      currentPhase: matchValue(
+        "Current Phase",
+      ).toLowerCase() as OmniState["currentPhase"],
       activeTask: matchValue("Active Task"),
       statusSummary: matchValue("Status Summary"),
-      blockers: blockersValue && blockersValue !== "None" ? blockersValue.split(/;\s*/u) : [],
+      blockers:
+        blockersValue && blockersValue !== "None"
+          ? blockersValue.split(/;\s*/u)
+          : [],
       nextStep: matchValue("Next Step"),
-      recoveryOptions
+      recoveryOptions,
     };
   } catch {
     return null;
@@ -34,7 +46,12 @@ async function readState(cwd: string): Promise<OmniState | null> {
 async function updateWidget(ctx: ExtensionContext): Promise<void> {
   const state = await readState(ctx.cwd);
   if (state) {
-    ctx.ui.setWidget("omni-dashboard", renderCompactStatus(state), { placement: "aboveEditor" });
+    const report = await runDoctor(ctx.cwd);
+    ctx.ui.setWidget(
+      "omni-dashboard",
+      renderCompactStatus(state, report.overall),
+      { placement: "aboveEditor" },
+    );
   } else {
     ctx.ui.setWidget("omni-dashboard", undefined);
   }

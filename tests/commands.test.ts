@@ -3,11 +3,10 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
-
-import { createOmniCommands } from "../src/commands.js";
 import omniCoreExtension from "../extensions/omni-core/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
+import { createOmniCommands } from "../src/commands.js";
 import { initializeOmniProject } from "../src/workflow.js";
 
 async function createTempProject(prefix: string): Promise<string> {
@@ -27,7 +26,8 @@ describe("Omni commands", () => {
       "omni-skills",
       "omni-explain",
       "omni-model",
-      "omni-commit"
+      "omni-commit",
+      "omni-doctor",
     ]);
   });
 
@@ -40,10 +40,17 @@ describe("Omni commands", () => {
       },
       registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
-      }
+      },
     } as never);
 
-    expect(registrations).toEqual(["omni-init", "omni-plan", "omni-work", "omni-sync", "omni-model", "omni-commit"]);
+    expect(registrations).toEqual([
+      "omni-init",
+      "omni-plan",
+      "omni-work",
+      "omni-sync",
+      "omni-model",
+      "omni-commit",
+    ]);
   });
 
   test("omniStatusExtension registers the status commands", () => {
@@ -52,10 +59,14 @@ describe("Omni commands", () => {
     omniStatusExtension({
       registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
-      }
+      },
     } as never);
 
-    expect(registrations).toEqual(["omni-status", "omni-explain"]);
+    expect(registrations).toEqual([
+      "omni-status",
+      "omni-explain",
+      "omni-doctor",
+    ]);
   });
 
   test("omniSkillsExtension registers the skills command", () => {
@@ -64,7 +75,7 @@ describe("Omni commands", () => {
     omniSkillsExtension({
       registerCommand(name: string, _options: { description: string }) {
         registrations.push(name);
-      }
+      },
     } as never);
 
     expect(registrations).toEqual(["omni-skills"]);
@@ -73,7 +84,9 @@ describe("Omni commands", () => {
   test("/omni-skills renders the current skill registry", async () => {
     const rootDir = await createTempProject("omni-cmd-skills-");
     await initializeOmniProject(rootDir);
-    const command = createOmniCommands().find((item) => item.name === "omni-skills");
+    const command = createOmniCommands().find(
+      (item) => item.name === "omni-skills",
+    );
 
     const output = await command?.execute({ cwd: rootDir });
 
@@ -85,12 +98,20 @@ describe("Omni commands", () => {
   test("/omni-sync updates session summary", async () => {
     const rootDir = await createTempProject("omni-cmd-sync-");
     await initializeOmniProject(rootDir);
-    const command = createOmniCommands().find((item) => item.name === "omni-sync");
+    const command = createOmniCommands().find(
+      (item) => item.name === "omni-sync",
+    );
 
-    const output = await command?.execute({ cwd: rootDir, args: ["Captured", "progress"] });
-    const sessionSummary = await readFile(path.join(rootDir, ".omni", "SESSION-SUMMARY.md"), "utf8");
+    const output = await command?.execute({
+      cwd: rootDir,
+      args: ["Captured", "progress"],
+    });
+    const sessionSummary = await readFile(
+      path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
+      "utf8",
+    );
 
-  expect(output).toContain("Synced Omni-Pi memory");
+    expect(output).toContain("Synced Omni-Pi memory");
     expect(sessionSummary).toContain("Captured progress");
   });
 });

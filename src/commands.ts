@@ -1,21 +1,54 @@
-import type { ConversationBrief } from "./contracts.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-
-import { renderMetrics, renderPlainStatus } from "./status.js";
+import {
+  AVAILABLE_MODELS,
+  readConfig,
+  updateModelConfig,
+  writeConfig,
+} from "./config.js";
+import {
+  type ConversationBrief,
+  detectPreset,
+  WORKFLOW_PRESETS,
+  type WorkflowPreset,
+} from "./contracts.js";
+import { renderDoctorReport, runDoctor } from "./doctor.js";
+import {
+  commitChanges,
+  createBranch,
+  prepareCommitPlan,
+  stageFiles,
+} from "./git.js";
 import type { AppCommandDefinition, CommandResult } from "./pi.js";
+import type { SkillInstallResult } from "./skills.js";
+import {
+  appendSkillUsageNote,
+  applyInstallResults,
+  readSkillRegistry,
+  renderSkillRegistry,
+} from "./skills.js";
+import { renderMetrics, renderPlainStatus } from "./status.js";
+import {
+  createChainWorkEngine,
+  createSubagentWorkEngine,
+  loadRunHistory,
+} from "./subagents.js";
 import type { WorkEngine } from "./work.js";
 import { prepareNextTaskDispatch } from "./work.js";
-import { appendSkillUsageNote, applyInstallResults, readSkillRegistry, renderSkillRegistry } from "./skills.js";
-import type { SkillInstallResult } from "./skills.js";
-import { createChainWorkEngine, createSubagentWorkEngine, loadRunHistory } from "./subagents.js";
-import { initializeOmniProject, planOmniProject, readOmniStatus, syncOmniProject, workOnOmniProject } from "./workflow.js";
-import { AVAILABLE_MODELS, readConfig, updateModelConfig, writeConfig } from "./config.js";
-import { commitChanges, createBranch, prepareCommitPlan, stageFiles } from "./git.js";
+import {
+  initializeOmniProject,
+  planOmniProject,
+  readOmniStatus,
+  syncOmniProject,
+  workOnOmniProject,
+} from "./workflow.js";
 
-let runtimeWorkEngineFactory: typeof createSubagentWorkEngine = createSubagentWorkEngine;
+let runtimeWorkEngineFactory: typeof createSubagentWorkEngine =
+  createSubagentWorkEngine;
 
-export function setRuntimeWorkEngineFactoryForTests(factory: typeof createSubagentWorkEngine): void {
+export function setRuntimeWorkEngineFactoryForTests(
+  factory: typeof createSubagentWorkEngine,
+): void {
   runtimeWorkEngineFactory = factory;
 }
 
@@ -31,9 +64,11 @@ const placeholderEngine: WorkEngine = {
         taskId: task.id,
         passed: false,
         checksRun: ["dispatch-pending"],
-        failureSummary: ["Direct worker execution is not wired into Pi runtime yet."],
-        retryRecommended: true
-      }
+        failureSummary: [
+          "Direct worker execution is not wired into Pi runtime yet.",
+        ],
+        retryRecommended: true,
+      },
     };
   },
   async runExpertTask(task) {
@@ -44,19 +79,37 @@ const placeholderEngine: WorkEngine = {
         passed: false,
         checksRun: ["dispatch-pending"],
         failureSummary: ["Expert execution is not wired into Pi runtime yet."],
-        retryRecommended: false
-      }
+        retryRecommended: false,
+      },
     };
-  }
+  },
 };
 
 function briefFromArgs(args: string[] | undefined): ConversationBrief {
-  const summary = args?.join(" ").trim() || "Create an initial implementation plan from the current project context.";
+  const joined = args?.join(" ").trim() ?? "";
+  const presetMatch = joined.match(/^--preset\s+(\S+)\s*(.*)/u);
+  let preset: WorkflowPreset | undefined;
+  let summary: string;
+
+  if (presetMatch && presetMatch[1] in WORKFLOW_PRESETS) {
+    preset = presetMatch[1] as WorkflowPreset;
+    summary = presetMatch[2].trim() || `${preset} workflow`;
+  } else {
+    summary =
+      joined ||
+      "Create an initial implementation plan from the current project context.";
+    const detected = detectPreset("", summary);
+    if (detected) {
+      preset = detected;
+    }
+  }
+
   return {
     summary,
     desiredOutcome: summary,
     constraints: [],
-    userSignals: []
+    userSignals: [],
+    preset,
   };
 }
 
@@ -72,15 +125,26 @@ export function createOmniCommands(): AppCommandDefinition[] {
 
         if (runtime && result.installSteps.length > 0) {
           for (const step of result.installSteps) {
-            const skillName = result.installedSkills.find((s) => step.summary.includes(s.name))?.name ?? step.summary;
-            const execResult = await runtime.pi.exec(step.command, step.args, { cwd });
+            const skillName =
+              result.installedSkills.find((s) => step.summary.includes(s.name))
+                ?.name ?? step.summary;
+            const execResult = await runtime.pi.exec(step.command, step.args, {
+              cwd,
+            });
             if (execResult.code === 0) {
               installNotes.push(`${step.summary}: installed`);
               installResults.push({ name: skillName, success: true });
             } else {
-              const errorMsg = execResult.stderr.trim() || execResult.stdout.trim() || `exit ${execResult.code}`;
+              const errorMsg =
+                execResult.stderr.trim() ||
+                execResult.stdout.trim() ||
+                `exit ${execResult.code}`;
               installNotes.push(`${step.summary}: failed (${errorMsg})`);
-              installResults.push({ name: skillName, success: false, error: errorMsg });
+              installResults.push({
+                name: skillName,
+                success: false,
+                error: errorMsg,
+              });
             }
           }
 
@@ -91,14 +155,21 @@ export function createOmniCommands(): AppCommandDefinition[] {
           if (installResults.some((r) => !r.success)) {
             const recovery = await applyInstallResults(cwd, installResults);
             if (recovery.deferred.length > 0) {
-              installNotes.push(`Deferred ${recovery.deferred.join(", ")} to retry later`);
+              installNotes.push(
+                `Deferred ${recovery.deferred.join(", ")} to retry later`,
+              );
             }
           }
         }
 
-        const installSummary = installNotes.length > 0 ? ` ${installNotes.join("; ")}.` : result.installCommands.length > 0 ? ` Planned install commands: ${result.installCommands.join("; ")}.` : "";
+        const installSummary =
+          installNotes.length > 0
+            ? ` ${installNotes.join("; ")}.`
+            : result.installCommands.length > 0
+              ? ` Planned install commands: ${result.installCommands.join("; ")}.`
+              : "";
         return `Initialized Omni-Pi in ${cwd}. Created ${result.created.length} files, reused ${result.reused.length}, and identified ${result.skillCandidates.length} skill candidates.${installSummary}`;
-      }
+      },
     },
     {
       name: "omni-plan",
@@ -108,22 +179,33 @@ export function createOmniCommands(): AppCommandDefinition[] {
 
         if (runtime) {
           const ui = runtime.ctx.ui;
+          const presetConfig = brief.preset
+            ? WORKFLOW_PRESETS[brief.preset]
+            : undefined;
 
-          const constraints = await ui.input("Any constraints or requirements to add?", "e.g., must use existing auth system");
-          if (constraints) {
-            brief.constraints.push(constraints);
-          }
+          if (!presetConfig?.skipInterview) {
+            const constraints = await ui.input(
+              "Any constraints or requirements to add?",
+              "e.g., must use existing auth system",
+            );
+            if (constraints) {
+              brief.constraints.push(constraints);
+            }
 
-          const userContext = await ui.input("Who are the primary users?", "e.g., developers, end users");
-          if (userContext) {
-            brief.userSignals.push(`Primary users: ${userContext}`);
+            const userContext = await ui.input(
+              "Who are the primary users?",
+              "e.g., developers, end users",
+            );
+            if (userContext) {
+              brief.userSignals.push(`Primary users: ${userContext}`);
+            }
           }
 
           const result = await planOmniProject(cwd, brief);
 
           const approved = await ui.confirm(
             "Plan generated",
-            `Created spec, ${result.tasksPath}, and ${result.testsPath}. Review .omni/SPEC.md and .omni/TASKS.md. Accept this plan?`
+            `Created spec, ${result.tasksPath}, and ${result.testsPath}. Review .omni/SPEC.md and .omni/TASKS.md. Accept this plan?`,
           );
 
           if (!approved) {
@@ -135,54 +217,65 @@ export function createOmniCommands(): AppCommandDefinition[] {
 
         const result = await planOmniProject(cwd, brief);
         return `Updated planning artifacts: ${result.specPath}, ${result.tasksPath}, ${result.testsPath}.`;
-      }
+      },
     },
     {
       name: "omni-work",
-      description: "Run the next task through worker, verifier, and expert fallback.",
+      description:
+        "Run the next task through worker, verifier, and expert fallback.",
       execute: async ({ cwd, runtime }) => {
         if (runtime) {
           try {
             const currentSession = runtime.ctx.sessionManager.getSessionFile();
-            const sessionResult = await runtime.ctx.newSession({ parentSession: currentSession });
+            const sessionResult = await runtime.ctx.newSession({
+              parentSession: currentSession,
+            });
             if (sessionResult.cancelled) {
               return "Omni-Pi task session was cancelled.";
             }
             const omniConfig = await readConfig(cwd);
-            const engineFactory = omniConfig.chainEnabled ? createChainWorkEngine : runtimeWorkEngineFactory;
+            const engineFactory = omniConfig.chainEnabled
+              ? createChainWorkEngine
+              : runtimeWorkEngineFactory;
             const engine = await engineFactory(cwd, runtime.ctx, undefined, {
-              exec: runtime.pi.exec.bind(runtime.pi)
+              exec: runtime.pi.exec.bind(runtime.pi),
             });
             const result = await workOnOmniProject(cwd, engine);
             runtime.ctx.ui.setStatus("omni", undefined);
             const text = `${result.message} Current phase: ${result.state.currentPhase}.`;
-            if (result.kind === "blocked" && result.state.currentPhase === "escalate") {
+            if (
+              result.kind === "blocked" &&
+              result.state.currentPhase === "escalate"
+            ) {
               return {
                 text,
                 messageType: "omni-escalation",
                 details: {
                   taskId: result.taskId,
                   failedChecks: result.state.blockers,
-                  recoveryOptions: result.state.recoveryOptions
-                }
+                  recoveryOptions: result.state.recoveryOptions,
+                },
               };
             }
-            if (result.kind === "completed" || result.kind === "expert_completed") {
+            if (
+              result.kind === "completed" ||
+              result.kind === "expert_completed"
+            ) {
               return {
                 text,
                 messageType: "omni-verification",
                 details: {
                   passed: true,
                   checksRun: [],
-                  failureSummary: []
-                }
+                  failureSummary: [],
+                },
               };
             }
             return text;
           } catch (error) {
             runtime.ctx.ui.notify(
               `pi-subagents integration unavailable, falling back to guided handoff: ${error instanceof Error ? error.message : String(error)}`,
-              "warning"
+              "warning",
             );
           }
 
@@ -190,9 +283,10 @@ export function createOmniCommands(): AppCommandDefinition[] {
           if (dispatch.kind === "idle") {
             return dispatch.message;
           }
-          const currentSessionFile = runtime.ctx.sessionManager.getSessionFile();
+          const currentSessionFile =
+            runtime.ctx.sessionManager.getSessionFile();
           const newSessionResult = await runtime.ctx.newSession({
-            parentSession: currentSessionFile
+            parentSession: currentSessionFile,
           });
 
           if (newSessionResult.cancelled) {
@@ -200,13 +294,16 @@ export function createOmniCommands(): AppCommandDefinition[] {
           }
 
           runtime.ctx.ui.setEditorText(dispatch.prompt);
-          runtime.ctx.ui.setStatus("omni", `Prepared ${dispatch.taskId} in a fresh session`);
+          runtime.ctx.ui.setStatus(
+            "omni",
+            `Prepared ${dispatch.taskId} in a fresh session`,
+          );
           return `Prepared ${dispatch.taskId} in a fresh focused session. Review the drafted prompt and submit when ready.`;
         }
 
         const result = await workOnOmniProject(cwd, placeholderEngine);
         return `${result.message} Current phase: ${result.state.currentPhase}.`;
-      }
+      },
     },
     {
       name: "omni-status",
@@ -232,36 +329,44 @@ export function createOmniCommands(): AppCommandDefinition[] {
               activeTask: state.activeTask,
               blockers: state.blockers,
               nextStep: state.nextStep,
-              recoveryOptions: state.recoveryOptions
-            }
+              recoveryOptions: state.recoveryOptions,
+            },
           };
         }
         return renderPlainStatus(state);
-      }
+      },
     },
     {
       name: "omni-sync",
-      description: "Update durable Omni-Pi project memory from recent progress.",
+      description:
+        "Update durable Omni-Pi project memory from recent progress.",
       execute: async ({ cwd, args }) => {
-        const summary = args?.join(" ").trim() || "Captured recent progress without additional details.";
-        const result = await syncOmniProject(cwd, { summary, nextHandoffNotes: [summary] });
+        const summary =
+          args?.join(" ").trim() ||
+          "Captured recent progress without additional details.";
+        const result = await syncOmniProject(cwd, {
+          summary,
+          nextHandoffNotes: [summary],
+        });
         return `Synced Omni-Pi memory. Current phase: ${result.state.currentPhase}.`;
-      }
+      },
     },
     {
       name: "omni-skills",
-      description: "Show installed, recommended, deferred, and rejected skills.",
+      description:
+        "Show installed, recommended, deferred, and rejected skills.",
       execute: async ({ cwd }) => {
         const registry = await readSkillRegistry(cwd);
         const skillsPath = path.join(cwd, ".omni", "SKILLS.md");
         await readFile(skillsPath, "utf8");
         return renderSkillRegistry(registry);
-      }
+      },
     },
     {
       name: "omni-explain",
       description: "Explain what Omni-Pi is doing and why.",
-      execute: async () => "Omni-Pi works in guided steps: understand the goal, plan the next slice, build it, check it, and escalate only when needed."
+      execute: async () =>
+        "Omni-Pi works in guided steps: understand the goal, plan the next slice, build it, check it, and escalate only when needed.",
     },
     {
       name: "omni-model",
@@ -273,28 +378,41 @@ export function createOmniCommands(): AppCommandDefinition[] {
 
         const ui = runtime.ctx.ui;
         const agentOptions = ["worker", "expert", "planner", "brain"];
-        const selectedAgent = await ui.select("Select agent role to configure:", agentOptions);
+        const selectedAgent = await ui.select(
+          "Select agent role to configure:",
+          agentOptions,
+        );
 
         if (!selectedAgent) {
           return "Model selection cancelled.";
         }
 
         const currentConfig = await readConfig(cwd);
-        const currentModel = currentConfig.models[selectedAgent as keyof typeof currentConfig.models];
+        const currentModel =
+          currentConfig.models[
+            selectedAgent as keyof typeof currentConfig.models
+          ];
         const modelOptions = AVAILABLE_MODELS.map((model) =>
-          model === currentModel ? `${model} (current)` : model
+          model === currentModel ? `${model} (current)` : model,
         );
 
-        const selectedModelDisplay = await ui.select(`Select model for ${selectedAgent}:`, modelOptions);
+        const selectedModelDisplay = await ui.select(
+          `Select model for ${selectedAgent}:`,
+          modelOptions,
+        );
         if (!selectedModelDisplay) {
           return "Model selection cancelled.";
         }
 
         const selectedModel = selectedModelDisplay.replace(" (current)", "");
-        const updatedConfig = await updateModelConfig(cwd, selectedAgent, selectedModel);
+        const updatedConfig = await updateModelConfig(
+          cwd,
+          selectedAgent,
+          selectedModel,
+        );
 
         return `Updated ${selectedAgent} model to ${selectedModel}. Configuration saved to .omni/CONFIG.md`;
-      }
+      },
     },
     {
       name: "omni-commit",
@@ -331,7 +449,23 @@ export function createOmniCommands(): AppCommandDefinition[] {
         }
 
         return `Committed ${plan.taskId} on branch ${plan.branch}. ${plan.files.length} files staged.`;
-      }
-    }
+      },
+    },
+    {
+      name: "omni-doctor",
+      description:
+        "Run diagnostic health checks on the project and detect stuck tasks.",
+      execute: async ({ cwd }): Promise<CommandResult> => {
+        const report = await runDoctor(cwd);
+        return {
+          text: renderDoctorReport(report),
+          messageType: "omni-status",
+          details: {
+            title: "Omni-Pi Doctor",
+            phase: report.overall,
+          },
+        };
+      },
+    },
   ];
 }

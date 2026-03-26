@@ -1,18 +1,18 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-
 import { describe, expect, test } from "vitest";
-
 import {
   createOmniCommands,
   resetRuntimeWorkEngineFactoryForTests,
-  setRuntimeWorkEngineFactoryForTests
+  setRuntimeWorkEngineFactoryForTests,
 } from "../src/commands.js";
-import { createSubagentWorkEngine, readVerificationPlan } from "../src/subagents.js";
-import { initializeOmniProject, planOmniProject } from "../src/workflow.js";
+import {
+  createSubagentWorkEngine,
+  readVerificationPlan,
+} from "../src/subagents.js";
 import { prepareNextTaskDispatch } from "../src/work.js";
-import { writeFile } from "node:fs/promises";
+import { initializeOmniProject, planOmniProject } from "../src/workflow.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
@@ -21,7 +21,9 @@ async function createTempProject(prefix: string): Promise<string> {
 describe("Omni runtime integration", () => {
   test("omni-init executes planned skill install commands when runtime is available", async () => {
     const rootDir = await createTempProject("omni-runtime-init-");
-    const init = createOmniCommands().find((command) => command.name === "omni-init");
+    const init = createOmniCommands().find(
+      (command) => command.name === "omni-init",
+    );
     const execCalls: Array<{ command: string; args: string[] }> = [];
 
     const output = await init?.execute({
@@ -31,19 +33,28 @@ describe("Omni runtime integration", () => {
           exec: async (command: string, args: string[]) => {
             execCalls.push({ command, args });
             return { stdout: "installed", stderr: "", code: 0, killed: false };
-          }
+          },
         } as never,
-        ctx: {} as never
-      }
+        ctx: {} as never,
+      },
     });
 
-    const skills = await readFile(path.join(rootDir, ".omni", "SKILLS.md"), "utf8");
+    const skills = await readFile(
+      path.join(rootDir, ".omni", "SKILLS.md"),
+      "utf8",
+    );
 
     expect(execCalls).toEqual([
       {
         command: "npx",
-        args: ["skills", "add", "https://github.com/vercel-labs/skills", "--skill", "find-skills"]
-      }
+        args: [
+          "skills",
+          "add",
+          "https://github.com/vercel-labs/skills",
+          "--skill",
+          "find-skills",
+        ],
+      },
     ]);
     expect(output).toContain("Install find-skills: installed");
     expect(skills).toContain("Install find-skills: installed");
@@ -56,16 +67,21 @@ describe("Omni runtime integration", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     const dispatch = await prepareNextTaskDispatch(rootDir);
-    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
 
     expect(dispatch.kind).toBe("ready");
     expect(dispatch.taskId).toBe("T01");
     expect(dispatch.prompt).toContain("Task: T01");
-    expect(tasks).toContain("| T01 | Confirm the initial project direction | worker | - | in_progress |");
+    expect(tasks).toContain(
+      "| T01 | Confirm the initial project direction | worker | - | in_progress |",
+    );
   });
 
   test("omni-work uses runtime session APIs to prepare a fresh focused session", async () => {
@@ -75,10 +91,12 @@ describe("Omni runtime integration", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
-    const work = createOmniCommands().find((command) => command.name === "omni-work");
+    const work = createOmniCommands().find(
+      (command) => command.name === "omni-work",
+    );
     const drafted: string[] = [];
     const statuses: string[] = [];
     let created = 0;
@@ -94,7 +112,7 @@ describe("Omni runtime integration", () => {
           pi: {} as never,
           ctx: {
             sessionManager: {
-              getSessionFile: () => "/tmp/current-session.jsonl"
+              getSessionFile: () => "/tmp/current-session.jsonl",
             },
             newSession: async () => {
               created += 1;
@@ -109,10 +127,10 @@ describe("Omni runtime integration", () => {
                   statuses.push(value);
                 }
               },
-              notify: () => undefined
-            }
-          } as never
-        }
+              notify: () => undefined,
+            },
+          } as never,
+        },
       });
 
       expect(created).toBe(2);
@@ -135,15 +153,15 @@ describe("Omni runtime integration", () => {
       rootDir,
       {
         ui: {
-          setStatus: () => undefined
-        }
+          setStatus: () => undefined,
+        },
       } as never,
       {
         discoverAgents: () => ({
           agents: [
             { name: "omni-worker", systemPrompt: "worker" },
-            { name: "omni-expert", systemPrompt: "expert" }
-          ]
+            { name: "omni-expert", systemPrompt: "expert" },
+          ],
         }),
         runSync: async (_runtimeCwd, _agents, agentName, task) => {
           calls.push({ agent: agentName, task });
@@ -156,22 +174,25 @@ describe("Omni runtime integration", () => {
                 content: [
                   {
                     type: "text",
-                    text: '{"summary":"done","verification":{"passed":true,"checksRun":["npm test"],"failureSummary":[],"retryRecommended":false}}'
-                  }
-                ]
-              }
-            ]
+                    text: '{"summary":"done","verification":{"passed":true,"checksRun":["npm test"],"failureSummary":[],"retryRecommended":false}}',
+                  },
+                ],
+              },
+            ],
           };
         },
         getFinalOutput: (messages) =>
-          (((messages[0] as { content: Array<{ text: string }> }).content[0] as { text: string }).text)
+          (
+            (messages[0] as { content: Array<{ text: string }> })
+              .content[0] as { text: string }
+          ).text,
       },
       {
         exec: async (command, args) => {
           execCalls.push({ command, args });
           return { stdout: "ok", stderr: "", code: 0, killed: false };
-        }
-      }
+        },
+      },
     );
 
     const workerResult = await engine.runWorkerTask(
@@ -184,9 +205,9 @@ describe("Omni runtime integration", () => {
         doneCriteria: ["It works"],
         role: "worker",
         status: "todo",
-        dependsOn: []
+        dependsOn: [],
       },
-      1
+      1,
     );
 
     const expertResult = await engine.runExpertTask(
@@ -199,14 +220,14 @@ describe("Omni runtime integration", () => {
         doneCriteria: ["It works"],
         role: "worker",
         status: "todo",
-        dependsOn: []
+        dependsOn: [],
       },
       {
         taskId: "T01",
         priorAttempts: 2,
         failureLogs: ["failed twice"],
-        expertObjective: "Fix it"
-      }
+        expertObjective: "Fix it",
+      },
     );
 
     expect(calls[0].agent).toBe("omni-worker");
@@ -218,8 +239,14 @@ describe("Omni runtime integration", () => {
     expect(expertResult.verification.passed).toBe(true);
     expect(execCalls.length).toBe(0);
 
-    const workerMeta = await readFile(path.join(rootDir, ".omni", "tasks", "T01-worker-attempt-1.json"), "utf8");
-    const expertMeta = await readFile(path.join(rootDir, ".omni", "tasks", "T01-expert-output.json"), "utf8");
+    const workerMeta = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01-worker-attempt-1.json"),
+      "utf8",
+    );
+    const expertMeta = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01-expert-output.json"),
+      "utf8",
+    );
     expect(workerMeta).toContain('"agent": "omni-worker"');
     expect(expertMeta).toContain('"agent": "omni-expert"');
   });
@@ -245,7 +272,7 @@ describe("Omni runtime integration", () => {
 
 - Worker retries before expert takeover: 2
 `,
-      "utf8"
+      "utf8",
     );
 
     const plan = await readVerificationPlan(rootDir, {
@@ -257,14 +284,17 @@ describe("Omni runtime integration", () => {
       doneCriteria: ["Auth flow works"],
       role: "worker",
       status: "todo",
-      dependsOn: []
+      dependsOn: [],
     });
     expect(plan.commands).toEqual([
       { command: "npm", args: ["test"] },
       { command: "npm", args: ["run", "lint"] },
-      { command: "npx", args: ["vitest", "run", "tests/auth.test.ts"] }
+      { command: "npx", args: ["vitest", "run", "tests/auth.test.ts"] },
     ]);
-    expect(plan.expectations).toEqual(["verify the touched workflow end to end", "Auth flow works"]);
+    expect(plan.expectations).toEqual([
+      "verify the touched workflow end to end",
+      "Auth flow works",
+    ]);
   });
 
   test("readVerificationPlan selects only relevant task-specific commands", async () => {
@@ -285,7 +315,7 @@ describe("Omni runtime integration", () => {
 - verify auth session handling
 - verify invoices render correctly
 `,
-      "utf8"
+      "utf8",
     );
 
     const plan = await readVerificationPlan(rootDir, {
@@ -297,15 +327,61 @@ describe("Omni runtime integration", () => {
       doneCriteria: ["Auth session remains valid"],
       role: "worker",
       status: "todo",
-      dependsOn: []
+      dependsOn: [],
     });
 
     expect(plan.commands).toEqual([
       { command: "npm", args: ["test"] },
       { command: "npm", args: ["run", "auth:e2e"] },
-      { command: "npx", args: ["vitest", "run", "tests/auth/session.test.ts"] }
+      { command: "npx", args: ["vitest", "run", "tests/auth/session.test.ts"] },
     ]);
-    expect(plan.expectations).toEqual(["verify auth session handling", "Auth session remains valid"]);
+    expect(plan.expectations).toEqual([
+      "verify auth session handling",
+      "Auth session remains valid",
+    ]);
+  });
+
+  test("readVerificationPlan includes custom checks section", async () => {
+    const rootDir = await createTempProject("omni-runtime-custom-checks-");
+    await initializeOmniProject(rootDir);
+    await writeFile(
+      path.join(rootDir, ".omni", "TESTS.md"),
+      `# Tests
+
+## Project-wide checks
+
+- npm test
+
+## Task-specific checks
+
+- verify auth flow
+
+## Custom checks
+
+- make lint
+- cargo clippy
+`,
+      "utf8",
+    );
+
+    const plan = await readVerificationPlan(rootDir, {
+      id: "T01",
+      title: "Auth flow",
+      objective: "Implement auth",
+      contextFiles: [],
+      skills: [],
+      doneCriteria: [],
+      role: "worker",
+      status: "todo",
+      dependsOn: [],
+    });
+
+    expect(plan.commands).toEqual([
+      { command: "npm", args: ["test"] },
+      { command: "make", args: ["lint"] },
+      { command: "cargo", args: ["clippy"] },
+    ]);
+    expect(plan.expectations).toContain("verify auth flow");
   });
 
   test("createSubagentWorkEngine uses runtime verification commands for final pass/fail", async () => {
@@ -323,14 +399,16 @@ describe("Omni runtime integration", () => {
 
 - verify user-facing workflow
 `,
-      "utf8"
+      "utf8",
     );
 
     const engine = await createSubagentWorkEngine(
       rootDir,
       { ui: { setStatus: () => undefined } } as never,
       {
-        discoverAgents: () => ({ agents: [{ name: "omni-worker", systemPrompt: "worker" }] }),
+        discoverAgents: () => ({
+          agents: [{ name: "omni-worker", systemPrompt: "worker" }],
+        }),
         runSync: async (_runtimeCwd, _agents, agentName) => ({
           agent: agentName,
           exitCode: 0,
@@ -340,18 +418,26 @@ describe("Omni runtime integration", () => {
               content: [
                 {
                   type: "text",
-                  text: '{"summary":"done","verification":{"passed":true,"checksRun":["agent self-check"],"failureSummary":[],"retryRecommended":false}}'
-                }
-              ]
-            }
-          ]
+                  text: '{"summary":"done","verification":{"passed":true,"checksRun":["agent self-check"],"failureSummary":[],"retryRecommended":false}}',
+                },
+              ],
+            },
+          ],
         }),
         getFinalOutput: (messages) =>
-          (((messages[0] as { content: Array<{ text: string }> }).content[0] as { text: string }).text)
+          (
+            (messages[0] as { content: Array<{ text: string }> })
+              .content[0] as { text: string }
+          ).text,
       },
       {
-        exec: async () => ({ stdout: "failed", stderr: "boom", code: 1, killed: false })
-      }
+        exec: async () => ({
+          stdout: "failed",
+          stderr: "boom",
+          code: 1,
+          killed: false,
+        }),
+      },
     );
 
     const result = await engine.runWorkerTask(
@@ -364,16 +450,21 @@ describe("Omni runtime integration", () => {
         doneCriteria: [],
         role: "worker",
         status: "todo",
-        dependsOn: []
+        dependsOn: [],
       },
-      1
+      1,
     );
 
     expect(result.verification.passed).toBe(false);
     expect(result.verification.checksRun).toEqual(["npm test"]);
-    expect(result.verification.failureSummary[0]).toContain("npm test failed with exit code 1");
+    expect(result.verification.failureSummary[0]).toContain(
+      "npm test failed with exit code 1",
+    );
 
-    const meta = await readFile(path.join(rootDir, ".omni", "tasks", "T99-worker-attempt-1.json"), "utf8");
+    const meta = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T99-worker-attempt-1.json"),
+      "utf8",
+    );
     expect(meta).toContain('"verificationCommands"');
     expect(meta).toContain('"command": "npm test"');
   });

@@ -2,7 +2,12 @@ import path from "node:path";
 
 import { describe, expect, test } from "vitest";
 
-import { buildOmniEnvironment, buildPiProcessSpec, getOmniPackageDir, resolvePiCliPath } from "../bin/omni.js";
+import {
+  buildOmniEnvironment,
+  buildPiProcessSpec,
+  getOmniPackageDir,
+  resolvePiCliPath,
+} from "../bin/omni.js";
 
 describe("omni launcher", () => {
   test("getOmniPackageDir points at the repository root", () => {

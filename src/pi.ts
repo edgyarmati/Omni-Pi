@@ -1,4 +1,8 @@
-import type { ExtensionAPI, ExtensionCommandContext, Theme } from "@mariozechner/pi-coding-agent";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  Theme,
+} from "@mariozechner/pi-coding-agent";
 import { Box, Text } from "@mariozechner/pi-tui";
 
 export interface AppCommandContext {
@@ -29,7 +33,10 @@ function splitArgs(rawArgs: string): string[] {
   return trimmed.length > 0 ? trimmed.split(/\s+/u) : [];
 }
 
-async function emitResult(result: string, ctx: ExtensionCommandContext): Promise<void> {
+async function emitResult(
+  result: string,
+  ctx: ExtensionCommandContext,
+): Promise<void> {
   if (result.trim().length === 0) {
     return;
   }
@@ -67,40 +74,63 @@ interface EscalationDetails {
 function renderVerificationMessage(
   message: { content: unknown; details?: unknown },
   expanded: boolean,
-  theme: Theme
+  theme: Theme,
 ): { box: InstanceType<typeof Box> } {
-  const body = typeof message.content === "string" ? message.content : String(message.content ?? "");
+  const body =
+    typeof message.content === "string"
+      ? message.content
+      : String(message.content ?? "");
   const details = (message.details ?? {}) as VerificationDetails;
   const icon = details.passed ? "✓" : "✗";
   const color = details.passed ? "accent" : "error";
-  const header = theme.fg(color, theme.bold(`${icon} ${details.title ?? "Verification"}`));
-  const checksLine = details.checksRun?.length ? `Checks: ${details.checksRun.join(", ")}` : "";
-  const failureLine = details.failureSummary?.length ? `Failures: ${details.failureSummary.join("; ")}` : "";
+  const header = theme.fg(
+    color,
+    theme.bold(`${icon} ${details.title ?? "Verification"}`),
+  );
+  const checksLine = details.checksRun?.length
+    ? `Checks: ${details.checksRun.join(", ")}`
+    : "";
+  const failureLine = details.failureSummary?.length
+    ? `Failures: ${details.failureSummary.join("; ")}`
+    : "";
   const lines = [header, body, checksLine, failureLine].filter(Boolean);
-  const box = new Box(1, 1, (text: string) => theme.bg("customMessageBg", text));
-  box.addChild(new Text(expanded ? lines.join("\n\n") : lines.join("\n"), 0, 0));
+  const box = new Box(1, 1, (text: string) =>
+    theme.bg("customMessageBg", text),
+  );
+  box.addChild(
+    new Text(expanded ? lines.join("\n\n") : lines.join("\n"), 0, 0),
+  );
   return { box };
 }
 
 function renderStatusMessage(
   message: { content: unknown; details?: unknown },
   expanded: boolean,
-  theme: Theme
+  theme: Theme,
 ): { box: InstanceType<typeof Box> } {
-  const body = typeof message.content === "string" ? message.content : String(message.content ?? "");
+  const body =
+    typeof message.content === "string"
+      ? message.content
+      : String(message.content ?? "");
   const details = (message.details ?? {}) as StatusDetails;
-  const header = theme.fg("accent", theme.bold(details.title ?? "Omni-Pi Status"));
+  const header = theme.fg(
+    "accent",
+    theme.bold(details.title ?? "Omni-Pi Status"),
+  );
   const lines = [header];
   if (details.phase) lines.push(`Phase: ${details.phase}`);
   if (details.activeTask) lines.push(`Task: ${details.activeTask}`);
   if (expanded) lines.push(body);
-  if (details.blockers?.length) lines.push(`Blockers: ${details.blockers.join("; ")}`);
+  if (details.blockers?.length)
+    lines.push(`Blockers: ${details.blockers.join("; ")}`);
   if (details.nextStep) lines.push(`Next: ${details.nextStep}`);
   if (details.recoveryOptions?.length) {
     lines.push("Recovery options:");
     for (const option of details.recoveryOptions) lines.push(`  - ${option}`);
   }
-  const box = new Box(1, 1, (text: string) => theme.bg("customMessageBg", text));
+  const box = new Box(1, 1, (text: string) =>
+    theme.bg("customMessageBg", text),
+  );
   box.addChild(new Text(lines.join("\n"), 0, 0));
   return { box };
 }
@@ -108,42 +138,66 @@ function renderStatusMessage(
 function renderEscalationMessage(
   message: { content: unknown; details?: unknown },
   expanded: boolean,
-  theme: Theme
+  theme: Theme,
 ): { box: InstanceType<typeof Box> } {
-  const body = typeof message.content === "string" ? message.content : String(message.content ?? "");
+  const body =
+    typeof message.content === "string"
+      ? message.content
+      : String(message.content ?? "");
   const details = (message.details ?? {}) as EscalationDetails;
-  const header = theme.fg("warning", theme.bold(`⚠ ${details.title ?? "Escalation"}`));
+  const header = theme.fg(
+    "warning",
+    theme.bold(`⚠ ${details.title ?? "Escalation"}`),
+  );
   const lines = [header];
   if (details.taskId) lines.push(`Task: ${details.taskId}`);
-  if (details.priorAttempts != null) lines.push(`Prior attempts: ${details.priorAttempts}`);
-  if (details.failedChecks?.length) lines.push(`Failed checks: ${details.failedChecks.join(", ")}`);
+  if (details.priorAttempts != null)
+    lines.push(`Prior attempts: ${details.priorAttempts}`);
+  if (details.failedChecks?.length)
+    lines.push(`Failed checks: ${details.failedChecks.join(", ")}`);
   if (expanded) lines.push(body);
-  const box = new Box(1, 1, (text: string) => theme.bg("customMessageBg", text));
+  const box = new Box(1, 1, (text: string) =>
+    theme.bg("customMessageBg", text),
+  );
   box.addChild(new Text(lines.join("\n"), 0, 0));
   return { box };
 }
 
 export function registerOmniMessageRenderer(api: ExtensionAPI): void {
   api.registerMessageRenderer("omni-update", (message, { expanded }, theme) => {
-    const body = typeof message.content === "string" ? message.content : String(message.content ?? "");
+    const body =
+      typeof message.content === "string"
+        ? message.content
+        : String(message.content ?? "");
     const details = (message.details ?? {}) as { title?: string };
-    const lines = [theme.fg("accent", theme.bold(details.title ?? "Omni-Pi")), body];
+    const lines = [
+      theme.fg("accent", theme.bold(details.title ?? "Omni-Pi")),
+      body,
+    ];
     const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
-    box.addChild(new Text(expanded ? lines.join("\n\n") : lines.join("\n"), 0, 0));
+    box.addChild(
+      new Text(expanded ? lines.join("\n\n") : lines.join("\n"), 0, 0),
+    );
     return box;
   });
 
-  api.registerMessageRenderer("omni-verification", (message, { expanded }, theme) => {
-    return renderVerificationMessage(message, expanded, theme).box;
-  });
+  api.registerMessageRenderer(
+    "omni-verification",
+    (message, { expanded }, theme) => {
+      return renderVerificationMessage(message, expanded, theme).box;
+    },
+  );
 
   api.registerMessageRenderer("omni-status", (message, { expanded }, theme) => {
     return renderStatusMessage(message, expanded, theme).box;
   });
 
-  api.registerMessageRenderer("omni-escalation", (message, { expanded }, theme) => {
-    return renderEscalationMessage(message, expanded, theme).box;
-  });
+  api.registerMessageRenderer(
+    "omni-escalation",
+    (message, { expanded }, theme) => {
+      return renderEscalationMessage(message, expanded, theme).box;
+    },
+  );
 }
 
 function normalizeResult(raw: CommandResult): StructuredResult {
@@ -153,7 +207,10 @@ function normalizeResult(raw: CommandResult): StructuredResult {
   return raw;
 }
 
-export function registerPiCommands(api: ExtensionAPI, commands: AppCommandDefinition[]): void {
+export function registerPiCommands(
+  api: ExtensionAPI,
+  commands: AppCommandDefinition[],
+): void {
   for (const command of commands) {
     api.registerCommand(command.name, {
       description: command.description,
@@ -163,8 +220,8 @@ export function registerPiCommands(api: ExtensionAPI, commands: AppCommandDefini
           args: splitArgs(args),
           runtime: {
             pi: api,
-            ctx
-          }
+            ctx,
+          },
         });
         const result = normalizeResult(raw);
         if (result.text.trim().length > 0 && ctx.hasUI) {
@@ -172,12 +229,12 @@ export function registerPiCommands(api: ExtensionAPI, commands: AppCommandDefini
             customType: result.messageType ?? "omni-update",
             content: result.text,
             display: true,
-            details: { title: command.name, ...result.details }
+            details: { title: command.name, ...result.details },
           });
         } else {
           await emitResult(result.text, ctx);
         }
-      }
+      },
     });
   }
 }

@@ -3,9 +3,11 @@ import path from "node:path";
 
 import type { TaskBrief } from "./contracts.js";
 
-interface ExecFn {
-  (command: string, args: string[], options?: { cwd?: string }): Promise<{ stdout: string; stderr: string; code: number; killed: boolean }>;
-}
+type ExecFn = (
+  command: string,
+  args: string[],
+  options?: { cwd?: string },
+) => Promise<{ stdout: string; stderr: string; code: number; killed: boolean }>;
 
 export interface CommitPlan {
   branch: string;
@@ -23,7 +25,10 @@ export function buildCommitMessage(task: TaskBrief): string {
   return `feat(${task.id}): ${task.title}\n\nObjective: ${task.objective}\nDone criteria: ${task.doneCriteria.join("; ") || "None listed"}`;
 }
 
-export function generatePrBody(task: TaskBrief, verificationSummary?: string): string {
+export function generatePrBody(
+  task: TaskBrief,
+  verificationSummary?: string,
+): string {
   const lines = [
     `## Summary`,
     "",
@@ -34,7 +39,7 @@ export function generatePrBody(task: TaskBrief, verificationSummary?: string): s
     `## Done Criteria`,
     "",
     ...task.doneCriteria.map((c) => `- [x] ${c}`),
-    ""
+    "",
   ];
   if (verificationSummary) {
     lines.push("## Verification", "", verificationSummary, "");
@@ -42,16 +47,24 @@ export function generatePrBody(task: TaskBrief, verificationSummary?: string): s
   return lines.join("\n");
 }
 
-export async function readLastCompletedTask(rootDir: string): Promise<{ taskId: string; task: TaskBrief } | null> {
+export async function readLastCompletedTask(
+  rootDir: string,
+): Promise<{ taskId: string; task: TaskBrief } | null> {
   try {
-    const tasksContent = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const tasksContent = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
     const doneRows = tasksContent
       .split("\n")
       .filter((line) => line.startsWith("| T") && line.includes("| done |"));
     if (doneRows.length === 0) return null;
 
     const lastRow = doneRows[doneRows.length - 1];
-    const columns = lastRow.split("|").slice(1, -1).map((col) => col.trim());
+    const columns = lastRow
+      .split("|")
+      .slice(1, -1)
+      .map((col) => col.trim());
     if (columns.length < 6) return null;
 
     const [id, title, role, dependsOn, , doneCriteria] = columns;
@@ -61,10 +74,22 @@ export async function readLastCompletedTask(rootDir: string): Promise<{ taskId: 
       objective: title,
       contextFiles: [],
       skills: [],
-      doneCriteria: doneCriteria === "-" ? [] : doneCriteria.split(";").map((s) => s.trim()).filter(Boolean),
+      doneCriteria:
+        doneCriteria === "-"
+          ? []
+          : doneCriteria
+              .split(";")
+              .map((s) => s.trim())
+              .filter(Boolean),
       role: role === "expert" ? "expert" : "worker",
       status: "done",
-      dependsOn: dependsOn === "-" ? [] : dependsOn.split(",").map((s) => s.trim()).filter(Boolean)
+      dependsOn:
+        dependsOn === "-"
+          ? []
+          : dependsOn
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
     };
     return { taskId: id, task };
   } catch {
@@ -72,33 +97,57 @@ export async function readLastCompletedTask(rootDir: string): Promise<{ taskId: 
   }
 }
 
-export async function readModifiedFilesFromHistory(rootDir: string, taskId: string): Promise<string[]> {
+export async function readModifiedFilesFromHistory(
+  rootDir: string,
+  taskId: string,
+): Promise<string[]> {
   try {
-    const historyPath = path.join(rootDir, ".omni", "tasks", `${taskId}.history.json`);
-    const history = JSON.parse(await readFile(historyPath, "utf8")) as Array<{ modifiedFiles?: string[] }>;
+    const historyPath = path.join(
+      rootDir,
+      ".omni",
+      "tasks",
+      `${taskId}.history.json`,
+    );
+    const history = JSON.parse(await readFile(historyPath, "utf8")) as Array<{
+      modifiedFiles?: string[];
+    }>;
     return [...new Set(history.flatMap((entry) => entry.modifiedFiles ?? []))];
   } catch {
     return [];
   }
 }
 
-export async function createBranch(exec: ExecFn, cwd: string, branch: string): Promise<boolean> {
+export async function createBranch(
+  exec: ExecFn,
+  cwd: string,
+  branch: string,
+): Promise<boolean> {
   const result = await exec("git", ["checkout", "-b", branch], { cwd });
   return result.code === 0;
 }
 
-export async function stageFiles(exec: ExecFn, cwd: string, files: string[]): Promise<boolean> {
+export async function stageFiles(
+  exec: ExecFn,
+  cwd: string,
+  files: string[],
+): Promise<boolean> {
   if (files.length === 0) return false;
   const result = await exec("git", ["add", ...files], { cwd });
   return result.code === 0;
 }
 
-export async function commitChanges(exec: ExecFn, cwd: string, message: string): Promise<boolean> {
+export async function commitChanges(
+  exec: ExecFn,
+  cwd: string,
+  message: string,
+): Promise<boolean> {
   const result = await exec("git", ["commit", "-m", message], { cwd });
   return result.code === 0;
 }
 
-export async function prepareCommitPlan(rootDir: string): Promise<CommitPlan | null> {
+export async function prepareCommitPlan(
+  rootDir: string,
+): Promise<CommitPlan | null> {
   const completed = await readLastCompletedTask(rootDir);
   if (!completed) return null;
 
@@ -108,6 +157,6 @@ export async function prepareCommitPlan(rootDir: string): Promise<CommitPlan | n
     message: buildCommitMessage(completed.task),
     files,
     taskId: completed.taskId,
-    prBody: generatePrBody(completed.task)
+    prBody: generatePrBody(completed.task),
   };
 }

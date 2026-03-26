@@ -4,11 +4,22 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type { ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
-
-import type { EscalationBrief, OmniConfig, TaskAttemptResult, TaskBrief } from "./contracts.js";
-import type { WorkEngine } from "./work.js";
 import { readConfig } from "./config.js";
+import {
+  type ContextBlock,
+  gatherTaskContext,
+  renderContextBlocks,
+  renderContextSummary,
+} from "./context.js";
+import type {
+  EscalationBrief,
+  OmniConfig,
+  TaskAttemptResult,
+  TaskBrief,
+} from "./contracts.js";
+import { detectRepoSignals } from "./repo.js";
 import { loadSkillTriggers, matchSkillsForTask } from "./skills.js";
+import type { WorkEngine } from "./work.js";
 
 interface SubagentConfig {
   name: string;
@@ -24,7 +35,10 @@ interface SubagentSingleResult {
 }
 
 interface SubagentDeps {
-  discoverAgents: (cwd: string, scope: "user" | "project" | "both") => { agents: SubagentConfig[] };
+  discoverAgents: (
+    cwd: string,
+    scope: "user" | "project" | "both",
+  ) => { agents: SubagentConfig[] };
   runSync: (
     runtimeCwd: string,
     agents: SubagentConfig[],
@@ -35,11 +49,24 @@ interface SubagentDeps {
       runId: string;
       sessionDir?: string;
       maxOutput?: { bytes?: number; lines?: number };
-      onUpdate?: (result: { details?: { progress?: Array<{ agent: string; currentTool?: string; toolCount?: number }> } }) => void;
-    }
+      onUpdate?: (result: {
+        details?: {
+          progress?: Array<{
+            agent: string;
+            currentTool?: string;
+            toolCount?: number;
+          }>;
+        };
+      }) => void;
+    },
   ) => Promise<SubagentSingleResult>;
   getFinalOutput: (messages: unknown[]) => string;
-  recordRun?: (agent: string, task: string, exitCode: number, durationMs: number) => void;
+  recordRun?: (
+    agent: string,
+    task: string,
+    exitCode: number,
+    durationMs: number,
+  ) => void;
   loadRunsForAgent?: (agent: string) => RunHistoryEntry[];
 }
 
@@ -77,7 +104,16 @@ interface VerificationCommandResult {
 }
 
 interface VerificationExecutor {
-  exec: (command: string, args: string[], options?: { cwd?: string }) => Promise<{ stdout: string; stderr: string; code: number; killed: boolean }>;
+  exec: (
+    command: string,
+    args: string[],
+    options?: { cwd?: string },
+  ) => Promise<{
+    stdout: string;
+    stderr: string;
+    code: number;
+    killed: boolean;
+  }>;
 }
 
 interface SubagentRunRecord {
@@ -97,12 +133,16 @@ function extractModifiedFiles(raw: string): string[] {
   const files: string[] = [];
   const patterns = [
     /(?:created|modified|edited|wrote|updated|changed)\s+(?:file\s+)?[`"']?([^\s`"',]+\.\w+)[`"']?/giu,
-    /(?:Write|Edit|Create)\s+(?:to\s+)?[`"']?([^\s`"',]+\.\w+)[`"']?/gu
+    /(?:Write|Edit|Create)\s+(?:to\s+)?[`"']?([^\s`"',]+\.\w+)[`"']?/gu,
   ];
   for (const pattern of patterns) {
     for (const match of raw.matchAll(pattern)) {
       const file = match[1].replace(/^\/+/u, "");
-      if (file.length > 0 && !file.startsWith("node_modules") && !files.includes(file)) {
+      if (
+        file.length > 0 &&
+        !file.startsWith("node_modules") &&
+        !files.includes(file)
+      ) {
         files.push(file);
       }
     }
@@ -114,15 +154,33 @@ function omniPackageDir(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 }
 
-export async function loadSubagentDeps(packageDir = omniPackageDir()): Promise<SubagentDeps> {
-  const agentsModule = await import(pathToFileURL(path.join(packageDir, "node_modules", "pi-subagents", "agents.ts")).href);
-  const executionModule = await import(pathToFileURL(path.join(packageDir, "node_modules", "pi-subagents", "execution.ts")).href);
-  const utilsModule = await import(pathToFileURL(path.join(packageDir, "node_modules", "pi-subagents", "utils.ts")).href);
+export async function loadSubagentDeps(
+  packageDir = omniPackageDir(),
+): Promise<SubagentDeps> {
+  const agentsModule = await import(
+    pathToFileURL(
+      path.join(packageDir, "node_modules", "pi-subagents", "agents.ts"),
+    ).href
+  );
+  const executionModule = await import(
+    pathToFileURL(
+      path.join(packageDir, "node_modules", "pi-subagents", "execution.ts"),
+    ).href
+  );
+  const utilsModule = await import(
+    pathToFileURL(
+      path.join(packageDir, "node_modules", "pi-subagents", "utils.ts"),
+    ).href
+  );
 
   let recordRun: SubagentDeps["recordRun"];
   let loadRunsForAgent: SubagentDeps["loadRunsForAgent"];
   try {
-    const historyModule = await import(pathToFileURL(path.join(packageDir, "node_modules", "pi-subagents", "run-history.ts")).href);
+    const historyModule = await import(
+      pathToFileURL(
+        path.join(packageDir, "node_modules", "pi-subagents", "run-history.ts"),
+      ).href
+    );
     recordRun = historyModule.recordRun;
     loadRunsForAgent = historyModule.loadRunsForAgent;
   } catch {
@@ -134,21 +192,37 @@ export async function loadSubagentDeps(packageDir = omniPackageDir()): Promise<S
     runSync: executionModule.runSync,
     getFinalOutput: utilsModule.getFinalOutput,
     recordRun,
-    loadRunsForAgent
+    loadRunsForAgent,
   } as SubagentDeps;
 }
 
-export async function loadRunHistory(packageDir = omniPackageDir()): Promise<{ loadRunsForAgent: (agent: string) => RunHistoryEntry[] } | null> {
+export async function loadRunHistory(
+  packageDir = omniPackageDir(),
+): Promise<{ loadRunsForAgent: (agent: string) => RunHistoryEntry[] } | null> {
   try {
-    const historyModule = await import(pathToFileURL(path.join(packageDir, "node_modules", "pi-subagents", "run-history.ts")).href);
+    const historyModule = await import(
+      pathToFileURL(
+        path.join(packageDir, "node_modules", "pi-subagents", "run-history.ts"),
+      ).href
+    );
     return { loadRunsForAgent: historyModule.loadRunsForAgent };
   } catch {
     return null;
   }
 }
 
-function buildWorkerPrompt(task: TaskBrief, verificationPlan: VerificationPlan, skillContext?: string): string {
-  const verificationChecks = verificationPlan.expectations.length > 0 ? verificationPlan.expectations : task.doneCriteria.length > 0 ? task.doneCriteria : ["Use the checks listed in .omni/TESTS.md"];
+function buildWorkerPrompt(
+  task: TaskBrief,
+  verificationPlan: VerificationPlan,
+  skillContext?: string,
+  preReadContext?: ContextBlock[],
+): string {
+  const verificationChecks =
+    verificationPlan.expectations.length > 0
+      ? verificationPlan.expectations
+      : task.doneCriteria.length > 0
+        ? task.doneCriteria
+        : ["Use the checks listed in .omni/TESTS.md"];
   const lines = [
     "You are Omni-Pi's worker executor.",
     "Complete the task using the repository and relevant project files.",
@@ -168,18 +242,42 @@ function buildWorkerPrompt(task: TaskBrief, verificationPlan: VerificationPlan, 
     "- .omni/SPEC.md",
     "- .omni/TESTS.md",
     `- .omni/tasks/${task.id}-BRIEF.md`,
-    ...task.contextFiles.map((file) => `- ${file}`)
+    ...task.contextFiles.map((file) => `- ${file}`),
   ];
   if (skillContext) {
     lines.push("", "Matched skill guidance:", skillContext);
   }
+  if (preReadContext && preReadContext.length > 0) {
+    lines.push(
+      "",
+      "Pre-loaded context (already read for you):",
+      renderContextBlocks(preReadContext),
+    );
+  }
   return lines.join("\n");
 }
 
-function buildExpertPrompt(task: TaskBrief, escalation: EscalationBrief, verificationPlan: VerificationPlan, skillContext?: string): string {
-  const verificationChecks = verificationPlan.expectations.length > 0 ? verificationPlan.expectations : task.doneCriteria.length > 0 ? task.doneCriteria : ["Use the checks listed in .omni/TESTS.md"];
-  const failedCommands = escalation.verificationResults?.filter((r) => !r.passed).map((r) => r.command).join(", ") || "none";
-  const modifiedFilesList = escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") || "none recorded";
+function buildExpertPrompt(
+  task: TaskBrief,
+  escalation: EscalationBrief,
+  verificationPlan: VerificationPlan,
+  skillContext?: string,
+  preReadContext?: ContextBlock[],
+): string {
+  const verificationChecks =
+    verificationPlan.expectations.length > 0
+      ? verificationPlan.expectations
+      : task.doneCriteria.length > 0
+        ? task.doneCriteria
+        : ["Use the checks listed in .omni/TESTS.md"];
+  const failedCommands =
+    escalation.verificationResults
+      ?.filter((r) => !r.passed)
+      .map((r) => r.command)
+      .join(", ") || "none";
+  const modifiedFilesList =
+    escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") ||
+    "none recorded";
   const lines = [
     "You are Omni-Pi's expert executor taking over after repeated failures.",
     "Fix the task directly and do not repeat the previous failed path blindly.",
@@ -204,15 +302,25 @@ function buildExpertPrompt(task: TaskBrief, escalation: EscalationBrief, verific
     "- .omni/TESTS.md",
     `- .omni/tasks/${task.id}-BRIEF.md`,
     `- .omni/tasks/${task.id}-ESCALATION.md`,
-    ...task.contextFiles.map((file) => `- ${file}`)
+    ...task.contextFiles.map((file) => `- ${file}`),
   ];
   if (skillContext) {
     lines.push("", "Matched skill guidance:", skillContext);
   }
+  if (preReadContext && preReadContext.length > 0) {
+    lines.push(
+      "",
+      "Pre-loaded context (already read for you):",
+      renderContextBlocks(preReadContext),
+    );
+  }
   return lines.join("\n");
 }
 
-function parseAttemptResult(raw: string, fallbackSummary: string): TaskAttemptResult {
+function parseAttemptResult(
+  raw: string,
+  fallbackSummary: string,
+): TaskAttemptResult {
   const trimmed = raw.trim();
   const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/u);
   const candidate = fencedMatch?.[1]?.trim() ?? trimmed;
@@ -233,18 +341,31 @@ function parseAttemptResult(raw: string, fallbackSummary: string): TaskAttemptRe
       passed: false,
       checksRun: ["subagent-output-parse"],
       failureSummary: ["Subagent did not return the expected JSON result."],
-      retryRecommended: true
-    }
+      retryRecommended: true,
+    },
   };
 }
 
-async function persistRawOutput(rootDir: string, taskId: string, suffix: string, content: string): Promise<void> {
+async function persistRawOutput(
+  rootDir: string,
+  taskId: string,
+  suffix: string,
+  content: string,
+): Promise<void> {
   const target = path.join(rootDir, ".omni", "tasks", `${taskId}-${suffix}.md`);
   await writeFile(target, content, "utf8");
 }
 
-async function persistRunRecord(rootDir: string, record: SubagentRunRecord): Promise<void> {
-  const target = path.join(rootDir, ".omni", "tasks", `${record.taskId}-${record.attemptLabel}.json`);
+async function persistRunRecord(
+  rootDir: string,
+  record: SubagentRunRecord,
+): Promise<void> {
+  const target = path.join(
+    rootDir,
+    ".omni",
+    "tasks",
+    `${record.taskId}-${record.attemptLabel}.json`,
+  );
   await writeFile(target, JSON.stringify(record, null, 2), "utf8");
 }
 
@@ -256,20 +377,44 @@ function parseCommandLine(line: string): VerificationExec | null {
   }
   return {
     command: cleaned[0],
-    args: cleaned.slice(1)
+    args: cleaned.slice(1),
   };
 }
 
-function isRunnableCommand(command: VerificationExec | null): command is VerificationExec {
+const ALLOWED_COMMANDS = new Set([
+  "npm",
+  "pnpm",
+  "yarn",
+  "bun",
+  "npx",
+  "make",
+  "cargo",
+  "go",
+  "python",
+  "python3",
+  "pytest",
+  "php",
+  "composer",
+  "bundle",
+  "rake",
+  "rspec",
+  "dotnet",
+  "swift",
+  "mix",
+  "gradle",
+  "mvn",
+  "cmake",
+  "elixir",
+]);
+
+function isRunnableCommand(
+  command: VerificationExec | null,
+): command is VerificationExec {
   return Boolean(
     command &&
-      (command.command === "npm" ||
-        command.command === "pnpm" ||
-        command.command === "yarn" ||
-        command.command === "bun" ||
-        command.command === "npx" ||
+      (ALLOWED_COMMANDS.has(command.command) ||
         command.command.startsWith("./") ||
-        command.command.includes("/"))
+        command.command.includes("/")),
   );
 }
 
@@ -292,9 +437,15 @@ function collectSignificantTerms(task: TaskBrief): Set<string> {
     "using",
     "use",
     "your",
-    "goal"
+    "goal",
   ]);
-  const values = [task.id, task.title, task.objective, ...task.contextFiles, ...task.doneCriteria]
+  const values = [
+    task.id,
+    task.title,
+    task.objective,
+    ...task.contextFiles,
+    ...task.doneCriteria,
+  ]
     .join(" ")
     .toLowerCase()
     .split(/[^a-z0-9_.\-/]+/u)
@@ -322,8 +473,13 @@ function matchesTask(line: string, task: TaskBrief): boolean {
   return [...terms].some((term) => lower.includes(term));
 }
 
-function splitVerificationSection(content: string, heading: string): ParsedVerificationLine[] {
-  const match = content.match(new RegExp(`${heading}\\n\\n([\\s\\S]*?)(?=\\n## |$)`, "u"));
+function splitVerificationSection(
+  content: string,
+  heading: string,
+): ParsedVerificationLine[] {
+  const match = content.match(
+    new RegExp(`${heading}\\n\\n([\\s\\S]*?)(?=\\n## |$)`, "u"),
+  );
   const lines = (match?.[1] ?? "")
     .split("\n")
     .map((line) => line.trim())
@@ -333,46 +489,149 @@ function splitVerificationSection(content: string, heading: string): ParsedVerif
 
   return lines.map((value) => ({
     value,
-    command: parseCommandLine(value)
+    command: parseCommandLine(value),
   }));
 }
 
-function inferTestCommandsFromContext(task: TaskBrief): VerificationExec[] {
+function inferTestCommandsFromContext(
+  task: TaskBrief,
+  languages?: string[],
+): VerificationExec[] {
   const inferred: VerificationExec[] = [];
-  const testPatterns = [
-    { pattern: /\.test\.[tj]sx?$/u, runner: "npm" },
-    { pattern: /\.spec\.[tj]sx?$/u, runner: "npm" }
-  ];
+  const langs = new Set(languages ?? []);
 
+  // TypeScript / JavaScript
   for (const file of task.contextFiles) {
-    for (const { pattern } of testPatterns) {
-      if (pattern.test(file)) {
-        inferred.push({ command: "npx", args: ["vitest", "run", file] });
+    if (/\.test\.[tj]sx?$/u.test(file) || /\.spec\.[tj]sx?$/u.test(file)) {
+      inferred.push({ command: "npx", args: ["vitest", "run", file] });
+      continue;
+    }
+    if (/\.[tj]sx?$/u.test(file)) {
+      const testFile = file
+        .replace(/\.([tj]sx?)$/u, ".test.$1")
+        .replace(/^src\//u, "tests/");
+      if (!inferred.some((cmd) => cmd.args.includes(testFile))) {
+        inferred.push({ command: "npx", args: ["vitest", "run", testFile] });
+      }
+    }
+  }
+
+  // Python
+  if (langs.has("python")) {
+    for (const file of task.contextFiles) {
+      if (/test_.*\.py$/u.test(file) || /_test\.py$/u.test(file)) {
+        inferred.push({ command: "pytest", args: [file] });
+      } else if (/\.py$/u.test(file)) {
+        const testFile = file.replace(
+          /(\w+)\.py$/u,
+          (_m, name) => `test_${name}.py`,
+        );
+        if (!inferred.some((cmd) => cmd.args.includes(testFile))) {
+          inferred.push({ command: "pytest", args: [testFile] });
+        }
+      }
+    }
+  }
+
+  // Rust
+  if (langs.has("rust")) {
+    for (const file of task.contextFiles) {
+      if (/\.rs$/u.test(file)) {
+        if (!inferred.some((cmd) => cmd.command === "cargo")) {
+          inferred.push({ command: "cargo", args: ["test"] });
+        }
         break;
       }
     }
+  }
 
-    const testFile = file
-      .replace(/\.([tj]sx?)$/u, ".test.$1")
-      .replace(/^src\//u, "tests/");
-    if (testFile !== file && !inferred.some((cmd) => cmd.args.includes(testFile))) {
-      inferred.push({ command: "npx", args: ["vitest", "run", testFile] });
+  // Go
+  if (langs.has("go")) {
+    for (const file of task.contextFiles) {
+      if (/_test\.go$/u.test(file)) {
+        inferred.push({
+          command: "go",
+          args: ["test", `./${path.dirname(file)}/...`],
+        });
+      } else if (/\.go$/u.test(file)) {
+        inferred.push({
+          command: "go",
+          args: ["test", `./${path.dirname(file)}/...`],
+        });
+      }
+    }
+  }
+
+  // Ruby
+  if (langs.has("ruby")) {
+    for (const file of task.contextFiles) {
+      if (/_spec\.rb$/u.test(file)) {
+        inferred.push({ command: "bundle", args: ["exec", "rspec", file] });
+      } else if (/\.rb$/u.test(file)) {
+        const specFile = file
+          .replace(/\.rb$/u, "_spec.rb")
+          .replace(/^lib\//u, "spec/");
+        if (!inferred.some((cmd) => cmd.args.includes(specFile))) {
+          inferred.push({
+            command: "bundle",
+            args: ["exec", "rspec", specFile],
+          });
+        }
+      }
+    }
+  }
+
+  // PHP
+  if (langs.has("php")) {
+    for (const file of task.contextFiles) {
+      if (/Test\.php$/u.test(file)) {
+        inferred.push({ command: "composer", args: ["test", "--", file] });
+      } else if (/\.php$/u.test(file)) {
+        const testFile = file
+          .replace(/\.php$/u, "Test.php")
+          .replace(/^src\//u, "tests/");
+        if (!inferred.some((cmd) => cmd.args.includes(testFile))) {
+          inferred.push({
+            command: "composer",
+            args: ["test", "--", testFile],
+          });
+        }
+      }
     }
   }
 
   return inferred;
 }
 
-export async function readVerificationPlan(rootDir: string, task?: TaskBrief): Promise<VerificationPlan> {
+export async function readVerificationPlan(
+  rootDir: string,
+  task?: TaskBrief,
+): Promise<VerificationPlan> {
   try {
-    const content = await readFile(path.join(rootDir, ".omni", "TESTS.md"), "utf8");
-    const projectLines = splitVerificationSection(content, "## Project-wide checks");
-    const taskLines = splitVerificationSection(content, "## Task-specific checks");
-    const selectedTaskLines = task ? taskLines.filter((line) => matchesTask(line.value, task)) : taskLines;
+    const content = await readFile(
+      path.join(rootDir, ".omni", "TESTS.md"),
+      "utf8",
+    );
+    const projectLines = splitVerificationSection(
+      content,
+      "## Project-wide checks",
+    );
+    const taskLines = splitVerificationSection(
+      content,
+      "## Task-specific checks",
+    );
+    const customLines = splitVerificationSection(content, "## Custom checks");
+    const selectedTaskLines = task
+      ? taskLines.filter((line) => matchesTask(line.value, task))
+      : taskLines;
 
     const commands: VerificationExec[] = [];
     const expectations: string[] = [];
-    for (const line of [...projectLines, ...selectedTaskLines]) {
+    for (const line of [
+      ...projectLines,
+      ...selectedTaskLines,
+      ...customLines,
+    ]) {
       if (isRunnableCommand(line.command)) {
         commands.push(line.command);
       } else {
@@ -381,10 +640,19 @@ export async function readVerificationPlan(rootDir: string, task?: TaskBrief): P
     }
 
     if (task) {
-      const contextCommands = inferTestCommandsFromContext(task);
+      const repoSignals = await detectRepoSignals(rootDir);
+      const contextCommands = inferTestCommandsFromContext(
+        task,
+        repoSignals.languages,
+      );
       for (const cmd of contextCommands) {
         const key = [cmd.command, ...cmd.args].join(" ");
-        if (!commands.some((existing) => [existing.command, ...existing.args].join(" ") === key)) {
+        if (
+          !commands.some(
+            (existing) =>
+              [existing.command, ...existing.args].join(" ") === key,
+          )
+        ) {
           commands.push(cmd);
         }
       }
@@ -398,12 +666,12 @@ export async function readVerificationPlan(rootDir: string, task?: TaskBrief): P
 
     return {
       commands,
-      expectations: [...new Set(expectations)]
+      expectations: [...new Set(expectations)],
     };
   } catch {
     return {
       commands: [],
-      expectations: []
+      expectations: [],
     };
   }
 }
@@ -411,7 +679,7 @@ export async function readVerificationPlan(rootDir: string, task?: TaskBrief): P
 async function runVerificationCommands(
   executor: VerificationExecutor | undefined,
   plan: VerificationPlan,
-  rootDir: string
+  rootDir: string,
 ): Promise<VerificationCommandResult[]> {
   if (!executor || plan.commands.length === 0) {
     return [];
@@ -419,37 +687,48 @@ async function runVerificationCommands(
 
   const results: VerificationCommandResult[] = [];
   for (const item of plan.commands) {
-    const execResult = await executor.exec(item.command, item.args, { cwd: item.cwd ?? rootDir });
+    const execResult = await executor.exec(item.command, item.args, {
+      cwd: item.cwd ?? rootDir,
+    });
     results.push({
       command: [item.command, ...item.args].join(" "),
       passed: execResult.code === 0 && !execResult.killed,
       stdout: execResult.stdout,
       stderr: execResult.stderr,
-      code: execResult.code
+      code: execResult.code,
     });
   }
   return results;
 }
 
-function findAgent(agents: SubagentConfig[], preferred: string, fallback: string): string {
+function findAgent(
+  agents: SubagentConfig[],
+  preferred: string,
+  fallback: string,
+): string {
   if (agents.some((agent) => agent.name === preferred)) {
     return preferred;
   }
   return fallback;
 }
 
-function applyModelOverrides(agents: SubagentConfig[], config: OmniConfig | undefined): SubagentConfig[] {
+const AGENT_ROLE_MAP: Record<string, keyof OmniConfig["models"]> = {
+  "omni-worker": "worker",
+  "omni-expert": "expert",
+  "omni-planner": "planner",
+  "omni-brain": "brain",
+};
+
+function applyModelOverrides(
+  agents: SubagentConfig[],
+  config: OmniConfig | undefined,
+): SubagentConfig[] {
   if (!config) {
     return agents;
   }
   return agents.map((agent) => {
-    const agentName = agent.name;
-    const modelOverride =
-      agentName === "omni-worker"
-        ? config.models.worker
-        : agentName === "omni-expert"
-          ? config.models.expert
-          : undefined;
+    const role = AGENT_ROLE_MAP[agent.name];
+    const modelOverride = role ? config.models[role] : undefined;
     if (modelOverride) {
       return { ...agent, model: modelOverride };
     }
@@ -461,7 +740,7 @@ export async function createSubagentWorkEngine(
   rootDir: string,
   ctx: ExtensionCommandContext,
   deps?: SubagentDeps,
-  verificationExecutor?: VerificationExecutor
+  verificationExecutor?: VerificationExecutor,
 ): Promise<WorkEngine> {
   const subagentDeps = deps ?? (await loadSubagentDeps());
   const config = await readConfig(rootDir);
@@ -471,48 +750,93 @@ export async function createSubagentWorkEngine(
   const expertAgent = findAgent(agentsWithOverrides, "omni-expert", "reviewer");
   const sessionDir = path.join(rootDir, ".omni", "subagent-sessions");
   const packageDir = omniPackageDir();
-  const skillTriggers = await loadSkillTriggers(path.join(packageDir, "skills"));
+  const skillTriggers = await loadSkillTriggers(
+    path.join(packageDir, "skills"),
+  );
 
   function getSkillContext(task: TaskBrief): string | undefined {
     const matched = matchSkillsForTask(task, skillTriggers);
     if (matched.length === 0) return undefined;
-    return matched.map((s) => `[${s.name}]\n${s.content.replace(/^---[\s\S]*?---\n*/u, "").trim()}`).join("\n\n");
+    return matched
+      .map(
+        (s) =>
+          `[${s.name}]\n${s.content.replace(/^---[\s\S]*?---\n*/u, "").trim()}`,
+      )
+      .join("\n\n");
   }
 
   return {
     runWorkerTask: async (task, attempt) => {
       const verificationPlan = await readVerificationPlan(rootDir, task);
-      ctx.ui.setStatus("omni", `Worker ${workerAgent} is handling ${task.id} (attempt ${attempt})`);
+      const preReadContext = await gatherTaskContext(rootDir, task, 4000);
+      ctx.ui.setStatus(
+        "omni",
+        `Worker ${workerAgent} is handling ${task.id} (attempt ${attempt})`,
+      );
       const startTime = Date.now();
-      const result = await subagentDeps.runSync(rootDir, agentsWithOverrides, workerAgent, buildWorkerPrompt(task, verificationPlan, getSkillContext(task)), {
-        cwd: rootDir,
-        runId: randomUUID(),
-        sessionDir,
-        onUpdate: (update) => {
-          const progress = update.details?.progress?.[0];
-          if (progress) {
-            ctx.ui.setStatus(
-              "omni",
-              `${progress.agent}: ${progress.currentTool ?? "working"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`
-            );
-          }
-        }
-      });
+      const result = await subagentDeps.runSync(
+        rootDir,
+        agentsWithOverrides,
+        workerAgent,
+        buildWorkerPrompt(
+          task,
+          verificationPlan,
+          getSkillContext(task),
+          preReadContext,
+        ),
+        {
+          cwd: rootDir,
+          runId: randomUUID(),
+          sessionDir,
+          onUpdate: (update) => {
+            const progress = update.details?.progress?.[0];
+            if (progress) {
+              ctx.ui.setStatus(
+                "omni",
+                `${progress.agent}: ${progress.currentTool ?? "working"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
+              );
+            }
+          },
+        },
+      );
       const raw = subagentDeps.getFinalOutput(result.messages);
-      const rawOutputPath = path.join(rootDir, ".omni", "tasks", `${task.id}-worker-attempt-${attempt}.md`);
-      await persistRawOutput(rootDir, task.id, `worker-attempt-${attempt}`, raw);
-      const parsed = parseAttemptResult(raw, `Worker ${workerAgent} completed without a structured verdict.`);
+      const rawOutputPath = path.join(
+        rootDir,
+        ".omni",
+        "tasks",
+        `${task.id}-worker-attempt-${attempt}.md`,
+      );
+      await persistRawOutput(
+        rootDir,
+        task.id,
+        `worker-attempt-${attempt}`,
+        raw,
+      );
+      const parsed = parseAttemptResult(
+        raw,
+        `Worker ${workerAgent} completed without a structured verdict.`,
+      );
       parsed.verification.taskId = task.id;
       if (result.exitCode !== 0 || result.error) {
         parsed.verification.passed = false;
-        parsed.verification.failureSummary = [result.error ?? `Worker exited with code ${result.exitCode}`];
+        parsed.verification.failureSummary = [
+          result.error ?? `Worker exited with code ${result.exitCode}`,
+        ];
       }
-      const verificationResults = await runVerificationCommands(verificationExecutor, verificationPlan, rootDir);
+      const verificationResults = await runVerificationCommands(
+        verificationExecutor,
+        verificationPlan,
+        rootDir,
+      );
       if (verificationResults.length > 0) {
-        parsed.verification.checksRun = verificationResults.map((item) => item.command);
+        parsed.verification.checksRun = verificationResults.map(
+          (item) => item.command,
+        );
         const failed = verificationResults.filter((item) => !item.passed);
         parsed.verification.passed = failed.length === 0;
-        parsed.verification.failureSummary = failed.map((item) => `${item.command} failed with exit code ${item.code}`);
+        parsed.verification.failureSummary = failed.map(
+          (item) => `${item.command} failed with exit code ${item.code}`,
+        );
         parsed.verification.retryRecommended = failed.length > 0;
       }
       const modifiedFiles = extractModifiedFiles(raw);
@@ -526,25 +850,40 @@ export async function createSubagentWorkEngine(
         checksRun: parsed.verification.checksRun,
         failureSummary: parsed.verification.failureSummary,
         verificationCommands: verificationResults,
-        modifiedFiles
+        modifiedFiles,
       });
-      subagentDeps.recordRun?.(workerAgent, `${task.id} attempt ${attempt}`, result.exitCode, Date.now() - startTime);
+      subagentDeps.recordRun?.(
+        workerAgent,
+        `${task.id} attempt ${attempt}`,
+        result.exitCode,
+        Date.now() - startTime,
+      );
       return { ...parsed, modifiedFiles };
     },
     runExpertTask: async (task, escalation) => {
       const verificationPlan = await readVerificationPlan(rootDir, task);
       const failedChecksSummary =
-        escalation.verificationResults?.filter((r) => !r.passed).map((r) => r.command).join(", ") || "none";
+        escalation.verificationResults
+          ?.filter((r) => !r.passed)
+          .map((r) => r.command)
+          .join(", ") || "none";
       ctx.ui.setStatus(
         "omni",
-        `Escalating ${task.id} to expert after ${escalation.priorAttempts} failed attempts. Failed checks: ${failedChecksSummary}`
+        `Escalating ${task.id} to expert after ${escalation.priorAttempts} failed attempts. Failed checks: ${failedChecksSummary}`,
       );
+      const preReadContext = await gatherTaskContext(rootDir, task, 6000);
       const expertStartTime = Date.now();
       const result = await subagentDeps.runSync(
         rootDir,
         agentsWithOverrides,
         expertAgent,
-        buildExpertPrompt(task, escalation, verificationPlan, getSkillContext(task)),
+        buildExpertPrompt(
+          task,
+          escalation,
+          verificationPlan,
+          getSkillContext(task),
+          preReadContext,
+        ),
         {
           cwd: rootDir,
           runId: randomUUID(),
@@ -554,27 +893,45 @@ export async function createSubagentWorkEngine(
             if (progress) {
               ctx.ui.setStatus(
                 "omni",
-                `${progress.agent}: ${progress.currentTool ?? "resolving"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`
+                `${progress.agent}: ${progress.currentTool ?? "resolving"}${progress.toolCount ? ` (${progress.toolCount} tools)` : ""}`,
               );
             }
-          }
-        }
+          },
+        },
       );
       const raw = subagentDeps.getFinalOutput(result.messages);
-      const rawOutputPath = path.join(rootDir, ".omni", "tasks", `${task.id}-expert-output.md`);
+      const rawOutputPath = path.join(
+        rootDir,
+        ".omni",
+        "tasks",
+        `${task.id}-expert-output.md`,
+      );
       await persistRawOutput(rootDir, task.id, "expert-output", raw);
-      const parsed = parseAttemptResult(raw, `Expert ${expertAgent} completed without a structured verdict.`);
+      const parsed = parseAttemptResult(
+        raw,
+        `Expert ${expertAgent} completed without a structured verdict.`,
+      );
       parsed.verification.taskId = task.id;
       if (result.exitCode !== 0 || result.error) {
         parsed.verification.passed = false;
-        parsed.verification.failureSummary = [result.error ?? `Expert exited with code ${result.exitCode}`];
+        parsed.verification.failureSummary = [
+          result.error ?? `Expert exited with code ${result.exitCode}`,
+        ];
       }
-      const verificationResults = await runVerificationCommands(verificationExecutor, verificationPlan, rootDir);
+      const verificationResults = await runVerificationCommands(
+        verificationExecutor,
+        verificationPlan,
+        rootDir,
+      );
       if (verificationResults.length > 0) {
-        parsed.verification.checksRun = verificationResults.map((item) => item.command);
+        parsed.verification.checksRun = verificationResults.map(
+          (item) => item.command,
+        );
         const failed = verificationResults.filter((item) => !item.passed);
         parsed.verification.passed = failed.length === 0;
-        parsed.verification.failureSummary = failed.map((item) => `${item.command} failed with exit code ${item.code}`);
+        parsed.verification.failureSummary = failed.map(
+          (item) => `${item.command} failed with exit code ${item.code}`,
+        );
         parsed.verification.retryRecommended = failed.length > 0;
       }
       const modifiedFiles = extractModifiedFiles(raw);
@@ -588,11 +945,16 @@ export async function createSubagentWorkEngine(
         checksRun: parsed.verification.checksRun,
         failureSummary: parsed.verification.failureSummary,
         verificationCommands: verificationResults,
-        modifiedFiles
+        modifiedFiles,
       });
-      subagentDeps.recordRun?.(expertAgent, `${task.id} expert`, result.exitCode, Date.now() - expertStartTime);
+      subagentDeps.recordRun?.(
+        expertAgent,
+        `${task.id} expert`,
+        result.exitCode,
+        Date.now() - expertStartTime,
+      );
       return { ...parsed, modifiedFiles };
-    }
+    },
   };
 }
 
@@ -610,7 +972,7 @@ function buildScoutPrompt(task: TaskBrief): string {
     "Required files to read:",
     "- .omni/PROJECT.md",
     "- .omni/SPEC.md",
-    ...task.contextFiles.map((file) => `- ${file}`)
+    ...task.contextFiles.map((file) => `- ${file}`),
   ].join("\n");
 }
 
@@ -618,9 +980,14 @@ export async function createChainWorkEngine(
   rootDir: string,
   ctx: ExtensionCommandContext,
   deps?: SubagentDeps,
-  verificationExecutor?: VerificationExecutor
+  verificationExecutor?: VerificationExecutor,
 ): Promise<WorkEngine> {
-  const baseEngine = await createSubagentWorkEngine(rootDir, ctx, deps, verificationExecutor);
+  const baseEngine = await createSubagentWorkEngine(
+    rootDir,
+    ctx,
+    deps,
+    verificationExecutor,
+  );
   const subagentDeps = deps ?? (await loadSubagentDeps());
   const config = await readConfig(rootDir);
   const discovery = subagentDeps.discoverAgents(rootDir, "both");
@@ -630,22 +997,36 @@ export async function createChainWorkEngine(
 
   return {
     runWorkerTask: async (task, attempt) => {
-      ctx.ui.setStatus("omni", `Scout analyzing ${task.id} before worker execution`);
-      const scoutResult = await subagentDeps.runSync(rootDir, agentsWithOverrides, scoutAgent, buildScoutPrompt(task), {
-        cwd: rootDir,
-        runId: randomUUID(),
-        sessionDir
-      });
+      ctx.ui.setStatus(
+        "omni",
+        `Scout analyzing ${task.id} before worker execution`,
+      );
+      const scoutResult = await subagentDeps.runSync(
+        rootDir,
+        agentsWithOverrides,
+        scoutAgent,
+        buildScoutPrompt(task),
+        {
+          cwd: rootDir,
+          runId: randomUUID(),
+          sessionDir,
+        },
+      );
       const scoutOutput = subagentDeps.getFinalOutput(scoutResult.messages);
-      await persistRawOutput(rootDir, task.id, `scout-attempt-${attempt}`, scoutOutput);
+      await persistRawOutput(
+        rootDir,
+        task.id,
+        `scout-attempt-${attempt}`,
+        scoutOutput,
+      );
 
       const enrichedTask: TaskBrief = {
         ...task,
-        objective: `${task.objective}\n\nScout analysis:\n${scoutOutput.slice(0, 2000)}`
+        objective: `${task.objective}\n\nScout analysis:\n${scoutOutput.slice(0, 2000)}`,
       };
 
       return baseEngine.runWorkerTask(enrichedTask, attempt);
     },
-    runExpertTask: baseEngine.runExpertTask
+    runExpertTask: baseEngine.runExpertTask,
   };
 }

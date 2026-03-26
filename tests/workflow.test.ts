@@ -3,13 +3,54 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
-
-import type { WorkEngine } from "../src/work.js";
-import { renderCompactStatus, renderMetrics, renderPlainStatus } from "../src/status.js";
-import { applyInstallResults, loadSkillTriggers, matchSkillsForTask, readSkillRegistry } from "../src/skills.js";
+import { readConfig, writeConfig } from "../src/config.js";
+import {
+  consumeBudget,
+  createBudget,
+  estimateTokens,
+  fitsInBudget,
+  gatherPhaseContext,
+  gatherTaskContext,
+  getPhaseFiles,
+  renderContextSummary,
+} from "../src/context.js";
+import { detectPreset } from "../src/contracts.js";
+import { renderDoctorReport, runDoctor } from "../src/doctor.js";
+import {
+  buildBranchName,
+  buildCommitMessage,
+  generatePrBody,
+  prepareCommitPlan,
+} from "../src/git.js";
 import { gatherPlanningContext } from "../src/planning.js";
-import { buildBranchName, buildCommitMessage, generatePrBody, prepareCommitPlan } from "../src/git.js";
-import { initializeOmniProject, planOmniProject, readOmniStatus, syncOmniProject, workOnOmniProject } from "../src/workflow.js";
+import {
+  appendProgress,
+  cleanupCompletedPlans,
+  createPlan,
+  readPlanIndex,
+  readProgress,
+  renderPlanIndex,
+  updatePlanStatus,
+} from "../src/plans.js";
+import {
+  applyInstallResults,
+  loadSkillTriggers,
+  matchSkillsForTask,
+  readSkillRegistry,
+} from "../src/skills.js";
+import {
+  renderCompactStatus,
+  renderMetrics,
+  renderPlainStatus,
+} from "../src/status.js";
+import type { WorkEngine } from "../src/work.js";
+import {
+  initializeOmniProject,
+  planOmniProject,
+  readOmniStatus,
+  syncOmniProject,
+  workOnOmniProject,
+} from "../src/workflow.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
@@ -24,9 +65,18 @@ describe("Omni workflow", () => {
     expect(result.created).toContain(".omni/PROJECT.md");
     expect(result.created).toContain(".omni/STATE.md");
     expect(result.created).toContain(".pi/agents/omni-worker.md");
-    expect(result.skillCandidates.some((candidate) => candidate.name === "find-skills")).toBe(true);
+    expect(result.created).toContain(".pi/agents/omni-planner.md");
+    expect(result.created).toContain(".pi/agents/omni-brain.md");
+    expect(
+      result.skillCandidates.some(
+        (candidate) => candidate.name === "find-skills",
+      ),
+    ).toBe(true);
 
-    const skillsContent = await readFile(path.join(rootDir, ".omni", "SKILLS.md"), "utf8");
+    const skillsContent = await readFile(
+      path.join(rootDir, ".omni", "SKILLS.md"),
+      "utf8",
+    );
     expect(skillsContent).toContain("find-skills");
     expect(skillsContent).toContain("auto-install");
     expect(skillsContent).toContain("Planned install commands:");
@@ -44,15 +94,19 @@ describe("Omni workflow", () => {
         {
           name: "demo",
           dependencies: { react: "1.0.0", next: "1.0.0" },
-          devDependencies: { vitest: "1.0.0", typescript: "1.0.0" }
+          devDependencies: { vitest: "1.0.0", typescript: "1.0.0" },
         },
         null,
-        2
+        2,
       ),
-      "utf8"
+      "utf8",
     );
 
-    await writeFile(path.join(rootDir, "playwright.config.ts"), "export default {};", "utf8");
+    await writeFile(
+      path.join(rootDir, "playwright.config.ts"),
+      "export default {};",
+      "utf8",
+    );
     await writeFile(path.join(rootDir, "tsconfig.json"), "{}", "utf8");
 
     const result = await initializeOmniProject(rootDir);
@@ -61,7 +115,26 @@ describe("Omni workflow", () => {
     expect(result.repoSignals.frameworks).toContain("react");
     expect(result.repoSignals.frameworks).toContain("nextjs");
     expect(result.repoSignals.tools).toContain("playwright");
-    expect(result.skillCandidates.some((candidate) => candidate.name === "browser-test-helpers")).toBe(true);
+    expect(
+      result.skillCandidates.some(
+        (candidate) => candidate.name === "browser-test-helpers",
+      ),
+    ).toBe(true);
+  });
+
+  test("initializeOmniProject detects Python, Go, and Rust projects", async () => {
+    const rootDir = await createTempProject("omni-signals-multi-");
+    await writeFile(path.join(rootDir, "requirements.txt"), "flask\n", "utf8");
+    await writeFile(path.join(rootDir, "go.mod"), "module example\n", "utf8");
+    await writeFile(path.join(rootDir, "Cargo.toml"), "[package]\n", "utf8");
+    await writeFile(path.join(rootDir, "Makefile"), "all:\n", "utf8");
+
+    const result = await initializeOmniProject(rootDir);
+
+    expect(result.repoSignals.languages).toContain("python");
+    expect(result.repoSignals.languages).toContain("go");
+    expect(result.repoSignals.languages).toContain("rust");
+    expect(result.repoSignals.tools).toContain("make");
   });
 
   test("planOmniProject writes spec, tasks, tests, and updates status", async () => {
@@ -72,7 +145,7 @@ describe("Omni workflow", () => {
       summary: "Build a guided planning workflow for Omni-Pi.",
       desiredOutcome: "Guided planning workflow",
       constraints: ["Keep tasks small", "Stay beginner-friendly"],
-      userSignals: []
+      userSignals: [],
     });
 
     const spec = await readFile(result.specPath, "utf8");
@@ -107,7 +180,7 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     const engine: WorkEngine = {
@@ -119,21 +192,26 @@ describe("Omni workflow", () => {
             passed: true,
             checksRun: ["npm test"],
             failureSummary: [],
-            retryRecommended: false
-          }
+            retryRecommended: false,
+          },
         };
       },
       async runExpertTask() {
         throw new Error("Expert path should not run");
-      }
+      },
     };
 
     const result = await workOnOmniProject(rootDir, engine);
-    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
 
     expect(result.kind).toBe("completed");
     expect(result.message).toContain("Verification passed: npm test");
-    expect(tasks).toContain("| T01 | Confirm the initial project direction | worker | - | done |");
+    expect(tasks).toContain(
+      "| T01 | Confirm the initial project direction | worker | - | done |",
+    );
   });
 
   test("workOnOmniProject records retryable failures before escalation", async () => {
@@ -143,7 +221,7 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     const engine: WorkEngine = {
@@ -155,17 +233,20 @@ describe("Omni workflow", () => {
             passed: false,
             checksRun: ["npm test"],
             failureSummary: ["Unit test failed"],
-            retryRecommended: true
-          }
+            retryRecommended: true,
+          },
         };
       },
       async runExpertTask() {
         throw new Error("Expert path should not run on first failure");
-      }
+      },
     };
 
     const result = await workOnOmniProject(rootDir, engine);
-    const history = await readFile(path.join(rootDir, ".omni", "tasks", "T01.history.json"), "utf8");
+    const history = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01.history.json"),
+      "utf8",
+    );
 
     expect(result.kind).toBe("blocked");
     expect(result.message).toContain("queued for retry");
@@ -180,7 +261,7 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     let workerCalls = 0;
@@ -194,8 +275,8 @@ describe("Omni workflow", () => {
             passed: false,
             checksRun: ["npm test"],
             failureSummary: [`Worker failure ${workerCalls}`],
-            retryRecommended: true
-          }
+            retryRecommended: true,
+          },
         };
       },
       async runExpertTask(task, escalation) {
@@ -209,21 +290,29 @@ describe("Omni workflow", () => {
             passed: true,
             checksRun: ["npm test"],
             failureSummary: [],
-            retryRecommended: false
-          }
+            retryRecommended: false,
+          },
         };
-      }
+      },
     };
 
     const firstResult = await workOnOmniProject(rootDir, engine);
     const secondResult = await workOnOmniProject(rootDir, engine);
-    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
-    const escalation = await readFile(path.join(rootDir, ".omni", "tasks", "T01-ESCALATION.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
+    const escalation = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01-ESCALATION.md"),
+      "utf8",
+    );
 
     expect(firstResult.kind).toBe("blocked");
     expect(secondResult.kind).toBe("expert_completed");
     expect(secondResult.message).toContain("Verification passed: npm test");
-    expect(tasks).toContain("| T01 | Confirm the initial project direction | worker | - | done |");
+    expect(tasks).toContain(
+      "| T01 | Confirm the initial project direction | worker | - | done |",
+    );
     expect(escalation).toContain("Worker failure 1");
   });
 
@@ -234,7 +323,7 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     let workerCalls = 0;
@@ -248,8 +337,8 @@ describe("Omni workflow", () => {
             passed: false,
             checksRun: ["npm test"],
             failureSummary: [`Worker failure ${workerCalls}`],
-            retryRecommended: true
-          }
+            retryRecommended: true,
+          },
         };
       },
       async runExpertTask(task) {
@@ -260,10 +349,10 @@ describe("Omni workflow", () => {
             passed: false,
             checksRun: ["npm test"],
             failureSummary: ["Expert could not resolve"],
-            retryRecommended: false
-          }
+            retryRecommended: false,
+          },
         };
-      }
+      },
     };
 
     await workOnOmniProject(rootDir, engine);
@@ -289,13 +378,13 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     await syncOmniProject(rootDir, {
       summary: "Completed initial setup",
       decisions: ["Use React for the frontend"],
-      nextHandoffNotes: ["Ready for implementation"]
+      nextHandoffNotes: ["Ready for implementation"],
     });
 
     const ctx = await gatherPlanningContext(rootDir);
@@ -309,14 +398,14 @@ describe("Omni workflow", () => {
     await initializeOmniProject(rootDir);
     await syncOmniProject(rootDir, {
       summary: "Decided on the architecture",
-      decisions: ["Use server components"]
+      decisions: ["Use server components"],
     });
 
     await planOmniProject(rootDir, {
       summary: "Build a feature.",
       desiredOutcome: "Working feature",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
@@ -328,14 +417,16 @@ describe("Omni workflow", () => {
     await initializeOmniProject(rootDir);
 
     const recovery = await applyInstallResults(rootDir, [
-      { name: "find-skills", success: false, error: "network timeout" }
+      { name: "find-skills", success: false, error: "network timeout" },
     ]);
 
     expect(recovery.deferred).toContain("find-skills");
     const registry = await readSkillRegistry(rootDir);
     expect(registry.deferred.some((s) => s.name === "find-skills")).toBe(true);
     expect(registry.deferred[0].reason).toContain("network timeout");
-    expect(registry.installed.some((s) => s.name === "find-skills")).toBe(false);
+    expect(registry.installed.some((s) => s.name === "find-skills")).toBe(
+      false,
+    );
   });
 
   test("worker modified files are tracked through escalation", async () => {
@@ -345,7 +436,7 @@ describe("Omni workflow", () => {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     let workerCalls = 0;
@@ -359,9 +450,9 @@ describe("Omni workflow", () => {
             passed: false,
             checksRun: ["npm test"],
             failureSummary: [`Worker failure ${workerCalls}`],
-            retryRecommended: true
+            retryRecommended: true,
           },
-          modifiedFiles: ["src/feature.ts"]
+          modifiedFiles: ["src/feature.ts"],
         };
       },
       async runExpertTask(task, escalation) {
@@ -373,10 +464,10 @@ describe("Omni workflow", () => {
             passed: true,
             checksRun: ["npm test"],
             failureSummary: [],
-            retryRecommended: false
-          }
+            retryRecommended: false,
+          },
         };
-      }
+      },
     };
 
     await workOnOmniProject(rootDir, engine);
@@ -399,10 +490,31 @@ describe("Omni workflow", () => {
   test("renderMetrics formats agent run history", () => {
     const metrics = renderMetrics(
       [
-        { agent: "omni-worker", task: "T01", ts: 1000, status: "ok", duration: 5000 },
-        { agent: "omni-worker", task: "T01", ts: 1001, status: "error", duration: 3000, exit: 1 }
+        {
+          agent: "omni-worker",
+          task: "T01",
+          ts: 1000,
+          status: "ok",
+          duration: 5000,
+        },
+        {
+          agent: "omni-worker",
+          task: "T01",
+          ts: 1001,
+          status: "error",
+          duration: 3000,
+          exit: 1,
+        },
       ],
-      [{ agent: "omni-expert", task: "T01", ts: 1002, status: "ok", duration: 8000 }]
+      [
+        {
+          agent: "omni-expert",
+          task: "T01",
+          ts: 1002,
+          status: "ok",
+          duration: 8000,
+        },
+      ],
     );
     expect(metrics).toContain("Worker: 2 runs");
     expect(metrics).toContain("50%");
@@ -416,7 +528,11 @@ describe("Omni workflow", () => {
   });
 
   test("loadSkillTriggers and matchSkillsForTask match execution triggers", async () => {
-    const skillsDir = path.join(path.dirname(new URL(import.meta.url).pathname), "..", "skills");
+    const skillsDir = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "..",
+      "skills",
+    );
     const triggers = await loadSkillTriggers(skillsDir);
     expect(triggers.length).toBeGreaterThan(0);
 
@@ -430,11 +546,26 @@ describe("Omni workflow", () => {
         doneCriteria: [],
         role: "worker",
         status: "todo",
-        dependsOn: []
+        dependsOn: [],
       },
-      triggers
+      triggers,
     );
     expect(matched.some((s) => s.name === "omni-execution")).toBe(true);
+  });
+
+  test("loadSkillTriggers captures all trigger keywords from skill descriptions", async () => {
+    const skillsDir = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "..",
+      "skills",
+    );
+    const triggers = await loadSkillTriggers(skillsDir);
+    const verification = triggers.find((t) => t.name === "omni-verification");
+    expect(verification).toBeDefined();
+    expect(verification!.triggers).toContain("verify");
+    expect(verification!.triggers).toContain("test");
+    expect(verification!.triggers).toContain("check");
+    expect(verification!.triggers).toContain("did it work");
   });
 
   test("buildBranchName and buildCommitMessage format git artifacts", () => {
@@ -450,7 +581,7 @@ describe("Omni workflow", () => {
       doneCriteria: ["Auth works"],
       role: "worker",
       status: "done",
-      dependsOn: []
+      dependsOn: [],
     });
     expect(message).toContain("feat(T01): Add auth flow");
     expect(message).toContain("Auth works");
@@ -467,9 +598,9 @@ describe("Omni workflow", () => {
         doneCriteria: ["Works", "Tests pass"],
         role: "worker",
         status: "done",
-        dependsOn: []
+        dependsOn: [],
       },
-      "All checks passed"
+      "All checks passed",
     );
     expect(body).toContain("Implements T01");
     expect(body).toContain("- [x] Works");
@@ -483,17 +614,25 @@ describe("Omni workflow", () => {
       summary: "Build a feature.",
       desiredOutcome: "Working feature",
       constraints: [],
-      userSignals: []
+      userSignals: [],
     });
 
     const engine: WorkEngine = {
       async runWorkerTask(task) {
         return {
           summary: `Completed ${task.id}`,
-          verification: { taskId: task.id, passed: true, checksRun: ["npm test"], failureSummary: [], retryRecommended: false }
+          verification: {
+            taskId: task.id,
+            passed: true,
+            checksRun: ["npm test"],
+            failureSummary: [],
+            retryRecommended: false,
+          },
         };
       },
-      async runExpertTask() { throw new Error("should not run"); }
+      async runExpertTask() {
+        throw new Error("should not run");
+      },
     };
 
     await workOnOmniProject(rootDir, engine);
@@ -512,10 +651,303 @@ describe("Omni workflow", () => {
       summary: "Build auth.",
       desiredOutcome: "Auth system",
       constraints: [],
-      userSignals: ["Primary users: developers"]
+      userSignals: ["Primary users: developers"],
     });
 
     const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
     expect(spec).toContain("Primary users: developers");
+  });
+
+  test("detectPreset infers workflow from branch name and brief", () => {
+    expect(detectPreset("fix/login-loop", "")).toBe("bugfix");
+    expect(detectPreset("", "refactor the auth module")).toBe("refactor");
+    expect(detectPreset("feat/oauth", "")).toBe("feature");
+    expect(detectPreset("", "spike on new API")).toBe("spike");
+    expect(detectPreset("", "security audit of payment module")).toBe(
+      "security-audit",
+    );
+    expect(detectPreset("main", "")).toBeNull();
+  });
+
+  test("planOmniProject respects bugfix preset by limiting tasks", async () => {
+    const rootDir = await createTempProject("omni-plan-preset-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "Fix the login redirect loop",
+      desiredOutcome: "Login works",
+      constraints: [],
+      userSignals: [],
+      preset: "bugfix",
+    });
+
+    const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
+
+    expect(spec).toContain("bugfix");
+    expect(spec).toContain("root cause");
+    const taskRows = tasks.split("\n").filter((line) => line.startsWith("| T"));
+    expect(taskRows.length).toBeLessThanOrEqual(2);
+  });
+
+  test("readConfig parses a written CONFIG.md correctly", async () => {
+    const rootDir = await createTempProject("omni-config-");
+    await initializeOmniProject(rootDir);
+
+    await writeConfig(rootDir, {
+      models: {
+        worker: "google/gemini-2.5-pro",
+        expert: "openai/gpt-5.4",
+        planner: "anthropic/claude-opus-4-6",
+        brain: "anthropic/claude-opus-4-6",
+      },
+      retryLimit: 5,
+      chainEnabled: true,
+    });
+
+    const config = await readConfig(rootDir);
+    expect(config.models.worker).toBe("google/gemini-2.5-pro");
+    expect(config.models.expert).toBe("openai/gpt-5.4");
+    expect(config.models.planner).toBe("anthropic/claude-opus-4-6");
+    expect(config.retryLimit).toBe(5);
+    expect(config.chainEnabled).toBe(true);
+  });
+
+  test("runDoctor reports healthy on an initialized project", async () => {
+    const rootDir = await createTempProject("omni-doctor-");
+    await initializeOmniProject(rootDir);
+    await writeFile(
+      path.join(rootDir, "package.json"),
+      JSON.stringify({ name: "test", devDependencies: { typescript: "1" } }),
+      "utf8",
+    );
+    await writeFile(path.join(rootDir, "tsconfig.json"), "{}", "utf8");
+
+    const report = await runDoctor(rootDir);
+    expect(report.overall).toBe("green");
+    expect(
+      report.checks.some((c) => c.name === "omni-init" && c.level === "green"),
+    ).toBe(true);
+
+    const rendered = renderDoctorReport(report);
+    expect(rendered).toContain("[OK] green");
+  });
+
+  test("runDoctor reports red when .omni/ is missing", async () => {
+    const rootDir = await createTempProject("omni-doctor-missing-");
+    const report = await runDoctor(rootDir);
+    expect(report.overall).toBe("red");
+    expect(
+      report.checks.some((c) => c.name === "omni-init" && c.level === "red"),
+    ).toBe(true);
+  });
+
+  test("createPlan writes a plan file and updates the index", async () => {
+    const rootDir = await createTempProject("omni-plans-");
+    await initializeOmniProject(rootDir);
+
+    const entry = await createPlan(rootDir, "Add auth", "Implement auth flow", [
+      "Setup JWT",
+      "Add login endpoint",
+    ]);
+
+    expect(entry.status).toBe("active");
+    expect(entry.title).toBe("Add auth");
+
+    const index = await readPlanIndex(rootDir);
+    expect(index).toHaveLength(1);
+    expect(index[0].id).toBe(entry.id);
+
+    const planFile = await readFile(
+      path.join(rootDir, ".omni", "plans", `${entry.id}.md`),
+      "utf8",
+    );
+    expect(planFile).toContain("# Add auth");
+    expect(planFile).toContain("Setup JWT");
+    expect(planFile).toContain("Add login endpoint");
+  });
+
+  test("updatePlanStatus marks a plan as completed", async () => {
+    const rootDir = await createTempProject("omni-plans-status-");
+    await initializeOmniProject(rootDir);
+
+    const entry = await createPlan(rootDir, "Fix bug", "Fix the crash", []);
+    const updated = await updatePlanStatus(rootDir, entry.id, "completed");
+
+    expect(updated?.status).toBe("completed");
+    expect(updated?.completedAt).toBeDefined();
+
+    const index = await readPlanIndex(rootDir);
+    expect(index[0].status).toBe("completed");
+  });
+
+  test("cleanupCompletedPlans removes completed plan files", async () => {
+    const rootDir = await createTempProject("omni-plans-cleanup-");
+    await initializeOmniProject(rootDir);
+
+    const entry = await createPlan(rootDir, "Old plan", "Done", []);
+    await updatePlanStatus(rootDir, entry.id, "completed");
+
+    const removed = await cleanupCompletedPlans(rootDir);
+    expect(removed).toContain(entry.id);
+
+    // Index still has the entry, but the file is gone
+    const index = await readPlanIndex(rootDir);
+    expect(index).toHaveLength(1);
+    expect(index[0].status).toBe("completed");
+
+    await expect(
+      readFile(path.join(rootDir, ".omni", "plans", `${entry.id}.md`), "utf8"),
+    ).rejects.toThrow();
+  });
+
+  test("appendProgress and readProgress track progress entries", async () => {
+    const rootDir = await createTempProject("omni-progress-");
+    await initializeOmniProject(rootDir);
+
+    await appendProgress(rootDir, "Started work on auth");
+    await appendProgress(rootDir, "Completed login endpoint");
+
+    const progress = await readProgress(rootDir);
+    expect(progress).toContain("Started work on auth");
+    expect(progress).toContain("Completed login endpoint");
+  });
+
+  test("renderPlanIndex groups by status", async () => {
+    const rendered = renderPlanIndex([
+      {
+        id: "plan-1",
+        title: "Active plan",
+        status: "active",
+        createdAt: "2026-01-01",
+      },
+      {
+        id: "plan-2",
+        title: "Done plan",
+        status: "completed",
+        createdAt: "2026-01-01",
+        completedAt: "2026-01-02",
+      },
+    ]);
+
+    expect(rendered).toContain("Active:");
+    expect(rendered).toContain("Active plan");
+    expect(rendered).toContain("Completed:");
+    expect(rendered).toContain("Done plan");
+  });
+
+  test("planOmniProject creates a plan entry and logs progress", async () => {
+    const rootDir = await createTempProject("omni-plan-creates-plan-");
+    await initializeOmniProject(rootDir);
+
+    await planOmniProject(rootDir, {
+      summary: "Build a widget",
+      desiredOutcome: "A working widget",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const index = await readPlanIndex(rootDir);
+    expect(index.length).toBeGreaterThanOrEqual(1);
+    expect(index[0].status).toBe("active");
+
+    const progress = await readProgress(rootDir);
+    expect(progress).toContain("Created plan");
+  });
+
+  test("config round-trips cleanupCompletedPlans setting", async () => {
+    const rootDir = await createTempProject("omni-config-cleanup-");
+    await initializeOmniProject(rootDir);
+
+    const config = await readConfig(rootDir);
+    expect(config.cleanupCompletedPlans).toBe(false);
+
+    await writeConfig(rootDir, { ...config, cleanupCompletedPlans: true });
+    const reloaded = await readConfig(rootDir);
+    expect(reloaded.cleanupCompletedPlans).toBe(true);
+  });
+
+  test("estimateTokens uses char-based approximation", () => {
+    expect(estimateTokens("")).toBe(0);
+    expect(estimateTokens("abcd")).toBe(1);
+    expect(estimateTokens("a".repeat(100))).toBe(25);
+    expect(estimateTokens("hello world!")).toBe(3);
+  });
+
+  test("budget tracks consumed and remaining tokens", () => {
+    let budget = createBudget(100);
+    expect(budget.remainingTokens).toBe(100);
+
+    budget = consumeBudget(budget, "a".repeat(200));
+    expect(budget.usedTokens).toBe(50);
+    expect(budget.remainingTokens).toBe(50);
+
+    expect(fitsInBudget(budget, "a".repeat(200))).toBe(true);
+    expect(fitsInBudget(budget, "a".repeat(204))).toBe(false);
+  });
+
+  test("getPhaseFiles returns different files per phase", () => {
+    const buildFiles = getPhaseFiles("build");
+    const planFiles = getPhaseFiles("plan");
+
+    expect(buildFiles).toContain("TESTS.md");
+    expect(planFiles).toContain("DECISIONS.md");
+    expect(planFiles).not.toContain("PROGRESS.md");
+    expect(buildFiles).toContain("PROGRESS.md");
+  });
+
+  test("gatherPhaseContext reads files within token budget", async () => {
+    const rootDir = await createTempProject("omni-context-phase-");
+    await initializeOmniProject(rootDir);
+
+    const blocks = await gatherPhaseContext(rootDir, "build", 10000);
+    expect(blocks.length).toBeGreaterThan(0);
+    expect(blocks.some((b) => b.file === "SPEC.md")).toBe(true);
+
+    const totalTokens = blocks.reduce((sum, b) => sum + b.tokens, 0);
+    expect(totalTokens).toBeLessThanOrEqual(10000);
+  });
+
+  test("gatherPhaseContext respects tight budget", async () => {
+    const rootDir = await createTempProject("omni-context-tight-");
+    await initializeOmniProject(rootDir);
+
+    // Very tight budget — may not fit all files
+    const blocks = await gatherPhaseContext(rootDir, "escalate", 10);
+    const totalTokens = blocks.reduce((sum, b) => sum + b.tokens, 0);
+    expect(totalTokens).toBeLessThanOrEqual(10);
+  });
+
+  test("gatherTaskContext includes task-relevant files", async () => {
+    const rootDir = await createTempProject("omni-context-task-");
+    await initializeOmniProject(rootDir);
+
+    const task = {
+      id: "T01",
+      title: "Test task",
+      objective: "Do something",
+      contextFiles: [".omni/PROJECT.md"],
+      skills: [],
+      doneCriteria: [],
+      role: "worker" as const,
+      status: "todo" as const,
+      dependsOn: [],
+    };
+
+    const blocks = await gatherTaskContext(rootDir, task, 10000);
+    expect(blocks.some((b) => b.file === "SPEC.md")).toBe(true);
+    expect(blocks.some((b) => b.file === ".omni/PROJECT.md")).toBe(true);
+  });
+
+  test("renderContextSummary shows file names and token counts", () => {
+    const summary = renderContextSummary([
+      { file: "SPEC.md", content: "x".repeat(40), tokens: 10 },
+      { file: "TESTS.md", content: "y".repeat(80), tokens: 20 },
+    ]);
+    expect(summary).toContain("30 tokens");
+    expect(summary).toContain("2 files");
+    expect(summary).toContain("SPEC.md (10t)");
   });
 });

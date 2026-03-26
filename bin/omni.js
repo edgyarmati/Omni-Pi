@@ -9,20 +9,30 @@ export function getOmniPackageDir() {
 }
 
 export function resolvePiCliPath() {
-  return path.join(getOmniPackageDir(), "node_modules", "@mariozechner", "pi-coding-agent", "dist", "cli.js");
+  return path.join(
+    getOmniPackageDir(),
+    "node_modules",
+    "@mariozechner",
+    "pi-coding-agent",
+    "dist",
+    "cli.js",
+  );
 }
 
 export function buildOmniEnvironment(baseEnv = process.env) {
   return {
-    ...baseEnv
+    ...baseEnv,
   };
 }
 
-export function buildPiProcessSpec(argv = process.argv.slice(2), baseEnv = process.env) {
+export function buildPiProcessSpec(
+  argv = process.argv.slice(2),
+  baseEnv = process.env,
+) {
   return {
     command: process.execPath,
     args: [resolvePiCliPath(), "-e", getOmniPackageDir(), ...argv],
-    env: buildOmniEnvironment(baseEnv)
+    env: buildOmniEnvironment(baseEnv),
   };
 }
 
@@ -33,7 +43,7 @@ export async function runOmni(argv = process.argv.slice(2), options = {}) {
     const child = spawn(spec.command, spec.args, {
       cwd: options.cwd ?? process.cwd(),
       env: spec.env,
-      stdio: "inherit"
+      stdio: "inherit",
     });
 
     child.on("exit", (code, signal) => {
