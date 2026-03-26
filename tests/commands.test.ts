@@ -129,53 +129,16 @@ describe("Omni commands", () => {
     expect(registrations).toEqual(["omni-skills"]);
   });
 
-  test("omniProvidersExtension registers missing upstream providers", async () => {
+  test("omniProvidersExtension does not register extra providers beyond Pi defaults", async () => {
     const registrations: string[] = [];
-    const providerConfigs = new Map<string, { baseUrl?: string }>();
-    const originalFetch = globalThis.fetch;
-    const originalXiaomiBaseUrl = process.env.XIAOMI_BASE_URL;
-    const originalGitlabDuoBaseUrl = process.env.GITLAB_DUO_BASE_URL;
 
-    globalThis.fetch = (async () => {
-      throw new Error("offline");
-    }) as typeof fetch;
+    await omniProvidersExtension({
+      registerProvider(name: string) {
+        registrations.push(name);
+      },
+    } as never);
 
-    try {
-      process.env.XIAOMI_BASE_URL = "https://api.xiaomi.example/anthropic";
-      process.env.GITLAB_DUO_BASE_URL = "https://gitlab.example/api/v4/chat";
-
-      await omniProvidersExtension({
-        registerProvider(name: string, config: { baseUrl?: string }) {
-          registrations.push(name);
-          providerConfigs.set(name, config);
-        },
-      } as never);
-    } finally {
-      globalThis.fetch = originalFetch;
-      if (originalXiaomiBaseUrl === undefined) {
-        delete process.env.XIAOMI_BASE_URL;
-      } else {
-        process.env.XIAOMI_BASE_URL = originalXiaomiBaseUrl;
-      }
-      if (originalGitlabDuoBaseUrl === undefined) {
-        delete process.env.GITLAB_DUO_BASE_URL;
-      } else {
-        process.env.GITLAB_DUO_BASE_URL = originalGitlabDuoBaseUrl;
-      }
-    }
-
-    expect(registrations).toContain("nvidia");
-    expect(registrations).toContain("together");
-    expect(registrations).toContain("moonshot");
-    expect(registrations).toContain("gitlab-duo");
-    expect(registrations).toContain("cloudflare-ai-gateway");
-    expect(registrations).not.toContain("ollama");
-    expect(providerConfigs.get("nvidia")?.baseUrl).toBe(
-      "https://integrate.api.nvidia.com/v1",
-    );
-    expect(providerConfigs.get("qianfan")?.baseUrl).toBe(
-      "https://qianfan.baidubce.com/v2",
-    );
+    expect(registrations).toEqual([]);
   });
 
   test("/omni-skills renders the current skill registry", async () => {

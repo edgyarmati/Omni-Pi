@@ -1,9 +1,5 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-
-import { registerOmniProviders } from "../../src/providers.js";
-
 export default async function omniProvidersExtension(
-  api: ExtensionAPI,
+  _api: unknown,
 ): Promise<void> {
-  await registerOmniProviders(api);
+  return;
 }
