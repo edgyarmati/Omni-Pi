@@ -57,10 +57,12 @@
     "extensions": [
       "./extensions/omni-providers/index.ts",
       "./extensions/omni-core/index.ts",
-      "./extensions/omni-memory/index.ts"
+      "./extensions/omni-memory/index.ts",
+      "./node_modules/pi-web-access/index.ts"
     ],
     "skills": [
-      "./skills"
+      "./skills",
+      "./node_modules/pi-web-access/skills"
     ],
     "prompts": [
       "./prompts"
@@ -70,6 +72,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.84",
     "@mariozechner/pi-coding-agent": "^0.62.0",
     "pi-subagents": "^0.11.11",
+    "pi-web-access": "^0.10.3",
     "zod": "^4.3.6"
   }
 }
