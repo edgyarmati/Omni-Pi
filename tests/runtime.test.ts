@@ -28,6 +28,7 @@ describe("Omni runtime integration", () => {
 
     const output = await init?.execute({
       cwd: rootDir,
+      args: ["--quick"],
       runtime: {
         pi: {
           exec: async (command: string, args: string[]) => {
@@ -58,6 +59,48 @@ describe("Omni runtime integration", () => {
     ]);
     expect(output).toContain("Install find-skills: installed");
     expect(skills).toContain("Install find-skills: installed");
+  });
+
+  test("omni-init quick-start wizard writes goal to PROJECT.md and config cleanup preference", async () => {
+    const rootDir = await createTempProject("omni-runtime-wizard-");
+    const init = createOmniCommands().find(
+      (command) => command.name === "omni-init",
+    );
+
+    const uiMock = {
+      confirm: async () => true,
+      input: async () => "A todo app with tags",
+      select: async () => "(none — decide later)",
+      notify: async () => {},
+    };
+
+    await init?.execute({
+      cwd: rootDir,
+      runtime: {
+        pi: {
+          exec: async () => ({
+            stdout: "installed",
+            stderr: "",
+            code: 0,
+            killed: false,
+          }),
+        } as never,
+        ctx: { ui: uiMock } as never,
+      },
+    });
+
+    const project = await readFile(
+      path.join(rootDir, ".omni", "PROJECT.md"),
+      "utf8",
+    );
+    expect(project).toContain("A todo app with tags");
+    expect(project).not.toContain("Describe what this project should achieve.");
+
+    const config = await readFile(
+      path.join(rootDir, ".omni", "CONFIG.md"),
+      "utf8",
+    );
+    expect(config).toContain("Delete completed plan files: true");
   });
 
   test("prepareNextTaskDispatch creates a task brief and marks the task in progress", async () => {

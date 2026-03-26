@@ -96,7 +96,7 @@ omni
 
 | Command | Description |
 |---------|-------------|
-| `/omni-init` | Initialize `.omni/` project memory, scan repo signals, run health checks |
+| `/omni-init` | Initialize `.omni/` project memory, run quick-start wizard, scan repo signals, run health checks (`--quick` to skip wizard) |
 | `/omni-plan` | Create or refresh spec, tasks, and tests (supports `--preset bugfix/feature/refactor/spike/security-audit`) |
 | `/omni-work` | Run the next task through worker, verifier, and expert fallback |
 | `/omni-status` | Show current phase, task, blockers, next step (add `metrics` for agent stats) |

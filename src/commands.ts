@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   AVAILABLE_MODELS,
@@ -118,8 +118,56 @@ export function createOmniCommands(): AppCommandDefinition[] {
     {
       name: "omni-init",
       description: "Initialize Omni-Pi for the current project.",
-      execute: async ({ cwd, runtime }) => {
+      execute: async ({ cwd, args, runtime }) => {
         const result = await initializeOmniProject(cwd);
+
+        const skipWizard = args?.includes("--quick") ?? false;
+        if (runtime && !skipWizard) {
+          const ui = runtime.ctx.ui;
+
+          const cleanup = await ui.confirm(
+            "Plan cleanup",
+            "Auto-delete completed plan files? (You can change this later in CONFIG.md)",
+          );
+          const config = await readConfig(cwd);
+          const updatedConfig = { ...config, cleanupCompletedPlans: cleanup };
+
+          const goal = await ui.input(
+            "What are you building?",
+            "e.g., a CLI tool for managing tasks",
+          );
+          if (goal) {
+            const projectPath = path.join(cwd, ".omni", "PROJECT.md");
+            const project = await readFile(projectPath, "utf8");
+            const updated = project.replace(
+              "Describe what this project should achieve.",
+              goal,
+            );
+            await writeFile(projectPath, updated, "utf8");
+          }
+
+          const presetOptions = Object.values(WORKFLOW_PRESETS).map(
+            (p) => `${p.name} — ${p.description}`,
+          );
+          const presetChoice = await ui.select(
+            "Preferred workflow for the first plan?",
+            ["(none — decide later)", ...presetOptions],
+          );
+          let suggestedPreset: string | undefined;
+          if (presetChoice && !presetChoice.startsWith("(none")) {
+            suggestedPreset = presetChoice.split(" — ")[0];
+          }
+
+          await writeConfig(cwd, updatedConfig);
+
+          if (suggestedPreset) {
+            await ui.notify(
+              `Tip: run /omni-plan --preset ${suggestedPreset} to start planning with the ${suggestedPreset} workflow.`,
+              "info",
+            );
+          }
+        }
+
         const installNotes: string[] = [];
         const installResults: SkillInstallResult[] = [];
 
