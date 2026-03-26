@@ -61,7 +61,7 @@ Omni-Pi launches the bundled Pi runtime and loads the Omni-Pi package automatica
 Omni-Pi now ships the upstream provider mix needed for practical multi-provider use on top of Pi.
 
 - Built into the underlying Pi runtime: `anthropic`, `openai`, `openai-codex`, `google`, `google-vertex`, `amazon-bedrock`, `azure-openai-responses`, `openrouter`, `xai`, `zai`, `mistral`, `groq`, `cerebras`, `huggingface`, `github-copilot`, `kimi-coding`, `minimax`, `minimax-cn`, `opencode`, `opencode-go`
-- Added by Omni-Pi when live model discovery succeeds: `nvidia`, `together`, `synthetic`, `nanogpt`, `xiaomi`, `moonshot`, `venice`, `kilo`, `qwen-portal`, `qianfan`, `cloudflare-ai-gateway`
+- Added by Omni-Pi: `nvidia`, `together`, `synthetic`, `nanogpt`, `xiaomi`, `moonshot`, `venice`, `kilo`, `gitlab-duo`, `qwen-portal`, `qianfan`, `cloudflare-ai-gateway`
 - Auto-discovered when running locally: `ollama`, `lm-studio`, `llama.cpp`, `litellm`, `vllm`
 
 For users who do not want to rely on Anthropic OAuth inside Pi, Omni-Pi also exposes opt-in Claude Agent SDK model aliases:
@@ -75,19 +75,19 @@ Common provider env vars:
 
 - `NVIDIA_API_KEY`, `TOGETHER_API_KEY`, `SYNTHETIC_API_KEY`, `NANO_GPT_API_KEY`
 - `XIAOMI_API_KEY`, `MOONSHOT_API_KEY`, `VENICE_API_KEY`, `KILO_API_KEY`
-- `QWEN_OAUTH_TOKEN` or `QWEN_PORTAL_API_KEY`, `QIANFAN_API_KEY`
+- `GITLAB_TOKEN`, `QWEN_OAUTH_TOKEN` or `QWEN_PORTAL_API_KEY`, `QIANFAN_API_KEY`
 - `CLOUDFLARE_AI_GATEWAY_API_KEY` and `CLOUDFLARE_AI_GATEWAY_BASE_URL`
 
-Omni-Pi does not ship hardcoded remote model lists anymore. For bundled remote providers it calls the provider's live model listing endpoint and only registers the provider when discovery succeeds.
+Omni-Pi ships bundled fallback model metadata for its added providers and also attempts live model discovery against provider endpoints when available.
 
 Provider base URL override env vars:
 
 - `NVIDIA_BASE_URL`, `TOGETHER_BASE_URL`, `SYNTHETIC_BASE_URL`, `NANO_GPT_BASE_URL`
 - `MOONSHOT_BASE_URL`, `VENICE_BASE_URL`, `KILO_BASE_URL`
 - `QWEN_PORTAL_BASE_URL`, `QIANFAN_BASE_URL`
-- `XIAOMI_BASE_URL`, `CLOUDFLARE_AI_GATEWAY_BASE_URL`
+- `XIAOMI_BASE_URL`, `GITLAB_DUO_BASE_URL`, `CLOUDFLARE_AI_GATEWAY_BASE_URL`
 
-`xiaomi` and `cloudflare-ai-gateway` are only registered when their base URL is configured explicitly.
+`xiaomi` and `gitlab-duo` are only registered when their base URL is configured explicitly.
 
 For local providers, Omni-Pi registers models only when the endpoint is reachable:
 

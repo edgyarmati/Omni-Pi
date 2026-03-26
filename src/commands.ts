@@ -446,15 +446,7 @@ export function createOmniCommands(): AppCommandDefinition[] {
           currentConfig.models[
             selectedAgent as keyof typeof currentConfig.models
           ];
-        const modelOptions = Array.from(
-          new Set(
-            AVAILABLE_MODELS.length > 0 && currentModel
-              ? [currentModel, ...AVAILABLE_MODELS]
-              : currentModel
-                ? [currentModel]
-                : AVAILABLE_MODELS,
-          ),
-        ).map((model) =>
+        const modelOptions = AVAILABLE_MODELS.map((model) =>
           model === currentModel ? `${model} (current)` : model,
         );
         modelOptions.push("Enter custom provider/model");

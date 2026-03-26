@@ -82,64 +82,20 @@ describe("Omni commands", () => {
     expect(registrations).toEqual(["omni-skills"]);
   });
 
-  test("omniProvidersExtension registers providers from live model discovery", async () => {
+  test("omniProvidersExtension registers missing upstream providers", async () => {
     const registrations: string[] = [];
     const providerConfigs = new Map<string, { baseUrl?: string }>();
     const originalFetch = globalThis.fetch;
     const originalXiaomiBaseUrl = process.env.XIAOMI_BASE_URL;
-    const originalCloudflareBaseUrl =
-      process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL;
+    const originalGitlabDuoBaseUrl = process.env.GITLAB_DUO_BASE_URL;
 
-    globalThis.fetch = (async (input: string | URL | Request) => {
-      const url = String(input);
-
-      if (url === "https://integrate.api.nvidia.com/v1/models") {
-        return new Response(
-          JSON.stringify({ data: [{ id: "deepseek-ai/deepseek-v3.2" }] }),
-          { status: 200 },
-        );
-      }
-
-      if (url === "https://api.together.xyz/v1/models") {
-        return new Response(
-          JSON.stringify({ data: [{ id: "moonshotai/Kimi-K2.5" }] }),
-          { status: 200 },
-        );
-      }
-
-      if (url === "https://api.moonshot.cn/v1/models") {
-        return new Response(JSON.stringify({ data: [{ id: "kimi-k2.5" }] }), {
-          status: 200,
-        });
-      }
-
-      if (url === "https://qianfan.baidubce.com/v2/models") {
-        return new Response(
-          JSON.stringify({ data: [{ id: "deepseek-v3.2" }] }),
-          { status: 200 },
-        );
-      }
-
-      if (url === "https://api.xiaomi.example/anthropic/models") {
-        return new Response(JSON.stringify({ data: [{ id: "mimo-v2-pro" }] }), {
-          status: 200,
-        });
-      }
-
-      if (url === "https://gateway.example/anthropic/models") {
-        return new Response(
-          JSON.stringify({ data: [{ id: "claude-sonnet-4-6" }] }),
-          { status: 200 },
-        );
-      }
-
+    globalThis.fetch = (async () => {
       throw new Error("offline");
     }) as typeof fetch;
 
     try {
       process.env.XIAOMI_BASE_URL = "https://api.xiaomi.example/anthropic";
-      process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL =
-        "https://gateway.example/anthropic";
+      process.env.GITLAB_DUO_BASE_URL = "https://gitlab.example/api/v4/chat";
 
       await omniProvidersExtension({
         registerProvider(name: string, config: { baseUrl?: string }) {
@@ -154,20 +110,18 @@ describe("Omni commands", () => {
       } else {
         process.env.XIAOMI_BASE_URL = originalXiaomiBaseUrl;
       }
-      if (originalCloudflareBaseUrl === undefined) {
-        delete process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL;
+      if (originalGitlabDuoBaseUrl === undefined) {
+        delete process.env.GITLAB_DUO_BASE_URL;
       } else {
-        process.env.CLOUDFLARE_AI_GATEWAY_BASE_URL = originalCloudflareBaseUrl;
+        process.env.GITLAB_DUO_BASE_URL = originalGitlabDuoBaseUrl;
       }
     }
 
     expect(registrations).toContain("nvidia");
     expect(registrations).toContain("together");
     expect(registrations).toContain("moonshot");
-    expect(registrations).toContain("xiaomi");
+    expect(registrations).toContain("gitlab-duo");
     expect(registrations).toContain("cloudflare-ai-gateway");
-    expect(registrations).toContain("qianfan");
-    expect(registrations).not.toContain("gitlab-duo");
     expect(registrations).not.toContain("ollama");
     expect(providerConfigs.get("nvidia")?.baseUrl).toBe(
       "https://integrate.api.nvidia.com/v1",
