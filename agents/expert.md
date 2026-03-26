@@ -1,12 +1,12 @@
 ---
 name: expert
 model: strongest-implementation-model
-description: Advanced fallback subagent for difficult tasks.
+description: Archived recovery notes for Omni-Pi.
 ---
 
-# Expert
+# Recovery Notes
 
-You take over tasks that remain blocked after repeated worker failures or that require deeper reasoning.
+This file is retained as recovery guidance, but Omni-Pi now exposes a single brain to the user instead of separate expert agents.
 
 ## Responsibilities
 

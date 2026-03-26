@@ -200,14 +200,14 @@ export async function initializeOmniProject(
 
   await writeState(rootDir, {
     currentPhase: "understand",
-    activeTask: "Initialize Omni-Pi",
+    activeTask: "Capture exact requirements",
     statusSummary:
       "Omni-Pi has created its project memory files and scanned the repository for useful signals.",
     blockers: [],
     nextStep:
       diagnostics.overall === "red"
-        ? "Run /omni-doctor to review issues before proceeding."
-        : "Run /omni-plan to turn the current project context into a spec and first task slices.",
+        ? "Review the recorded issues before proceeding."
+        : "Interview the user, capture the exact spec in .omni/, then break the work into bounded slices.",
   });
 
   return {
@@ -255,12 +255,12 @@ export async function planOmniProject(
 
   await writeState(rootDir, {
     currentPhase: "plan",
-    activeTask: "Prepare the first implementation slice",
+    activeTask: "Prepare the first bounded implementation slice",
     statusSummary:
       "Omni-Pi refreshed the spec, task slices, and verification plan.",
     blockers: [],
     nextStep:
-      "Review the proposed tasks, then run /omni-work when you are ready to execute the next slice.",
+      "Implement the next bounded slice and keep .omni/STATE.md in sync with progress.",
   });
 
   return { specPath, tasksPath, testsPath };
@@ -312,11 +312,11 @@ export async function workOnOmniProject(
       statusSummary: result.message,
       blockers: [],
       nextStep:
-        "Run /omni-status to review progress or /omni-work to continue with the next task.",
+        "Continue with the next bounded slice and keep the durable notes current.",
     };
   } else if (result.kind === "blocked") {
     state = {
-      currentPhase: result.message.includes("expert escalation")
+      currentPhase: result.message.includes("recovery pass")
         ? "escalate"
         : "check",
       activeTask: result.taskId ?? "None",
@@ -325,8 +325,8 @@ export async function workOnOmniProject(
         ? [`Verification failures on ${result.taskId}`]
         : ["A task is blocked."],
       nextStep: result.message.includes("queued for retry")
-        ? "Run /omni-work again to retry the task or inspect `.omni/tasks/` for the failure history."
-        : "Review the escalation notes in `.omni/tasks/` and refine the plan or task inputs.",
+        ? "Tighten the slice, then retry the implementation with the updated task notes."
+        : "Review the recovery notes in `.omni/tasks/` and refine the plan or task inputs.",
       recoveryOptions: result.recoveryOptions,
     };
   } else {
@@ -335,8 +335,7 @@ export async function workOnOmniProject(
       activeTask: "None",
       statusSummary: result.message,
       blockers: [],
-      nextStep:
-        "Run /omni-plan to refresh the task list if more work is needed.",
+      nextStep: "Refresh the task list if more work is needed.",
     };
   }
 
@@ -368,7 +367,7 @@ export async function syncOmniProject(
     statusSummary: "Omni-Pi synced recent progress into durable memory files.",
     blockers: [],
     nextStep:
-      "Run /omni-status to inspect the latest state or /omni-plan to refine the next slice.",
+      "Review the latest durable notes and refine the next slice if needed.",
   };
   await writeState(rootDir, state);
   return { state };

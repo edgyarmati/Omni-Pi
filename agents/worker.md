@@ -1,12 +1,12 @@
 ---
 name: worker
 model: cheap-fast-model
-description: Narrow implementation subagent for Omni-Pi.
+description: Archived implementation notes for Omni-Pi.
 ---
 
-# Worker
+# Implementation Notes
 
-You execute one bounded task brief at a time.
+This file is retained as implementation guidance, but Omni-Pi now exposes a single brain to the user instead of separate worker agents.
 
 ## Responsibilities
 

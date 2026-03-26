@@ -94,14 +94,14 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   const tasks: TaskBrief[] = [
     {
       id: "T01",
-      title: "Confirm the initial project direction",
+      title: "Lock the exact user requirements",
       objective:
-        "Refine the problem statement, constraints, and success criteria into a stable first-pass spec.",
+        "Refine the requested behavior, constraints, and success criteria into an implementation-ready spec.",
       contextFiles: [".omni/PROJECT.md", ".omni/IDEAS.md", ".omni/SPEC.md"],
       skills: ["omni-planning"],
       doneCriteria: [
-        "The problem statement is clear.",
-        "Initial constraints are captured.",
+        "The requested behavior is explicit.",
+        "Constraints are captured.",
         "Success criteria are explicit.",
       ],
       role: "worker",
@@ -110,7 +110,7 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
     },
     {
       id: "T02",
-      title: "Define the first implementation slice",
+      title: "Break the work into the first bounded slice",
       objective:
         "Break the first meaningful delivery slice into bounded tasks with clear verification steps.",
       contextFiles: [".omni/SPEC.md", ".omni/TASKS.md", ".omni/TESTS.md"],
@@ -132,7 +132,7 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   ) {
     tasks.push({
       id: "T03",
-      title: "Align browser testing expectations",
+      title: "Document browser verification expectations",
       objective:
         "Document how browser-based checks should be used during future work.",
       contextFiles: [".omni/TESTS.md", ".omni/SPEC.md"],
@@ -177,12 +177,12 @@ export function createInitialSpec(
 
   const architecture = [
     "Use `.omni/` as the durable project memory layer.",
-    "Keep the user-facing brain simple and route deeper work through planner, worker, verifier, and expert roles.",
+    "Keep one friendly user-facing brain that interviews first, plans privately, and only then edits code.",
     `Detected repo signals: languages=${repoSignals.languages.join(", ") || "unknown"}; frameworks=${repoSignals.frameworks.join(", ") || "unknown"}; tools=${repoSignals.tools.join(", ") || "unknown"}.`,
   ];
 
   if (presetConfig) {
-    architecture.push(`Worker hint: ${presetConfig.workerHint}`);
+    architecture.push(`Implementation hint: ${presetConfig.workerHint}`);
   }
 
   if (planningCtx?.existingDecisions.length) {
@@ -193,7 +193,7 @@ export function createInitialSpec(
 
   const acceptanceCriteria = [
     "The project direction is captured in `.omni/PROJECT.md` and `.omni/SPEC.md`.",
-    "The next tasks are small, verifiable, and ready for guided execution.",
+    "The next tasks are small, verifiable, and ready for implementation.",
     "The verification plan names the checks needed for the first slice.",
   ];
 
@@ -258,15 +258,15 @@ export function renderTasksMarkdown(tasks: TaskBrief[]): string {
     const dependsOn =
       task.dependsOn.length > 0 ? task.dependsOn.join(", ") : "-";
     const doneCriteria = task.doneCriteria.join("; ");
-    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(task.role)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
+    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
   });
 
   return `# Tasks
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
 ${rows.join("\n")}
 `;
 }
@@ -294,10 +294,10 @@ ${projectChecks.map((check) => `- ${check}`).join("\n")}
 
 ## Retry policy
 
-- Worker retries before expert takeover: 2
+- Implementation retries before the plan must be tightened: 2
 
-## Escalation threshold
+## Recovery rule
 
-- Escalate after repeated failures or when the planner marks the task as high-risk.
+- If the same slice fails repeatedly, tighten the plan, clarify the spec, and retry with a narrower implementation slice.
 `;
 }

@@ -1,12 +1,12 @@
 ---
 name: planner
 model: strongest-reasoning-model
-description: Spec writer and task decomposer for Omni-Pi.
+description: Archived planner notes for Omni-Pi.
 ---
 
-# Planner
+# Planner Notes
 
-You turn user intent and project context into a detailed implementation spec.
+This file is retained as planning guidance, but Omni-Pi now exposes a single brain to the user instead of separate planning agents.
 
 ## Responsibilities
 

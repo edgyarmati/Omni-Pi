@@ -49,11 +49,11 @@ export function parseTaskRow(row: string): TaskBrief | null {
     .slice(1, -1)
     .map(unescapeTaskTableCell);
 
-  if (columns.length !== 6) {
+  if (columns.length !== 5) {
     return null;
   }
 
-  const [id, title, role, dependsOn, status, doneCriteria] = columns;
+  const [id, title, dependsOn, status, doneCriteria] = columns;
   return {
     id,
     title,
@@ -67,7 +67,7 @@ export function parseTaskRow(row: string): TaskBrief | null {
             .split(";")
             .map((item) => item.trim())
             .filter(Boolean),
-    role: role === "expert" ? "expert" : "worker",
+    role: "worker",
     status: (status as TaskStatus) || "todo",
     dependsOn:
       dependsOn === "-"
@@ -94,15 +94,15 @@ export function renderTaskTable(tasks: TaskBrief[]): string {
       task.dependsOn.length > 0 ? task.dependsOn.join(", ") : "-";
     const doneCriteria =
       task.doneCriteria.length > 0 ? task.doneCriteria.join("; ") : "-";
-    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(task.role)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
+    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
   });
 
   return `# Tasks
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
 ${rows.join("\n")}
 `;
 }

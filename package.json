@@ -1,7 +1,7 @@
 {
   "name": "omni-pi",
   "version": "0.2.0",
-  "description": "Opinionated Pi package for guided, beginner-friendly planning and implementation workflows.",
+  "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
   "license": "MIT",
   "author": "Eduard-David Gyarmati",
@@ -16,19 +16,15 @@
   "engines": {
     "node": ">=22"
   },
-  "bin": {
-    "omni": "./bin/omni.js"
-  },
   "keywords": [
     "pi-package",
     "pi",
     "agent",
     "planning",
-    "skills",
-    "orchestration"
+    "implementation",
+    "interview"
   ],
   "files": [
-    "bin",
     "agents",
     "extensions",
     "prompts",
@@ -54,13 +50,9 @@
   },
   "pi": {
     "extensions": [
-      "./node_modules/pi-subagents/index.ts",
-      "./node_modules/pi-subagents/notify.ts",
       "./extensions/omni-providers/index.ts",
       "./extensions/omni-core/index.ts",
-      "./extensions/omni-memory/index.ts",
-      "./extensions/omni-skills/index.ts",
-      "./extensions/omni-status/index.ts"
+      "./extensions/omni-memory/index.ts"
     ],
     "skills": [
       "./skills"

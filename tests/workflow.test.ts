@@ -70,8 +70,6 @@ describe("Omni workflow", () => {
 
     expect(result.created).toContain(".omni/PROJECT.md");
     expect(result.created).toContain(".omni/STATE.md");
-    expect(result.created).toContain(".pi/agents/omni-worker.md");
-    expect(result.created).toContain(".pi/agents/omni-planner.md");
     expect(result.created).toContain(".pi/agents/omni-brain.md");
     expect(
       result.skillCandidates.some(
@@ -160,11 +158,13 @@ describe("Omni workflow", () => {
 
     expect(spec).toContain("Guided planning workflow");
     expect(tasks).toContain("T01");
-    expect(tests).toContain("Worker retries before expert takeover: 2");
+    expect(tests).toContain(
+      "Implementation retries before the plan must be tightened: 2",
+    );
 
     const state = await readOmniStatus(rootDir);
     expect(state.currentPhase).toBe("plan");
-    expect(state.nextStep).toContain("/omni-work");
+    expect(state.nextStep).toContain("Implement the next bounded slice");
   });
 
   test("readOmniStatus returns a plain-English status summary", async () => {
@@ -175,7 +175,7 @@ describe("Omni workflow", () => {
     const rendered = renderPlainStatus(status);
 
     expect(rendered).toContain("Phase: Understand");
-    expect(rendered).toContain("Active task: Initialize Omni-Pi");
+    expect(rendered).toContain("Active task: Capture exact requirements");
     expect(rendered).toContain("Next step:");
   });
 
@@ -216,11 +216,11 @@ describe("Omni workflow", () => {
     expect(result.kind).toBe("completed");
     expect(result.message).toContain("Verification passed: npm test");
     expect(tasks).toContain(
-      "| T01 | Confirm the initial project direction | worker | - | done |",
+      "| T01 | Lock the exact user requirements | - | done |",
     );
   });
 
-  test("workOnOmniProject records retryable failures before escalation", async () => {
+  test("workOnOmniProject records retryable failures before recovery", async () => {
     const rootDir = await createTempProject("omni-work-retry-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -260,7 +260,7 @@ describe("Omni workflow", () => {
     expect(history).toContain("Unit test failed");
   });
 
-  test("workOnOmniProject escalates to expert after worker retry limit", async () => {
+  test("workOnOmniProject uses a recovery pass after the retry limit", async () => {
     const rootDir = await createTempProject("omni-work-escalate-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -308,8 +308,8 @@ describe("Omni workflow", () => {
       path.join(rootDir, ".omni", "TASKS.md"),
       "utf8",
     );
-    const escalation = await readFile(
-      path.join(rootDir, ".omni", "tasks", "T01-ESCALATION.md"),
+    const recovery = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01-RECOVERY.md"),
       "utf8",
     );
 
@@ -317,12 +317,12 @@ describe("Omni workflow", () => {
     expect(secondResult.kind).toBe("expert_completed");
     expect(secondResult.message).toContain("Verification passed: npm test");
     expect(tasks).toContain(
-      "| T01 | Confirm the initial project direction | worker | - | done |",
+      "| T01 | Lock the exact user requirements | - | done |",
     );
-    expect(escalation).toContain("Worker failure 1");
+    expect(recovery).toContain("Worker failure 1");
   });
 
-  test("workOnOmniProject surfaces recovery options when expert also fails", async () => {
+  test("workOnOmniProject surfaces recovery options when the recovery pass also fails", async () => {
     const rootDir = await createTempProject("omni-work-recovery-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -366,7 +366,7 @@ describe("Omni workflow", () => {
     const state = await readOmniStatus(rootDir);
 
     expect(result.kind).toBe("blocked");
-    expect(result.message).toContain("expert escalation");
+    expect(result.message).toContain("recovery pass");
     expect(result.recoveryOptions).toBeDefined();
     expect(result.recoveryOptions?.length).toBeGreaterThan(0);
     expect(state.currentPhase).toBe("escalate");
@@ -1075,10 +1075,10 @@ describe("Omni workflow", () => {
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
-| T01 | First task | worker | - | todo | Passes tests |
-| T02 | Second task | expert | T01 | todo | Compiles |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
+| T01 | First task | - | todo | Passes tests |
+| T02 | Second task | T01 | todo | Compiles |
 `,
       "utf8",
     );
@@ -1088,7 +1088,7 @@ describe("Omni workflow", () => {
     expect(tasks[0].id).toBe("T01");
     expect(tasks[0].dependsOn).toEqual([]);
     expect(tasks[1].dependsOn).toEqual(["T01"]);
-    expect(tasks[1].role).toBe("expert");
+    expect(tasks[1].role).toBe("worker");
   });
 
   test("readTasks skips malformed rows", async () => {
@@ -1100,11 +1100,11 @@ describe("Omni workflow", () => {
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
-| T01 | Good row | worker | - | todo | OK |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
+| T01 | Good row | - | todo | OK |
 | Too few columns |
-| T03 | Another good | worker | - | done | Done |
+| T03 | Another good | - | done | Done |
 `,
       "utf8",
     );
@@ -1324,9 +1324,9 @@ describe("Omni workflow", () => {
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
-| T01 | Fix auth \\| login flow | worker | - | done | CLI shows a \\| separator; Tests pass |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
+| T01 | Fix auth \\| login flow | - | done | CLI shows a \\| separator; Tests pass |
 `,
       "utf8",
     );
@@ -1384,7 +1384,7 @@ describe("Omni workflow", () => {
 
 ## Retry Policy
 
-Worker retries before expert takeover: 3
+Implementation retries before the plan must be tightened: 3
 
 ## Execution
 
@@ -1418,7 +1418,7 @@ Chain execution enabled: true
 
 ## Retry Policy
 
-Worker retries before expert takeover: 2
+Implementation retries before the plan must be tightened: 2
 
 ## Execution
 

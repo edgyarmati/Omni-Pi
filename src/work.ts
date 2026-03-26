@@ -50,7 +50,7 @@ async function readRetryLimit(testsPath: string): Promise<number> {
   try {
     const content = await readFile(testsPath, "utf8");
     const match = content.match(
-      /Worker retries before expert takeover:\s*(\d+)/u,
+      /(?:Implementation retries before the plan must be tightened|Worker retries before expert takeover):\s*(\d+)/u,
     );
     return match ? Number.parseInt(match[1], 10) : DEFAULT_RETRY_LIMIT;
   } catch {
@@ -142,7 +142,7 @@ export async function prepareNextTaskDispatch(
   const briefPath = path.join(taskDir, `${nextTask.id}-BRIEF.md`);
   const preReadContext = await gatherTaskContext(rootDir, nextTask, 4000);
   const prompt = [
-    "You are working inside an Omni-Pi guided task session.",
+    "You are working inside an Omni-Pi implementation session.",
     "",
     `Task: ${nextTask.id} - ${nextTask.title}`,
     `Objective: ${nextTask.objective}`,
@@ -174,11 +174,11 @@ export async function prepareNextTaskDispatch(
     taskId: nextTask.id,
     prompt,
     briefPath,
-    message: `Prepared ${nextTask.id} for a focused worker session.`,
+    message: `Prepared ${nextTask.id} for a focused implementation session.`,
   };
 }
 
-async function writeEscalationBrief(
+async function writeRecoveryBrief(
   taskDir: string,
   escalation: EscalationBrief,
 ): Promise<void> {
@@ -191,7 +191,7 @@ async function writeEscalationBrief(
     escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") ||
     "- None recorded";
 
-  const content = `# Escalation for ${escalation.taskId}
+  const content = `# Recovery for ${escalation.taskId}
 
 ## Prior Attempts
 
@@ -209,12 +209,12 @@ ${verificationResultsSection}
 
 ${modifiedFilesSection}
 
-## Expert Objective
+## Recovery Objective
 
 ${escalation.expertObjective}
 `;
   await writeFile(
-    path.join(taskDir, `${escalation.taskId}-ESCALATION.md`),
+    path.join(taskDir, `${escalation.taskId}-RECOVERY.md`),
     content,
     "utf8",
   );
@@ -291,16 +291,16 @@ export async function executeNextTask(
   const history = await readTaskHistory(taskDir, nextTask.id);
   const retryLimit = await readRetryLimit(testsPath);
   const attempt = history.length + 1;
-  const workerResult = await engine.runWorkerTask(nextTask, attempt);
-  const workerHistory = [...history, workerResult];
-  await writeTaskHistory(taskDir, nextTask.id, workerHistory);
+  const implementationResult = await engine.runWorkerTask(nextTask, attempt);
+  const implementationHistory = [...history, implementationResult];
+  await writeTaskHistory(taskDir, nextTask.id, implementationHistory);
 
-  if (workerResult.verification.passed) {
+  if (implementationResult.verification.passed) {
     await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "done"));
     return {
       kind: "completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} with the worker path. ${formatVerificationSummary(workerResult)}`,
+      message: `Completed ${nextTask.id} in the implementation pass. ${formatVerificationSummary(implementationResult)}`,
     };
   }
 
@@ -309,15 +309,15 @@ export async function executeNextTask(
     return {
       kind: "blocked",
       taskId: nextTask.id,
-      message: `Worker attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(workerResult)}`,
+      message: `Implementation attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(implementationResult)}`,
     };
   }
 
-  const escalation = createEscalationBrief(nextTask, workerHistory);
-  await writeEscalationBrief(taskDir, escalation);
+  const escalation = createEscalationBrief(nextTask, implementationHistory);
+  await writeRecoveryBrief(taskDir, escalation);
   const expertResult = await engine.runExpertTask(nextTask, escalation);
   await writeTaskHistory(taskDir, nextTask.id, [
-    ...workerHistory,
+    ...implementationHistory,
     expertResult,
   ]);
 
@@ -326,7 +326,7 @@ export async function executeNextTask(
     return {
       kind: "expert_completed",
       taskId: nextTask.id,
-      message: `Completed ${nextTask.id} after expert escalation. ${formatVerificationSummary(expertResult)}`,
+      message: `Completed ${nextTask.id} after a recovery pass. ${formatVerificationSummary(expertResult)}`,
     };
   }
 
@@ -334,11 +334,11 @@ export async function executeNextTask(
   return {
     kind: "blocked",
     taskId: nextTask.id,
-    message: `Task ${nextTask.id} remains blocked after worker retries and expert escalation. ${formatVerificationSummary(expertResult)}`,
+    message: `Task ${nextTask.id} remains blocked after repeated implementation attempts and a recovery pass. ${formatVerificationSummary(expertResult)}`,
     recoveryOptions: [
-      "Review the escalation notes in `.omni/tasks/` and refine the task inputs.",
-      "Run /omni-plan to restructure the task into smaller slices.",
-      "Run /omni-sync to capture learnings before attempting a different approach.",
+      "Review the recovery notes in `.omni/tasks/` and refine the task inputs.",
+      "Restructure the task into smaller slices.",
+      "Sync the latest learnings into `.omni/` before attempting a different approach.",
       "Manually inspect and fix the failing checks listed in `.omni/TESTS.md`.",
     ],
   };

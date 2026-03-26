@@ -66,9 +66,9 @@ Record important choices here as the project evolves.
 
 Current Phase: Understand
 Active Task: None
-Status Summary: Project initialized. Ready to capture goals and constraints.
+Status Summary: Project initialized. Ready to interview the user and capture exact requirements.
 Blockers: None
-Next Step: Run /omni-plan after the initial project details are captured.
+Next Step: Interview the user, write the exact spec into .omni/, then implement the first bounded slice.
 `,
   },
   {
@@ -117,8 +117,8 @@ Next Step: Run /omni-plan after the initial project details are captured.
 
 ## Task slices
 
-| ID | Title | Role | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- | --- |
+| ID | Title | Depends On | Status | Done Criteria |
+| --- | --- | --- | --- | --- |
 `,
   },
   {
@@ -135,11 +135,11 @@ Next Step: Run /omni-plan after the initial project details are captured.
 
 ## Retry policy
 
-- Worker retries before expert takeover: 2
+- Implementation retries before the plan must be tightened: 2
 
-## Escalation threshold
+## Recovery rule
 
-- Escalate after repeated failures or when the planner marks the task as high-risk.
+- If the same slice fails repeatedly, rewrite the slice, clarify the spec, and retry with a narrower plan.
 `,
   },
   {
@@ -197,65 +197,21 @@ Store per-task briefs, outputs, and failure histories here.
 `,
   },
   {
-    path: `.pi/agents/omni-worker.md`,
-    content: `---
-name: omni-worker
-description: Omni-Pi worker for bounded implementation tasks
-model: anthropic/claude-sonnet-4-5
-tools: read, grep, find, ls, bash, edit, write
-skill: omni-execution, omni-verification
----
-
-You are Omni-Pi's worker subagent.
-
-Complete the assigned task directly, keep the scope tight, run the required checks when possible, and end with JSON only using this schema:
-
-{"summary":"...","verification":{"passed":true,"checksRun":["..."],"failureSummary":[],"retryRecommended":false}}
-`,
-  },
-  {
-    path: `.pi/agents/omni-planner.md`,
-    content: `---
-name: omni-planner
-description: Omni-Pi planner for spec decomposition and task breakdown
-model: openai/gpt-5.4
-tools: read, grep, find, ls
-skill: omni-planning
----
-
-You are Omni-Pi's planner subagent.
-
-Analyze the project context, produce or refine .omni/SPEC.md, break work into bounded task slices in .omni/TASKS.md, and define verification criteria in .omni/TESTS.md. Keep tasks small enough that a single worker session can complete each one.
-`,
-  },
-  {
     path: `.pi/agents/omni-brain.md`,
     content: `---
 name: omni-brain
-description: Omni-Pi brain for user-facing orchestration and progress updates
+description: Omni-Pi brain for user-facing interviewing, planning, and implementation
 model: anthropic/claude-opus-4-6
 tools: read, grep, find, ls, bash
 skill: omni-planning, omni-execution, omni-verification
 ---
 
-You are Omni-Pi's brain — the user-facing orchestrator. Speak in plain English, give progress updates, decide when to invoke the planner, worker, or expert, and keep .omni/STATE.md current.
-`,
-  },
-  {
-    path: `.pi/agents/omni-expert.md`,
-    content: `---
-name: omni-expert
-description: Omni-Pi expert for escalated implementation tasks
-model: anthropic/claude-opus-4-1
-tools: read, grep, find, ls, bash, edit, write
-skill: omni-escalation, omni-verification
----
+You are Omni-Pi's only user-facing agent.
 
-You are Omni-Pi's expert subagent.
-
-Take over difficult or repeatedly failing tasks, fix the root cause, run the required checks when possible, and end with JSON only using this schema:
-
-{"summary":"...","verification":{"passed":true,"checksRun":["..."],"failureSummary":[],"retryRecommended":false}}
+Interview the user until the requested behavior, constraints, and success criteria are concrete enough to implement safely.
+Write the evolving project intent into .omni/PROJECT.md and .omni/SPEC.md.
+Break the work into bounded slices in .omni/TASKS.md before editing code.
+Run the planned checks, record outcomes in .omni/STATE.md and .omni/SESSION-SUMMARY.md, and tighten the plan if a slice fails.
 `,
   },
 ];

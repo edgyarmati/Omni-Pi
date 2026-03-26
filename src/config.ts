@@ -46,7 +46,7 @@ function parseModelTable(
 
 function parseRetryLimit(content: string): number {
   const match = content.match(
-    /Worker retries before expert takeover:\s*(\d+)/u,
+    /(?:Implementation retries before the plan must be tightened|Worker retries before expert takeover):\s*(\d+)/u,
   );
   return match ? Number.parseInt(match[1], 10) : DEFAULT_CONFIG.retryLimit;
 }
@@ -98,7 +98,7 @@ function renderConfigContent(config: OmniConfig): string {
 
 ## Retry Policy
 
-Worker retries before expert takeover: ${config.retryLimit}
+Implementation retries before the plan must be tightened: ${config.retryLimit}
 
 ## Execution
 
