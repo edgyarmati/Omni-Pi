@@ -1,8 +1,6 @@
 # Omni-Pi
 
-Omni-Pi is a Pi package built around one user-facing brain.
-
-The goal is simple: talk to a helpful agent, let it interview you until the request is precise, have it write the spec and task breakdown into `.omni/`, then implement the work in bounded slices with explicit verification and progress notes.
+A batteries-included [Pi](https://github.com/badlogic/pi-mono) package that interviews the user, documents the spec, and implements work in bounded slices.
 
 Requires Node.js 22 or newer.
 
@@ -12,14 +10,12 @@ Requires Node.js 22 or newer.
 
 ## What It Does
 
-- One friendly brain talks to the user.
-- `.omni/` remains the durable memory layer for goals, specs, tasks, checks, progress, and decisions.
-- Work is broken into small, verifiable slices before code changes happen.
-- Verification is explicit and recorded alongside implementation progress.
+- One conversational brain interviews the user until the request is precise.
+- Writes specs, tasks, and progress into `.omni/` as durable project memory.
+- Breaks work into small, verifiable slices and implements them one at a time.
+- Bundles web search, guided interviews, themed UI, a task viewer, a powerbar, custom model management, and automatic updates out of the box.
 
 ## Install
-
-Install the standalone executable:
 
 ```bash
 npm install -g omni-pi
@@ -32,60 +28,69 @@ cd your-project
 omni
 ```
 
-For local development from this checkout:
+## Features
 
-```bash
-git clone https://github.com/EdGy2k/Omni-Pi.git
-cd Omni-Pi
-npm install
-npm run chat
-```
+### Bundled Extensions
 
-## Use
+| Extension | What it does |
+|-----------|-------------|
+| **omni-core** | Brain workflow, themed header, session init, system prompt injection |
+| **omni-providers** | Model provider wiring |
+| **omni-memory** | `.omni/` durable memory bootstrap |
+| **pi-web-access** | Web search and fetch tools for the agent |
+| **pi-interview** | Guided Q&A when the agent needs clarification |
+| **pi-powerbar** | Powerline-style status bar with segments |
+| **pi-extension-settings** | Settings persistence for extensions |
 
-Start Pi in the project you want to work on, with Omni-Pi installed, and describe what you want.
+### Commands
 
-Example:
+| Command | Description |
+|---------|-------------|
+| `/model-setup` | Add, list, or remove custom model providers |
+| `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
+| `/update` | Check for Omni-Pi updates |
 
-```text
-Build a small CLI notes app for me. I want add, list, and search commands. Store data locally in JSON. Ask me any questions you need before you start coding.
-```
+### Keyboard Shortcuts
 
-Expected behavior:
+| Shortcut | Description |
+|----------|-------------|
+| `Ctrl+Shift+T` | Toggle the task list widget (`.omni/TASKS.md` + `.omni/STATE.md`) |
 
-- Omni-Pi interviews first when the request is underspecified.
-- It writes and updates `.omni/PROJECT.md`, `.omni/SPEC.md`, `.omni/TASKS.md`, `.omni/TESTS.md`, and `.omni/STATE.md`.
-- It hides internal implementation machinery instead of talking about planner/worker/expert handoffs.
-- It implements one bounded slice at a time and runs the planned checks.
+### Auto-Updater
+
+Omni-Pi checks for new versions on startup (cached, re-checks every 4 hours). When an update is available, it prompts to install and restart. Pi's own update notification is suppressed to avoid duplication.
 
 ## Durable Memory
 
 Omni-Pi keeps its working notes in `.omni/`:
 
-- `PROJECT.md` captures the problem, users, constraints, and success criteria.
-- `SPEC.md` captures the exact requested behavior and implementation shape.
-- `TASKS.md` breaks work into bounded slices.
-- `TESTS.md` records the checks for the current slice.
-- `STATE.md`, `SESSION-SUMMARY.md`, and `DECISIONS.md` keep progress and rationale durable across sessions.
+| File | Purpose |
+|------|---------|
+| `PROJECT.md` | Problem, users, constraints, success criteria |
+| `SPEC.md` | Exact requested behavior and implementation shape |
+| `TASKS.md` | Work broken into bounded slices |
+| `TESTS.md` | Checks for the current slice |
+| `STATE.md` | Current phase, active task, blockers |
+| `SESSION-SUMMARY.md` | Progress notes across sessions |
+| `DECISIONS.md` | Rationale for key choices |
 
 ## Development
 
-`npm run chat` launches the local `omni` wrapper from this checkout, which in turn starts Pi with this package loaded.
-
-For local verification:
-
 ```bash
-npm run check
-npm run lint
-npm test
+git clone https://github.com/EdGy2k/Omni-Pi.git
+cd Omni-Pi
+npm install
+npm run chat    # launch locally in dev mode
 ```
 
-For package verification:
-
-```bash
-npm pack
-npm publish --dry-run
-```
+| Command | Purpose |
+|---------|---------|
+| `npm run chat` | Launch the local `omni` executable |
+| `npm test` | Run the test suite (Vitest) |
+| `npm run check` | TypeScript type-check |
+| `npm run lint` | Biome lint + format check |
+| `npm run format` | Auto-fix lint and formatting |
+| `npm install -g .` | Install globally from local checkout |
 
 ## Attribution
 

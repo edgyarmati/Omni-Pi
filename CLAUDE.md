@@ -12,15 +12,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Omni-Pi is currently being simplified around a single user-facing brain.
+Omni-Pi is a batteries-included Pi package built around a single conversational brain.
 
-**Agent flow**: one conversational brain interviews the user, writes the exact spec into `.omni/`, breaks the work into bounded slices, implements them, and records verification/results in durable memory.
+**Agent flow**: one brain interviews the user, writes the spec into `.omni/`, breaks work into bounded slices, implements them, and records verification/results in durable memory.
 
 **Memory**: `.omni/` files hold runtime project state — not source code. They are written and read during planning, implementation, and verification.
 
-**Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Entrypoints live in `extensions/`.
+**Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Custom entrypoints live in `extensions/`. Third-party extensions are referenced via `./node_modules/` paths.
+
+**Bundled extensions** (loaded in order):
+- `omni-providers` — model provider wiring
+- `omni-core` — brain workflow, themed UI, header, shortcuts, updater
+- `omni-memory` — `.omni/` durable memory bootstrap
+- `pi-web-access` — web search and fetch tools
+- `pi-interview` — guided Q&A for clarification
+- `pi-extension-settings` — settings persistence
+- `pi-powerbar` — powerline-style status bar
 
 **Skills**: Bundled workflow skills live in `skills/`. Pi discovers them via `pi.skills` in `package.json`.
+
+**Key source files**:
+- `src/brain.ts` — brain system prompt and `.omni/` initialization
+- `src/header.ts` — ASCII logo and welcome messages
+- `src/theme.ts` — color presets, ANSI helpers, theme constructor
+- `src/todo-shortcut.ts` — Ctrl+Shift+T task list widget
+- `src/updater.ts` — auto-update checker for omni-pi
+- `src/model-command.ts` — `/model-setup` command
+- `src/theme-command.ts` — `/theme` command
+- `src/pi.ts` — message renderers and command registration
 
 ## Workflow
 

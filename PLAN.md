@@ -1,18 +1,12 @@
 # Omni-Pi Plan
 
-This file is historical context.
+This file is historical context from the earlier multi-agent design.
 
-Omni-Pi no longer follows the command-driven Brain/Planner/Worker/Expert design described in earlier planning docs. The current product direction is:
-
-- one user-facing brain
-- interview first
-- write durable notes into `.omni/`
-- break work into bounded slices
-- implement and verify without exposing internal role handoffs
+Omni-Pi now uses a single conversational brain with bundled extensions. There are no separate planner/worker/expert roles.
 
 Current source of truth:
 
-- [README.md](/Users/edgy/personal/Omni-Pi/README.md)
-- [AGENTS.md](/Users/edgy/personal/Omni-Pi/AGENTS.md)
-- [src/brain.ts](/Users/edgy/personal/Omni-Pi/src/brain.ts)
-- [src/workflow.ts](/Users/edgy/personal/Omni-Pi/src/workflow.ts)
+- [README.md](README.md) — features, install, usage
+- [CLAUDE.md](CLAUDE.md) — architecture and development guidance
+- [src/brain.ts](src/brain.ts) — brain system prompt and `.omni/` initialization
+- [extensions/omni-core/index.ts](extensions/omni-core/index.ts) — extension wiring

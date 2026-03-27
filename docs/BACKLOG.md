@@ -1,12 +1,10 @@
 # Backlog
 
-This file is historical backlog context from the earlier command/subagent design.
-
-Until a refreshed backlog is written, treat it as archival material rather than current roadmap.
+This file is historical context from the earlier multi-agent design. Until a refreshed backlog is written, treat it as archival.
 
 Current direction:
 
-- improve the single-brain interview flow
-- keep `.omni/` documentation current and compact
-- improve the Pi runtime experience and packaging story
-- keep the package install and publish workflow clean
+- Improve the single-brain interview and implementation flow
+- Keep `.omni/` documentation current and compact
+- Expand the bundled extension set for a better out-of-the-box experience
+- Keep the package install and publish workflow clean

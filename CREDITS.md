@@ -9,6 +9,17 @@ Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
 - [@mariozechner/pi-coding-agent](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) by Mario Zechner
   - Pi coding agent package (direct dependency)
 
+## Bundled third-party extensions
+
+- [pi-web-access](https://www.npmjs.com/package/pi-web-access)
+  - Web search and fetch tools for the agent
+- [pi-interview](https://www.npmjs.com/package/pi-interview)
+  - Guided Q&A interface for user clarification
+- [@juanibiapina/pi-powerbar](https://www.npmjs.com/package/@juanibiapina/pi-powerbar) by Juani Biapina
+  - Powerline-style status bar with extensible segments
+- [@juanibiapina/pi-extension-settings](https://www.npmjs.com/package/@juanibiapina/pi-extension-settings) by Juani Biapina
+  - Settings persistence for Pi extensions
+
 ## Workflow and orchestration inspiration
 
 - [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi)
