@@ -71,7 +71,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.84",
-    "@mariozechner/pi-coding-agent": "^0.62.0",
+    "@mariozechner/pi-coding-agent": "^0.63.0",
     "pi-interview": "^0.5.5",
     "pi-subagents": "^0.11.11",
     "pi-web-access": "^0.10.3",
