@@ -9,18 +9,22 @@ import { registerModelCommand } from "../../src/model-command.js";
 import { registerOmniMessageRenderer } from "../../src/pi.js";
 import { createOmniTheme } from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
+import { registerTodoShortcut } from "../../src/todo-shortcut.js";
+import { registerUpdater } from "../../src/updater.js";
 
 export default function omniCoreExtension(api: ExtensionAPI): void {
   registerOmniMessageRenderer(api);
   registerModelCommand(api);
   registerThemeCommand(api);
+  registerTodoShortcut(api);
+  registerUpdater(api);
 
   api.on("session_start", async (_event, ctx) => {
     await ensureOmniInitialized(ctx.cwd);
     ctx.ui.setTitle("Omni-Pi");
     ctx.ui.setTheme(createOmniTheme());
     ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
-    ctx.ui.setStatus("omni", undefined);
+    ctx.ui.setStatus("omni", "\x1b[2mctrl+shift+t tasks\x1b[0m");
   });
 
   api.on("before_agent_start", async (event, ctx) => {

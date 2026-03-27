@@ -49,6 +49,7 @@ describe("Omni brain runtime", () => {
         return undefined;
       },
       registerCommand() {},
+      registerShortcut() {},
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, handler);
       },
@@ -77,7 +78,7 @@ describe("Omni brain runtime", () => {
       { cwd: rootDir },
     );
 
-    expect(statuses).toEqual([undefined]);
+    expect(statuses).toEqual(["\x1b[2mctrl+shift+t tasks\x1b[0m"]);
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
   });

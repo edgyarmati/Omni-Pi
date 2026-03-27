@@ -22,15 +22,17 @@ describe("Omni command surface", () => {
       registerCommand(name: string) {
         commands.push(name);
       },
+      registerShortcut() {},
       on(event: string) {
         events.push(event);
       },
     } as never);
 
     expect(rendererRegistrations).toBeGreaterThan(0);
-    expect(commands).toEqual(["model-setup", "theme"]);
+    expect(commands).toEqual(["model-setup", "theme", "update"]);
     expect(events).toContain("session_start");
     expect(events).toContain("before_agent_start");
+    expect(events).toContain("turn_end");
   });
 
   test("status and skills extensions register no commands", () => {
