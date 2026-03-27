@@ -9,8 +9,9 @@ import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
 import {
   getAuthenticatedModelOptions,
-  setupCustomProviderModel,
+  runModelSetupWizard,
 } from "./model-setup.js";
+import { searchableSelect } from "./searchable-select.js";
 
 interface ModelsJsonModel {
   id: string;
@@ -61,7 +62,7 @@ function getCustomModels(
 }
 
 async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
-  const result = await setupCustomProviderModel({ ctx });
+  const result = await runModelSetupWizard({ ctx });
   ctx.ui.notify(result.summary, "info");
 }
 
@@ -82,9 +83,14 @@ async function handleList(ctx: ExtensionCommandContext): Promise<void> {
 
   // Loop until user picks a custom model or cancels
   while (true) {
-    const selected = await ctx.ui.select(
+    const selected = await searchableSelect(
+      ctx.ui,
       "Available models (✕ = remove):",
-      options,
+      options.map((option) => ({
+        label: option,
+        value: option,
+        searchText: option.replace("✕", ""),
+      })),
     );
     if (selected === undefined) return;
     if (!selected.endsWith("✕")) continue;
@@ -128,15 +134,22 @@ export function registerModelCommand(api: ExtensionAPI): void {
       if (sub === "add") return handleAdd(ctx);
       if (sub === "list") return handleList(ctx);
 
-      const choice = await ctx.ui.select("Model setup:", [
-        "add    — Add a custom provider/model",
-        "list   — Show available models / remove custom",
+      const choice = await searchableSelect(ctx.ui, "Model setup:", [
+        {
+          label: "add    — Add a custom provider/model",
+          value: "add",
+          searchText: "add custom provider model",
+        },
+        {
+          label: "list   — Show available models / remove custom",
+          value: "list",
+          searchText: "list remove custom models",
+        },
       ]);
       if (!choice) return;
 
-      const picked = choice.split("—")[0].trim();
-      if (picked === "add") return handleAdd(ctx);
-      if (picked === "list") return handleList(ctx);
+      if (choice === "add") return handleAdd(ctx);
+      if (choice === "list") return handleList(ctx);
     },
   });
 }

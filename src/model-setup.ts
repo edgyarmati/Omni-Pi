@@ -12,6 +12,7 @@ import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
 import type { OmniConfig } from "./contracts.js";
 import { AVAILABLE_MODELS } from "./providers.js";
+import { searchableSelect } from "./searchable-select.js";
 
 type SupportedApi =
   | "openai-completions"
@@ -473,7 +474,14 @@ async function setupKnownProvider(
     };
   }
 
-  const selectedModel = await ui.select(`Select ${setup.label} model:`, models);
+  const selectedModel = await searchableSelect(
+    ui,
+    `Select ${setup.label} model:`,
+    models.map((model) => ({
+      label: model,
+      value: model,
+    })),
+  );
   if (!selectedModel) {
     return { summary: `${setup.label} credentials saved.` };
   }
@@ -512,11 +520,23 @@ export async function setupCustomProviderModel(
     return { summary: "Custom provider setup cancelled." };
   }
 
-  const apiChoice = await ui.select("Select provider API:", [
-    "openai-completions",
-    "openai-responses",
-    "anthropic-messages",
-    "google-generative-ai",
+  const apiChoice = await searchableSelect(ui, "Select provider API:", [
+    {
+      label: "openai-completions",
+      value: "openai-completions",
+    },
+    {
+      label: "openai-responses",
+      value: "openai-responses",
+    },
+    {
+      label: "anthropic-messages",
+      value: "anthropic-messages",
+    },
+    {
+      label: "google-generative-ai",
+      value: "google-generative-ai",
+    },
   ]);
   if (!apiChoice) {
     return { summary: "Custom provider setup cancelled." };
@@ -627,9 +647,17 @@ export async function runModelSetupWizard(
       return `${setup.label} [${provider}]${isAuthenticated ? " (authenticated)" : ""}`;
     });
 
-  const setupChoice = await ui.select("Setup wizard:", [
-    "Known provider with bundled models",
-    "Custom provider/model",
+  const setupChoice = await searchableSelect(ui, "Setup wizard:", [
+    {
+      label: "Known provider with bundled models",
+      value: "Known provider with bundled models",
+      searchText: "known bundled provider models",
+    },
+    {
+      label: "Custom provider/model",
+      value: "Custom provider/model",
+      searchText: "custom provider model",
+    },
   ]);
   if (!setupChoice) {
     return { summary: "Model setup cancelled." };
@@ -639,9 +667,13 @@ export async function runModelSetupWizard(
     return setupCustomProviderModel(runtime);
   }
 
-  const providerChoice = await ui.select(
+  const providerChoice = await searchableSelect(
+    ui,
     "Select provider to set up:",
-    providerOptions,
+    providerOptions.map((option) => ({
+      label: option,
+      value: option,
+    })),
   );
   if (!providerChoice) {
     return { summary: "Model setup cancelled." };
@@ -700,7 +732,14 @@ export async function runTerminalModelSearch(
     options.push("Search again");
     options.push("Open browser view");
 
-    const selected = await ui.select(`Matching models for ${role}:`, options);
+    const selected = await searchableSelect(
+      ui,
+      `Matching models for ${role}:`,
+      options.map((option) => ({
+        label: option,
+        value: option,
+      })),
+    );
 
     if (!selected || selected === "Search again") {
       continue;
