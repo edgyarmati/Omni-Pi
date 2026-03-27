@@ -107,8 +107,15 @@ npm run chat    # launch locally in dev mode
 | `npm test` | Run the test suite (Vitest) |
 | `npm run check` | TypeScript type-check |
 | `npm run lint` | Biome lint + format check |
+| `npm run verify` | Full local/CI gate: type-check, lint, test, and package dry-run |
 | `npm run format` | Auto-fix lint and formatting |
 | `npm install -g .` | Install globally from local checkout |
+
+## CI/CD
+
+- Pull requests and pushes to `main` run `npm run verify`.
+- The docs are part of the test contract, including a sync check between `PROVIDERS.md` and the bundled-provider setup list in code.
+- Pushing a `v*` tag runs the release workflow, verifies the repo again, creates a GitHub release, and publishes to npm when `NPM_TOKEN` is configured.
 
 ## Attribution
 

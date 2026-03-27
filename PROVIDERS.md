@@ -30,6 +30,32 @@ If a bundled provider already has valid auth in the Pi runtime, Omni-Pi may use 
 
 Use `/provider-auth` to list bundled providers that currently have stored auth and remove that auth when needed.
 
+The bundled-provider list below is expected to stay in sync with the exported provider setup list in `src/model-setup.ts`. The test suite checks that this section matches the code list.
+
+### Bundled provider list
+
+- `anthropic` — API key
+- `openai` — API key
+- `openrouter` — API key
+- `google` — API key
+- `github-copilot` — OAuth
+- `openai-codex` — OAuth
+- `xai` — API key
+- `zai` — API key
+- `azure-openai-responses` — API key
+- `nvidia` — API key
+- `together` — API key
+- `synthetic` — API key
+- `nanogpt` — API key
+- `xiaomi` — API key
+- `moonshot` — API key
+- `venice` — API key
+- `kilo` — API key
+- `gitlab-duo` — API key
+- `qwen-portal` — API key
+- `qianfan` — API key
+- `cloudflare-ai-gateway` — API key
+
 ## Custom Provider Discovery
 
 For custom providers that expose a compatible model listing endpoint, Omni-Pi can fetch models for you after you add the provider details and credentials.

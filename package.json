@@ -46,8 +46,9 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "test": "vitest run",
+    "verify": "npm run check && npm run lint && npm test && npm run pack:check",
     "pack:check": "npm pack --dry-run",
-    "prepublishOnly": "npm run check && npm run lint && npm test"
+    "prepublishOnly": "npm run verify"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.9",
