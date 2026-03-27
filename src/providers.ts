@@ -6,7 +6,7 @@ type ModelApi =
   | "openai-completions"
   | "openai-responses";
 
-interface OmniProviderModel {
+export interface OmniProviderModel {
   id: string;
   name: string;
   api: ModelApi;
@@ -290,7 +290,8 @@ export const AVAILABLE_MODELS = [
   "azure-openai-responses/gpt-5.2",
   "openrouter/anthropic/claude-sonnet-4",
   "xai/grok-code-fast-1",
-  "zai/glm-4.6",
+  "zai/glm-5",
+  "zai/glm-5-turbo",
   "openai-codex/gpt-5-codex",
   "github-copilot/claude-sonnet-4",
   "google-vertex/gemini-2.5-pro",
@@ -588,6 +589,22 @@ async function discoverAnthropicCompatibleModels(
     })
     .filter((entry): entry is OmniProviderModel => entry !== null)
     .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export async function discoverProviderModels(
+  api: ModelApi | "google-generative-ai",
+  baseUrl: string,
+  apiKey?: string,
+): Promise<OmniProviderModel[]> {
+  if (api === "anthropic-messages") {
+    return discoverAnthropicCompatibleModels(baseUrl, apiKey);
+  }
+
+  if (api === "openai-completions" || api === "openai-responses") {
+    return discoverOpenAICompatibleModels(baseUrl, api, apiKey);
+  }
+
+  return [];
 }
 
 function normalizeBaseUrl(baseUrl: string): string {

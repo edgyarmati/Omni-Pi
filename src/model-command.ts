@@ -7,10 +7,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
-import {
-  getAuthenticatedModelOptions,
-  runModelSetupWizard,
-} from "./model-setup.js";
+import { runModelSetupWizard } from "./model-setup.js";
 import { searchableSelect } from "./searchable-select.js";
 
 interface ModelsJsonModel {
@@ -26,6 +23,12 @@ interface ModelsJsonProvider {
 interface ModelsJsonConfig {
   providers?: Record<string, ModelsJsonProvider>;
 }
+
+type CustomModelEntry = { provider: string; modelId: string };
+type ListOption =
+  | { kind: "provider"; provider: string; label: string }
+  | { kind: "model"; provider: string; modelId: string; label: string }
+  | { kind: "plain"; label: string };
 
 function getModelsPath(): string {
   return path.join(getAgentDir(), "models.json");
@@ -47,10 +50,8 @@ async function writeModelsJson(config: ModelsJsonConfig): Promise<void> {
   await writeFile(modelsPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
 }
 
-function getCustomModels(
-  config: ModelsJsonConfig,
-): Array<{ provider: string; modelId: string }> {
-  const entries: Array<{ provider: string; modelId: string }> = [];
+function getCustomModels(config: ModelsJsonConfig): CustomModelEntry[] {
+  const entries: CustomModelEntry[] = [];
   for (const [provider, providerConfig] of Object.entries(
     config.providers ?? {},
   )) {
@@ -61,6 +62,72 @@ function getCustomModels(
   return entries;
 }
 
+function getCustomProviders(config: ModelsJsonConfig): string[] {
+  return Object.keys(config.providers ?? {}).sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+export function removeCustomModelFromConfig(
+  config: ModelsJsonConfig,
+  provider: string,
+  modelId: string,
+): ModelsJsonConfig {
+  const providers = { ...(config.providers ?? {}) };
+  const providerConfig = providers[provider];
+  if (!providerConfig?.models) {
+    return {
+      ...config,
+      providers,
+    };
+  }
+
+  providerConfig.models = providerConfig.models.filter(
+    (model) => model.id !== modelId,
+  );
+  if (providerConfig.models.length === 0) {
+    delete providers[provider];
+  }
+
+  return {
+    ...config,
+    providers,
+  };
+}
+
+export function removeCustomProviderFromConfig(
+  config: ModelsJsonConfig,
+  provider: string,
+): ModelsJsonConfig {
+  const providers = { ...(config.providers ?? {}) };
+  delete providers[provider];
+  return {
+    ...config,
+    providers,
+  };
+}
+
+function buildListOptions(
+  customModels: CustomModelEntry[],
+  customProviders: string[],
+): ListOption[] {
+  return [
+    ...customProviders.map((provider) => ({
+      kind: "provider" as const,
+      provider,
+      label: `${provider}  ⌫ provider`,
+    })),
+    ...customModels
+      .map(({ provider, modelId }) => ({
+        kind: "model" as const,
+        provider,
+        modelId,
+        label: `${provider}/${modelId}  ✕`,
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+  ];
+}
+
 async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
   const result = await runModelSetupWizard({ ctx });
   ctx.ui.notify(result.summary, "info");
@@ -69,55 +136,60 @@ async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
 async function handleList(ctx: ExtensionCommandContext): Promise<void> {
   const config = await readModelsJson();
   const custom = getCustomModels(config);
-  const all = getAuthenticatedModelOptions(ctx.modelRegistry);
-
-  const customRefs = new Set(custom.map((c) => `${c.provider}/${c.modelId}`));
-  const options = all.map((model) =>
-    customRefs.has(model) ? `${model}  ✕` : model,
-  );
+  const customProviders = getCustomProviders(config);
+  const options = buildListOptions(custom, customProviders);
 
   if (options.length === 0) {
-    ctx.ui.notify("No models available.", "info");
+    ctx.ui.notify("No custom providers or models found.", "info");
     return;
   }
 
-  // Loop until user picks a custom model or cancels
   while (true) {
     const selected = await searchableSelect(
       ctx.ui,
-      "Available models (✕ = remove):",
+      "Custom providers and models (✕ = remove model, ⌫ = remove provider):",
       options.map((option) => ({
-        label: option,
-        value: option,
-        searchText: option.replace("✕", ""),
+        label: option.label,
+        value: option.label,
+        searchText: option.label.replace("✕", "").replace("⌫ provider", ""),
       })),
     );
     if (selected === undefined) return;
-    if (!selected.endsWith("✕")) continue;
+    const selectedOption = options.find((option) => option.label === selected);
+    if (!selectedOption || selectedOption.kind === "plain") continue;
 
-    const modelRef = selected.replace(/\s+✕$/, "");
+    if (selectedOption.kind === "provider") {
+      const confirmed = await ctx.ui.confirm(
+        "Remove provider?",
+        `Remove custom provider ${selectedOption.provider} and all of its models from models.json?`,
+      );
+      if (!confirmed) return;
+
+      const freshConfig = await readModelsJson();
+      await writeModelsJson(
+        removeCustomProviderFromConfig(freshConfig, selectedOption.provider),
+      );
+
+      ctx.modelRegistry.refresh();
+      ctx.ui.notify(`Removed provider ${selectedOption.provider}.`, "info");
+      return;
+    }
+
+    const modelRef = `${selectedOption.provider}/${selectedOption.modelId}`;
     const confirmed = await ctx.ui.confirm(
       "Remove model?",
       `Remove ${modelRef} from models.json?`,
     );
     if (!confirmed) return;
 
-    const [provider, ...rest] = modelRef.split("/");
-    const modelId = rest.join("/");
-
     const freshConfig = await readModelsJson();
-    const providers = freshConfig.providers ?? {};
-    const providerConfig = providers[provider];
-    if (providerConfig?.models) {
-      providerConfig.models = providerConfig.models.filter(
-        (m) => m.id !== modelId,
-      );
-      if (providerConfig.models.length === 0) {
-        delete providers[provider];
-      }
-    }
-    freshConfig.providers = providers;
-    await writeModelsJson(freshConfig);
+    await writeModelsJson(
+      removeCustomModelFromConfig(
+        freshConfig,
+        selectedOption.provider,
+        selectedOption.modelId,
+      ),
+    );
 
     ctx.modelRegistry.refresh();
     ctx.ui.notify(`Removed ${modelRef}.`, "info");
@@ -127,7 +199,7 @@ async function handleList(ctx: ExtensionCommandContext): Promise<void> {
 
 export function registerModelCommand(api: ExtensionAPI): void {
   api.registerCommand("model-setup", {
-    description: "Add, list, or remove custom model providers",
+    description: "Add, list, or remove custom providers and models",
     async handler(args: string, ctx: ExtensionCommandContext) {
       const sub = args.trim().toLowerCase();
 
@@ -136,14 +208,14 @@ export function registerModelCommand(api: ExtensionAPI): void {
 
       const choice = await searchableSelect(ctx.ui, "Model setup:", [
         {
-          label: "add    — Add a custom provider/model",
+          label: "add    — Add a custom provider or model",
           value: "add",
           searchText: "add custom provider model",
         },
         {
-          label: "list   — Show available models / remove custom",
+          label: "list   — Show custom providers/models / remove custom",
           value: "list",
-          searchText: "list remove custom models",
+          searchText: "list remove custom providers models",
         },
       ]);
       if (!choice) return;

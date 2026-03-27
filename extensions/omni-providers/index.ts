@@ -1,5 +1,14 @@
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+import { refreshAuthenticatedProviderModels } from "../../src/model-setup.js";
+import { registerOmniProviders } from "../../src/providers.js";
+
 export default async function omniProvidersExtension(
-  _api: unknown,
+  api: ExtensionAPI,
 ): Promise<void> {
-  return;
+  await registerOmniProviders(api);
+
+  api.on("session_start", async (_event, ctx) => {
+    await refreshAuthenticatedProviderModels(ctx.modelRegistry);
+  });
 }

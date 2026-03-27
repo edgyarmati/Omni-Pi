@@ -1,3 +1,4 @@
+import type { ExtensionUIContext } from "@mariozechner/pi-coding-agent";
 import { DynamicBorder } from "@mariozechner/pi-coding-agent";
 import {
   Container,
@@ -7,8 +8,6 @@ import {
   Spacer,
   Text,
 } from "@mariozechner/pi-tui";
-
-import type { ExtensionUIContext } from "@mariozechner/pi-coding-agent";
 
 export interface SearchableSelectOption {
   label: string;
@@ -48,7 +47,9 @@ class SearchableSelectComponent extends Container {
     this.addChild(new DynamicBorder());
     this.addChild(new Spacer(1));
     this.addChild(new Text(title, 0, 0));
-    this.addChild(new Text("Type to search. Enter selects. Esc cancels.", 0, 0));
+    this.addChild(
+      new Text("Type to search. Enter selects. Esc cancels.", 0, 0),
+    );
     this.addChild(new Spacer(1));
     this.searchInput.onSubmit = () => {
       const selected = this.filteredOptions[this.selectedIndex];
@@ -144,9 +145,7 @@ class SearchableSelectComponent extends Container {
     for (let index = startIndex; index < endIndex; index += 1) {
       const option = this.filteredOptions[index];
       const prefix = index === this.selectedIndex ? "→ " : "  ";
-      this.listContainer.addChild(
-        new Text(`${prefix}${option.label}`, 0, 0),
-      );
+      this.listContainer.addChild(new Text(`${prefix}${option.label}`, 0, 0));
       if (option.detail) {
         this.listContainer.addChild(new Text(`    ${option.detail}`, 0, 0));
       }
@@ -192,7 +191,7 @@ export async function searchableSelect(
     return options.find((option) => option.label === selected)?.value;
   }
 
-  return maybeCustom.custom((tui, _theme, _keybindings, done) => {
+  return maybeCustom.custom((_tui, _theme, _keybindings, done) => {
     const component = new SearchableSelectComponent(title, options, done);
     return component;
   });

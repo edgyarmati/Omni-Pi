@@ -7,6 +7,7 @@ import {
 import { renderHeader } from "../../src/header.js";
 import { registerModelCommand } from "../../src/model-command.js";
 import { registerOmniMessageRenderer } from "../../src/pi.js";
+import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
 import { createOmniTheme } from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
 import { registerTodoShortcut } from "../../src/todo-shortcut.js";
@@ -15,6 +16,7 @@ import { registerUpdater } from "../../src/updater.js";
 export default function omniCoreExtension(api: ExtensionAPI): void {
   registerOmniMessageRenderer(api);
   registerModelCommand(api);
+  registerProviderAuthCommand(api);
   registerThemeCommand(api);
   registerTodoShortcut(api);
   registerUpdater(api);

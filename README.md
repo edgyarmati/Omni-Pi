@@ -13,7 +13,7 @@ Requires Node.js 22 or newer.
 - One conversational brain interviews the user until the request is precise.
 - Writes specs, tasks, and progress into `.omni/` as durable project memory.
 - Breaks work into small, verifiable slices and implements them one at a time.
-- Bundles web search, guided interviews, themed UI, a task viewer, a powerbar, custom model management, and automatic updates out of the box.
+- Bundles web search, guided interviews, themed UI, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
 
 ## Install
 
@@ -27,6 +27,8 @@ Then run it in any project:
 cd your-project
 omni
 ```
+
+Custom provider setup and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).
 
 ## Features
 
@@ -46,7 +48,8 @@ omni
 
 | Command | Description |
 |---------|-------------|
-| `/model-setup` | Add, list, or remove custom model providers |
+| `/model-setup` | Add, list, or remove custom providers and models |
+| `/provider-auth` | Remove stored auth for bundled providers |
 | `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
 | `/update` | Check for Omni-Pi updates |
 
@@ -59,6 +62,21 @@ omni
 ### Auto-Updater
 
 Omni-Pi checks for new versions on startup (cached, re-checks every 4 hours). When an update is available, it prompts to install and restart. Pi's own update notification is suppressed to avoid duplication.
+
+## Provider Support
+
+`/model-setup` is for custom providers and custom model entries only.
+
+Use it when you want to configure:
+
+- a custom provider id
+- an API type and base URL
+- an API key for that custom provider
+- discovered models or manual model entries
+
+Use `/provider-auth` to remove stored auth for bundled Pi providers.
+
+See [PROVIDERS.md](PROVIDERS.md) for the current supported-provider list and auth-management split.
 
 ## Durable Memory
 

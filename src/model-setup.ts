@@ -4,14 +4,11 @@ import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 
-import type {
-  ExtensionCommandContext,
-  ExtensionUIContext,
-} from "@mariozechner/pi-coding-agent";
+import type { ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
 import type { OmniConfig } from "./contracts.js";
-import { AVAILABLE_MODELS } from "./providers.js";
+import { discoverProviderModels, type OmniProviderModel } from "./providers.js";
 import { searchableSelect } from "./searchable-select.js";
 
 type SupportedApi =
@@ -20,12 +17,15 @@ type SupportedApi =
   | "anthropic-messages"
   | "google-generative-ai";
 
-interface ModelLike {
-  provider: string;
-  id: string;
-}
-
 interface AuthStorageLike {
+  get?(
+    provider: string,
+  ): { type: "api_key"; key: string } | { type: "oauth" } | undefined;
+  getApiKey?(
+    provider: string,
+    options?: { includeFallback?: boolean },
+  ): Promise<string | undefined>;
+  hasAuth?(provider: string): boolean;
   set(
     provider: string,
     credential: {
@@ -37,8 +37,6 @@ interface AuthStorageLike {
 }
 
 interface ModelRegistryLike {
-  getAll(): ModelLike[];
-  getAvailable(): ModelLike[];
   refresh(): void;
   authStorage: AuthStorageLike;
 }
@@ -52,7 +50,7 @@ export interface BrowserModelSelectionResult {
   summary: string;
 }
 
-interface BrowserCustomModelSubmission {
+export interface BrowserCustomModelSubmission {
   providerId: string;
   modelId: string;
   api: SupportedApi;
@@ -62,11 +60,17 @@ interface BrowserCustomModelSubmission {
   imageInput: boolean;
 }
 
-interface KnownProviderSetup {
+interface ProviderConnectionSubmission {
+  providerId: string;
+  api: SupportedApi;
+  baseUrl: string;
+  apiKey?: string;
+}
+
+export interface KnownProviderSetup {
   id: string;
   label: string;
-  auth: "api-key" | "oauth" | "manual";
-  browserUrl?: string;
+  auth: "api-key" | "oauth";
   baseUrlRequired?: boolean;
   baseUrlPlaceholder?: string;
   apiKeyPlaceholder?: string;
@@ -76,19 +80,30 @@ interface ModelsJsonConfig {
   providers?: Record<string, ModelsJsonProviderConfig>;
 }
 
-interface ModelsJsonProviderConfig {
+export interface ModelsJsonProviderConfig {
   baseUrl?: string;
   api?: SupportedApi;
   apiKey?: string;
+  headers?: Record<string, string>;
   authHeader?: boolean;
-  models?: Array<{
-    id: string;
-    name?: string;
-    reasoning?: boolean;
-    input?: Array<"text" | "image">;
-    contextWindow?: number;
-    maxTokens?: number;
-  }>;
+  models?: ModelsJsonModelConfig[];
+}
+
+interface ModelsJsonModelConfig {
+  id: string;
+  name?: string;
+  reasoning?: boolean;
+  input?: Array<"text" | "image">;
+  contextWindow?: number;
+  maxTokens?: number;
+  cost?: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+  };
+  headers?: Record<string, string>;
+  compat?: unknown;
 }
 
 const KNOWN_PROVIDER_SETUPS: KnownProviderSetup[] = [
@@ -96,106 +111,75 @@ const KNOWN_PROVIDER_SETUPS: KnownProviderSetup[] = [
     id: "anthropic",
     label: "Anthropic",
     auth: "api-key",
-    browserUrl: "https://console.anthropic.com/",
     apiKeyPlaceholder: "sk-ant-...",
   },
   {
     id: "openai",
     label: "OpenAI",
     auth: "api-key",
-    browserUrl: "https://platform.openai.com/api-keys",
     apiKeyPlaceholder: "sk-...",
   },
   {
     id: "openrouter",
     label: "OpenRouter",
     auth: "api-key",
-    browserUrl: "https://openrouter.ai/keys",
     apiKeyPlaceholder: "sk-or-...",
   },
   {
     id: "google",
     label: "Google Gemini",
     auth: "api-key",
-    browserUrl: "https://aistudio.google.com/app/apikey",
-  },
-  {
-    id: "google-vertex",
-    label: "Google Vertex AI",
-    auth: "manual",
-    browserUrl: "https://cloud.google.com/vertex-ai",
   },
   {
     id: "github-copilot",
     label: "GitHub Copilot",
     auth: "oauth",
-    browserUrl: "https://github.com/features/copilot",
   },
   {
     id: "openai-codex",
     label: "OpenAI Codex",
     auth: "oauth",
-    browserUrl: "https://chatgpt.com/",
-  },
-  {
-    id: "claude-agent",
-    label: "Claude Agent SDK",
-    auth: "manual",
-    browserUrl: "https://docs.anthropic.com/en/docs/claude-code/overview",
   },
   {
     id: "xai",
     label: "xAI",
     auth: "api-key",
-    browserUrl: "https://console.x.ai/",
   },
   {
     id: "zai",
     label: "Z.ai",
     auth: "api-key",
-    browserUrl: "https://platform.z.ai/",
-  },
-  {
-    id: "amazon-bedrock",
-    label: "Amazon Bedrock",
-    auth: "manual",
-    browserUrl: "https://console.aws.amazon.com/bedrock/",
+    apiKeyPlaceholder: "API key from z.ai/manage-apikey/apikey-list",
   },
   {
     id: "azure-openai-responses",
     label: "Azure OpenAI Responses",
     auth: "api-key",
-    browserUrl: "https://portal.azure.com/",
   },
   {
     id: "nvidia",
     label: "NVIDIA NIM",
     auth: "api-key",
-    browserUrl: "https://build.nvidia.com/",
   },
   {
     id: "together",
     label: "Together AI",
     auth: "api-key",
-    browserUrl: "https://api.together.xyz/settings/api-keys",
   },
   {
     id: "synthetic",
     label: "Synthetic",
     auth: "api-key",
-    browserUrl: "https://app.synthetic.new/",
   },
   {
     id: "nanogpt",
     label: "NanoGPT",
     auth: "api-key",
-    browserUrl: "https://nano-gpt.com/",
   },
   {
     id: "xiaomi",
     label: "Xiaomi",
     auth: "api-key",
-    browserUrl: "https://platform.xiaomi.com/",
     baseUrlRequired: true,
     baseUrlPlaceholder: "https://api.xiaomi.example/anthropic",
   },
@@ -203,25 +187,21 @@ const KNOWN_PROVIDER_SETUPS: KnownProviderSetup[] = [
     id: "moonshot",
     label: "Moonshot",
     auth: "api-key",
-    browserUrl: "https://platform.moonshot.ai/",
   },
   {
     id: "venice",
     label: "Venice",
     auth: "api-key",
-    browserUrl: "https://venice.ai/",
   },
   {
     id: "kilo",
     label: "Kilo Code",
     auth: "api-key",
-    browserUrl: "https://kilocode.ai/",
   },
   {
     id: "gitlab-duo",
     label: "GitLab Duo",
     auth: "api-key",
-    browserUrl: "https://about.gitlab.com/gitlab-duo/",
     baseUrlRequired: true,
     baseUrlPlaceholder: "https://gitlab.example/api/v4/chat",
   },
@@ -229,57 +209,28 @@ const KNOWN_PROVIDER_SETUPS: KnownProviderSetup[] = [
     id: "qwen-portal",
     label: "Qwen Portal",
     auth: "api-key",
-    browserUrl: "https://portal.qwen.ai/",
   },
   {
     id: "qianfan",
     label: "Qianfan",
     auth: "api-key",
-    browserUrl: "https://cloud.baidu.com/product/wenxinworkshop",
   },
   {
     id: "cloudflare-ai-gateway",
     label: "Cloudflare AI Gateway",
     auth: "api-key",
-    browserUrl: "https://dash.cloudflare.com/",
     baseUrlRequired: true,
     baseUrlPlaceholder:
       "https://gateway.ai.cloudflare.com/v1/<account>/<gateway>",
   },
 ];
 
+export function getKnownProviderSetups(): KnownProviderSetup[] {
+  return [...KNOWN_PROVIDER_SETUPS];
+}
+
 function getModelsPath(): string {
   return path.join(getAgentDir(), "models.json");
-}
-
-function modelRef(model: ModelLike): string {
-  return `${model.provider}/${model.id}`;
-}
-
-function providerFromModelRef(model: string): string {
-  const [provider] = model.split("/", 1);
-  return provider ?? model;
-}
-
-function titleCaseProvider(provider: string): string {
-  return provider
-    .split("-")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
-function getProviderSetup(provider: string): KnownProviderSetup {
-  return (
-    KNOWN_PROVIDER_SETUPS.find((entry) => entry.id === provider) ?? {
-      id: provider,
-      label: titleCaseProvider(provider),
-      auth: "api-key",
-    }
-  );
-}
-
-function canonicalSort(left: string, right: string): number {
-  return left.localeCompare(right);
 }
 
 function escapeHtml(value: string): string {
@@ -304,62 +255,6 @@ function openExternalUrl(url: string): void {
     stdio: "ignore",
   });
   child.unref();
-}
-
-function getKnownProviderModels(
-  registry: ModelRegistryLike,
-  provider: string,
-): string[] {
-  const refs = new Set<string>();
-
-  for (const model of registry.getAll()) {
-    if (model.provider === provider) {
-      refs.add(modelRef(model));
-    }
-  }
-
-  for (const model of AVAILABLE_MODELS) {
-    if (providerFromModelRef(model) === provider) {
-      refs.add(model);
-    }
-  }
-
-  return Array.from(refs).sort(canonicalSort);
-}
-
-export function getAuthenticatedModelOptions(
-  registry: ModelRegistryLike,
-  currentModel?: string,
-): string[] {
-  const refs = new Set(registry.getAvailable().map((entry) => modelRef(entry)));
-
-  if (currentModel && !refs.has(currentModel)) {
-    refs.add(currentModel);
-  }
-
-  return Array.from(refs).sort(canonicalSort);
-}
-
-async function maybeOpenBrowser(
-  ui: ExtensionUIContext,
-  url: string,
-): Promise<void> {
-  const shouldOpen = await ui.confirm(
-    "Open browser?",
-    `Open ${url} to finish setup?`,
-  );
-  if (!shouldOpen) {
-    return;
-  }
-
-  try {
-    openExternalUrl(url);
-  } catch {
-    ui.notify(
-      `Could not open the browser automatically. Visit ${url}`,
-      "warning",
-    );
-  }
 }
 
 async function readModelsJson(): Promise<ModelsJsonConfig> {
@@ -391,105 +286,128 @@ async function upsertProviderConfig(
   await writeModelsJson(config);
 }
 
-async function setupKnownProvider(
-  runtime: RuntimeLike,
+async function resolveProviderApiKey(
   provider: string,
-): Promise<{ selectedModel?: string; summary: string }> {
-  const setup = getProviderSetup(provider);
-  const { ui, modelRegistry } = runtime.ctx;
-
-  if (setup.browserUrl) {
-    await maybeOpenBrowser(ui, setup.browserUrl);
+  current: ModelsJsonProviderConfig,
+  authStorage: AuthStorageLike,
+): Promise<string | undefined> {
+  const resolvedFromStorage = await authStorage.getApiKey?.(provider);
+  if (resolvedFromStorage?.trim()) {
+    return resolvedFromStorage.trim();
   }
 
-  if (setup.auth === "oauth") {
-    const supportsOAuth =
-      modelRegistry.authStorage
-        .getOAuthProviders?.()
-        .some((entry) => entry.id === provider) ?? false;
-
-    const summary = supportsOAuth
-      ? `Finish authentication with /login ${provider}, then rerun /omni-model.`
-      : `Pi does not expose an automated login flow for ${setup.label} here. Finish provider auth outside Omni-Pi, then rerun /omni-model.`;
-
-    return { summary };
+  const storedCredential = authStorage.get?.(provider);
+  if (storedCredential?.type === "api_key" && storedCredential.key.trim()) {
+    return storedCredential.key.trim();
   }
 
-  if (setup.auth === "manual") {
-    const models = getKnownProviderModels(modelRegistry, provider);
-    if (models.length === 0) {
-      return {
-        summary: `Set up ${setup.label} outside Omni-Pi, then rerun /omni-model.`,
-      };
-    }
+  return current.apiKey?.trim() || undefined;
+}
 
-    const choice = await ui.select(
-      `Select ${setup.label} model after setup:`,
-      models,
-    );
+export async function refreshConfiguredProviderModels(
+  config: ModelsJsonConfig,
+  authStorage: AuthStorageLike,
+  discover: typeof discoverProviderModels = discoverProviderModels,
+): Promise<{
+  config: ModelsJsonConfig;
+  refreshedProviders: string[];
+}> {
+  const providers = config.providers ?? {};
+  const refreshableProviders = Object.entries(providers).filter(
+    ([provider, current]) =>
+      Boolean(current.api && current.baseUrl) &&
+      (authStorage.hasAuth?.(provider) ||
+        Boolean(current.apiKey?.trim()) ||
+        Boolean(authStorage.get?.(provider))),
+  );
 
-    return choice
-      ? {
-          selectedModel: choice,
-          summary: `Selected ${choice}. Make sure ${setup.label} authentication is complete outside Omni-Pi.`,
+  const refreshed = await Promise.all(
+    refreshableProviders.map(async ([provider, current]) => {
+      try {
+        if (!current.api || !current.baseUrl) {
+          return null;
         }
-      : {
-          summary: `${setup.label} setup cancelled.`,
+
+        const apiKey = await resolveProviderApiKey(
+          provider,
+          current,
+          authStorage,
+        );
+        if (!apiKey) {
+          return null;
+        }
+
+        const discovered = await discover(current.api, current.baseUrl, apiKey);
+        if (discovered.length === 0) {
+          return null;
+        }
+
+        return {
+          provider,
+          updated: (() => {
+            const updated = buildDiscoveredProviderConfigUpdate(
+              current,
+              provider,
+              {
+                providerId: provider,
+                api: current.api,
+                baseUrl: current.baseUrl,
+                apiKey: current.apiKey,
+              },
+              discovered,
+            );
+
+            if (!current.apiKey?.trim()) {
+              delete updated.apiKey;
+            }
+            if (current.authHeader === undefined) {
+              delete updated.authHeader;
+            }
+
+            return updated;
+          })(),
         };
-  }
-
-  const apiKey = await ui.input(
-    `Enter API key for ${setup.label}:`,
-    setup.apiKeyPlaceholder ?? "Paste API key",
+      } catch {
+        return null;
+      }
+    }),
   );
-  if (!apiKey?.trim()) {
-    return { summary: `${setup.label} setup cancelled.` };
-  }
 
-  modelRegistry.authStorage.set(provider, {
-    type: "api_key",
-    key: apiKey.trim(),
-  });
-
-  if (setup.baseUrlRequired) {
-    const baseUrl = await ui.input(
-      `Enter base URL for ${setup.label}:`,
-      setup.baseUrlPlaceholder ?? "https://api.example.com/v1",
-    );
-    if (!baseUrl?.trim()) {
-      return { summary: `${setup.label} setup cancelled.` };
+  const refreshedProviders: string[] = [];
+  for (const result of refreshed) {
+    if (!result) {
+      continue;
     }
 
-    await upsertProviderConfig(provider, (current) => ({
-      ...current,
-      baseUrl: baseUrl.trim(),
-    }));
-  }
-
-  modelRegistry.refresh();
-  const models = getKnownProviderModels(modelRegistry, provider);
-  if (models.length === 0) {
-    return {
-      summary: `${setup.label} credentials were saved, but no models are registered for ${provider} yet.`,
-    };
-  }
-
-  const selectedModel = await searchableSelect(
-    ui,
-    `Select ${setup.label} model:`,
-    models.map((model) => ({
-      label: model,
-      value: model,
-    })),
-  );
-  if (!selectedModel) {
-    return { summary: `${setup.label} credentials saved.` };
+    providers[result.provider] = result.updated;
+    refreshedProviders.push(result.provider);
   }
 
   return {
-    selectedModel,
-    summary: `Saved ${setup.label} credentials and selected ${selectedModel}.`,
+    config: {
+      ...config,
+      providers,
+    },
+    refreshedProviders,
   };
+}
+
+export async function refreshAuthenticatedProviderModels(
+  modelRegistry: ModelRegistryLike,
+): Promise<string[]> {
+  const config = await readModelsJson();
+  const refreshed = await refreshConfiguredProviderModels(
+    config,
+    modelRegistry.authStorage,
+  );
+
+  if (refreshed.refreshedProviders.length === 0) {
+    return [];
+  }
+
+  await writeModelsJson(refreshed.config);
+  modelRegistry.refresh();
+  return refreshed.refreshedProviders;
 }
 
 function sanitizeProviderId(input: string): string {
@@ -511,14 +429,6 @@ export async function setupCustomProviderModel(
     return { summary: "Custom provider setup cancelled." };
   }
   const provider = sanitizeProviderId(providerInput);
-
-  const modelId = await ui.input(
-    `Model id for ${provider}:`,
-    "e.g., gpt-oss-120b",
-  );
-  if (!modelId?.trim()) {
-    return { summary: "Custom provider setup cancelled." };
-  }
 
   const apiChoice = await searchableSelect(ui, "Select provider API:", [
     {
@@ -556,6 +466,55 @@ export async function setupCustomProviderModel(
       "optional",
     )) ?? "";
 
+  const connection: ProviderConnectionSubmission = {
+    providerId: provider,
+    api: apiChoice as SupportedApi,
+    baseUrl,
+    apiKey,
+  };
+
+  const setupMode = await searchableSelect(
+    ui,
+    `How should Omni-Pi configure ${provider}?`,
+    [
+      {
+        label: "Discover models automatically",
+        value: "discover",
+        searchText: "discover automatic provider models",
+      },
+      {
+        label: "Add a single model manually",
+        value: "manual",
+        searchText: "manual single model",
+      },
+    ],
+  );
+  if (!setupMode) {
+    return { summary: "Custom provider setup cancelled." };
+  }
+
+  if (setupMode === "discover") {
+    return setupDiscoveredProvider(runtime, connection);
+  }
+
+  return setupManualProviderAfterConnection(runtime, connection);
+}
+
+async function setupManualProviderAfterConnection(
+  runtime: RuntimeLike,
+  connection: ProviderConnectionSubmission,
+): Promise<{ selectedModel?: string; summary: string }> {
+  const { ui } = runtime.ctx;
+  const provider = sanitizeProviderId(connection.providerId);
+
+  const modelId = await ui.input(
+    `Model id for ${provider}:`,
+    "e.g., gpt-oss-120b",
+  );
+  if (!modelId?.trim()) {
+    return { summary: "Custom provider setup cancelled." };
+  }
+
   const reasoning = await ui.confirm(
     "Reasoning model?",
     `Should ${provider}/${modelId.trim()} be marked as a reasoning-capable model?`,
@@ -566,11 +525,8 @@ export async function setupCustomProviderModel(
   );
 
   const selectedModel = await persistCustomProviderModel(runtime, {
-    providerId: provider,
+    ...connection,
     modelId: modelId.trim(),
-    api: apiChoice as SupportedApi,
-    baseUrl,
-    apiKey,
     reasoning,
     imageInput,
   });
@@ -589,29 +545,9 @@ async function persistCustomProviderModel(
   const provider = sanitizeProviderId(submission.providerId);
   const modelId = submission.modelId.trim();
 
-  await upsertProviderConfig(provider, (current) => {
-    const existingModels = current.models ?? [];
-    const filtered = existingModels.filter((entry) => entry.id !== modelId);
-
-    return {
-      ...current,
-      baseUrl: normalizeBaseUrl(submission.baseUrl),
-      api: submission.api,
-      apiKey:
-        submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
-      authHeader:
-        submission.api === "openai-completions" ||
-        submission.api === "openai-responses",
-      models: [
-        ...filtered,
-        {
-          id: modelId,
-          reasoning: submission.reasoning,
-          input: submission.imageInput ? ["text", "image"] : ["text"],
-        },
-      ],
-    };
-  });
+  await upsertProviderConfig(provider, (current) =>
+    buildCustomProviderConfigUpdate(current, provider, submission),
+  );
 
   if (submission.apiKey?.trim()) {
     modelRegistry.authStorage.set(provider, {
@@ -624,68 +560,137 @@ async function persistCustomProviderModel(
   return `${provider}/${modelId}`;
 }
 
+async function setupDiscoveredProvider(
+  runtime: RuntimeLike,
+  submission: ProviderConnectionSubmission,
+): Promise<{ selectedModel?: string; summary: string }> {
+  const { modelRegistry, ui } = runtime.ctx;
+  const provider = sanitizeProviderId(submission.providerId);
+  const discovered = await discoverProviderModels(
+    submission.api,
+    submission.baseUrl,
+    submission.apiKey?.trim() || undefined,
+  );
+
+  if (discovered.length === 0) {
+    const shouldFallback = await ui.confirm(
+      "No models found",
+      `Could not discover models for ${provider}. Do you want to add one manually instead?`,
+    );
+    if (!shouldFallback) {
+      return {
+        summary: `Could not discover models for ${provider}. No changes were saved.`,
+      };
+    }
+
+    return setupManualProviderAfterConnection(runtime, submission);
+  }
+
+  await upsertProviderConfig(provider, (current) =>
+    buildDiscoveredProviderConfigUpdate(
+      current,
+      provider,
+      submission,
+      discovered,
+    ),
+  );
+
+  if (submission.apiKey?.trim()) {
+    modelRegistry.authStorage.set(provider, {
+      type: "api_key",
+      key: submission.apiKey.trim(),
+    });
+  }
+
+  modelRegistry.refresh();
+
+  return {
+    selectedModel: `${provider}/${discovered[0].id}`,
+    summary: `Saved provider ${provider} with ${discovered.length} discovered model${discovered.length === 1 ? "" : "s"} to ${getModelsPath().replace(os.homedir(), "~")}.`,
+  };
+}
+
+export function buildCustomProviderConfigUpdate(
+  current: ModelsJsonProviderConfig,
+  provider: string,
+  submission: BrowserCustomModelSubmission,
+): ModelsJsonProviderConfig {
+  const modelId = submission.modelId.trim();
+  const existingModels = current.models ?? [];
+  const existingModel = existingModels.find((entry) => entry.id === modelId);
+  const filtered = existingModels.filter((entry) => entry.id !== modelId);
+
+  return {
+    ...current,
+    baseUrl: normalizeBaseUrl(submission.baseUrl),
+    api: submission.api,
+    apiKey:
+      submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
+    authHeader:
+      submission.api === "openai-completions" ||
+      submission.api === "openai-responses",
+    models: [
+      ...filtered,
+      {
+        ...existingModel,
+        id: modelId,
+        reasoning: submission.reasoning,
+        input: submission.imageInput ? ["text", "image"] : ["text"],
+      },
+    ],
+  };
+}
+
+export function buildDiscoveredProviderConfigUpdate(
+  current: ModelsJsonProviderConfig,
+  provider: string,
+  submission: ProviderConnectionSubmission,
+  discovered: OmniProviderModel[],
+): ModelsJsonProviderConfig {
+  const existingModels = current.models ?? [];
+  const existingModelsById = new Map(
+    existingModels.map((entry) => [entry.id, entry] as const),
+  );
+
+  return {
+    ...current,
+    baseUrl: normalizeBaseUrl(submission.baseUrl),
+    api: submission.api,
+    apiKey:
+      submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
+    authHeader:
+      submission.api === "openai-completions" ||
+      submission.api === "openai-responses",
+    models: discovered.map((model) => {
+      const existing = existingModelsById.get(model.id);
+      const updated: ModelsJsonModelConfig = {
+        ...existing,
+        id: model.id,
+        name: existing?.name ?? model.name,
+        reasoning: model.reasoning,
+        input: model.input,
+        cost: model.cost,
+        ...(model.contextWindow > 0
+          ? { contextWindow: model.contextWindow }
+          : existing?.contextWindow !== undefined
+            ? { contextWindow: existing.contextWindow }
+            : {}),
+        ...(model.maxTokens > 0
+          ? { maxTokens: model.maxTokens }
+          : existing?.maxTokens !== undefined
+            ? { maxTokens: existing.maxTokens }
+            : {}),
+      };
+
+      return updated;
+    }),
+  };
+}
+
 export async function runModelSetupWizard(
   runtime: RuntimeLike,
 ): Promise<{ selectedModel?: string; summary: string }> {
-  const { ui, modelRegistry } = runtime.ctx;
-
-  const providerIds = new Set<string>();
-  for (const model of modelRegistry.getAll()) {
-    providerIds.add(model.provider);
-  }
-  for (const model of AVAILABLE_MODELS) {
-    providerIds.add(providerFromModelRef(model));
-  }
-
-  const providerOptions = Array.from(providerIds)
-    .sort(canonicalSort)
-    .map((provider) => {
-      const setup = getProviderSetup(provider);
-      const isAuthenticated = modelRegistry
-        .getAvailable()
-        .some((entry) => entry.provider === provider);
-      return `${setup.label} [${provider}]${isAuthenticated ? " (authenticated)" : ""}`;
-    });
-
-  const setupChoice = await searchableSelect(ui, "Setup wizard:", [
-    {
-      label: "Known provider with bundled models",
-      value: "Known provider with bundled models",
-      searchText: "known bundled provider models",
-    },
-    {
-      label: "Custom provider/model",
-      value: "Custom provider/model",
-      searchText: "custom provider model",
-    },
-  ]);
-  if (!setupChoice) {
-    return { summary: "Model setup cancelled." };
-  }
-
-  if (setupChoice === "Custom provider/model") {
-    return setupCustomProviderModel(runtime);
-  }
-
-  const providerChoice = await searchableSelect(
-    ui,
-    "Select provider to set up:",
-    providerOptions.map((option) => ({
-      label: option,
-      value: option,
-    })),
-  );
-  if (!providerChoice) {
-    return { summary: "Model setup cancelled." };
-  }
-
-  const providerMatch = providerChoice.match(/\[(.+?)\]/u);
-  const provider = providerMatch?.[1];
-  if (!provider) {
-    return { summary: "Could not determine provider from selection." };
-  }
-
-  return setupKnownProvider(runtime, provider);
+  return setupCustomProviderModel(runtime);
 }
 
 function searchModels(models: string[], query: string): string[] {

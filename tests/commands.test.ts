@@ -4,13 +4,18 @@ import omniProvidersExtension from "../extensions/omni-providers/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
 import { createOmniCommands } from "../src/commands.js";
+import {
+  removeCustomModelFromConfig,
+  removeCustomProviderFromConfig,
+} from "../src/model-command.js";
+import { buildKnownProviderAuthOptions } from "../src/provider-auth-command.js";
 
 describe("Omni command surface", () => {
   test("createOmniCommands exposes no slash commands in the simplified flow", () => {
     expect(createOmniCommands()).toEqual([]);
   });
 
-  test("omniCoreExtension only registers the message renderer", () => {
+  test("omniCoreExtension registers the Omni-Pi commands", () => {
     let rendererRegistrations = 0;
     const commands: string[] = [];
     const events: string[] = [];
@@ -29,7 +34,12 @@ describe("Omni command surface", () => {
     } as never);
 
     expect(rendererRegistrations).toBeGreaterThan(0);
-    expect(commands).toEqual(["model-setup", "theme", "update"]);
+    expect(commands).toEqual([
+      "model-setup",
+      "provider-auth",
+      "theme",
+      "update",
+    ]);
     expect(events).toContain("session_start");
     expect(events).toContain("before_agent_start");
     expect(events).toContain("turn_end");
@@ -54,15 +64,112 @@ describe("Omni command surface", () => {
     expect(skillsRegistrations).toEqual([]);
   });
 
-  test("omniProvidersExtension does not register extra providers beyond Pi defaults", async () => {
+  test("omniProvidersExtension registers bundled providers and a startup refresh hook", async () => {
     const registrations: string[] = [];
+    const events: string[] = [];
 
     await omniProvidersExtension({
       registerProvider(name: string) {
         registrations.push(name);
       },
+      on(event: string) {
+        events.push(event);
+      },
     } as never);
 
-    expect(registrations).toEqual([]);
+    expect(registrations.length).toBeGreaterThan(0);
+    expect(events).toContain("session_start");
+  });
+
+  test("removeCustomModelFromConfig removes one model and drops empty providers", () => {
+    expect(
+      removeCustomModelFromConfig(
+        {
+          providers: {
+            alpha: {
+              models: [{ id: "one" }, { id: "two" }],
+            },
+            beta: {
+              models: [{ id: "solo" }],
+            },
+          },
+        },
+        "alpha",
+        "one",
+      ),
+    ).toEqual({
+      providers: {
+        alpha: {
+          models: [{ id: "two" }],
+        },
+        beta: {
+          models: [{ id: "solo" }],
+        },
+      },
+    });
+
+    expect(
+      removeCustomModelFromConfig(
+        {
+          providers: {
+            beta: {
+              models: [{ id: "solo" }],
+            },
+          },
+        },
+        "beta",
+        "solo",
+      ),
+    ).toEqual({
+      providers: {},
+    });
+  });
+
+  test("removeCustomProviderFromConfig removes an entire custom provider", () => {
+    expect(
+      removeCustomProviderFromConfig(
+        {
+          providers: {
+            alpha: {
+              models: [{ id: "one" }],
+            },
+            beta: {
+              models: [{ id: "two" }],
+            },
+          },
+        },
+        "alpha",
+      ),
+    ).toEqual({
+      providers: {
+        beta: {
+          models: [{ id: "two" }],
+        },
+      },
+    });
+  });
+
+  test("buildKnownProviderAuthOptions only includes bundled providers with stored auth", () => {
+    expect(
+      buildKnownProviderAuthOptions(
+        ["openai", "zai", "custom-proxy"],
+        (provider) => {
+          if (provider === "zai") return { type: "api_key" as const };
+          if (provider === "openai") return { type: "oauth" as const };
+          return { type: "api_key" as const };
+        },
+      ),
+    ).toEqual([
+      {
+        authType: "OAuth",
+        label: "OpenAI [openai]  OAuth",
+        provider: "openai",
+      },
+      {
+        authType: "API key",
+        label: "Z.ai [zai]  API key",
+        provider: "zai",
+      },
+    ]);
   });
 });
