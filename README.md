@@ -115,7 +115,8 @@ npm run chat    # launch locally in dev mode
 
 - Pull requests and pushes to `main` run `npm run verify`.
 - The docs are part of the test contract, including a sync check between `PROVIDERS.md` and the bundled-provider setup list in code.
-- Pushing a `v*` tag runs the release workflow, verifies the repo again, creates a GitHub release, and publishes to npm when `NPM_TOKEN` is configured.
+- Pushing a `v*` tag runs the release workflow, verifies the repo again, creates a GitHub release, and publishes to npm through GitHub Actions trusted publishing.
+- Trusted publishing still requires npm-side setup for this repository/workflow in the npm package settings.
 
 ## Attribution
 
