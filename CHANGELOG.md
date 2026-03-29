@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1 - 2026-03-29
+
+### Provider management
+
+- renamed bundled provider auth management from `/provider-auth` to `/manage-providers`
+- limited `/model-setup list` to removing individual custom model entries instead of deleting whole custom providers
+- documented the bundled provider list directly in `PROVIDERS.md`
+
+### CI and documentation
+
+- added a unified `npm run verify` gate for local development, CI, and publish checks
+- added docs coverage tests so command docs and the bundled provider list fail CI when they drift from the code
+- added a tag-triggered release workflow that re-verifies the repo, creates a GitHub release, and publishes to npm when credentials are configured
+
 ## 0.6.0 - 2026-03-27
 
 ### Provider management
