@@ -25,10 +25,7 @@ interface ModelsJsonConfig {
 }
 
 type CustomModelEntry = { provider: string; modelId: string };
-type ListOption =
-  | { kind: "provider"; provider: string; label: string }
-  | { kind: "model"; provider: string; modelId: string; label: string }
-  | { kind: "plain"; label: string };
+type ListOption = { provider: string; modelId: string; label: string };
 
 function getModelsPath(): string {
   return path.join(getAgentDir(), "models.json");
@@ -62,12 +59,6 @@ function getCustomModels(config: ModelsJsonConfig): CustomModelEntry[] {
   return entries;
 }
 
-function getCustomProviders(config: ModelsJsonConfig): string[] {
-  return Object.keys(config.providers ?? {}).sort((left, right) =>
-    left.localeCompare(right),
-  );
-}
-
 export function removeCustomModelFromConfig(
   config: ModelsJsonConfig,
   provider: string,
@@ -95,37 +86,14 @@ export function removeCustomModelFromConfig(
   };
 }
 
-export function removeCustomProviderFromConfig(
-  config: ModelsJsonConfig,
-  provider: string,
-): ModelsJsonConfig {
-  const providers = { ...(config.providers ?? {}) };
-  delete providers[provider];
-  return {
-    ...config,
-    providers,
-  };
-}
-
-function buildListOptions(
-  customModels: CustomModelEntry[],
-  customProviders: string[],
-): ListOption[] {
-  return [
-    ...customProviders.map((provider) => ({
-      kind: "provider" as const,
+function buildListOptions(customModels: CustomModelEntry[]): ListOption[] {
+  return customModels
+    .map(({ provider, modelId }) => ({
       provider,
-      label: `${provider}  ⌫ provider`,
-    })),
-    ...customModels
-      .map(({ provider, modelId }) => ({
-        kind: "model" as const,
-        provider,
-        modelId,
-        label: `${provider}/${modelId}  ✕`,
-      }))
-      .sort((left, right) => left.label.localeCompare(right.label)),
-  ];
+      modelId,
+      label: `${provider}/${modelId}  ✕`,
+    }))
+    .sort((left, right) => left.label.localeCompare(right.label));
 }
 
 async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
@@ -136,44 +104,26 @@ async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
 async function handleList(ctx: ExtensionCommandContext): Promise<void> {
   const config = await readModelsJson();
   const custom = getCustomModels(config);
-  const customProviders = getCustomProviders(config);
-  const options = buildListOptions(custom, customProviders);
+  const options = buildListOptions(custom);
 
   if (options.length === 0) {
-    ctx.ui.notify("No custom providers or models found.", "info");
+    ctx.ui.notify("No custom models found.", "info");
     return;
   }
 
   while (true) {
     const selected = await searchableSelect(
       ctx.ui,
-      "Custom providers and models (✕ = remove model, ⌫ = remove provider):",
+      "Custom models (✕ = remove):",
       options.map((option) => ({
         label: option.label,
         value: option.label,
-        searchText: option.label.replace("✕", "").replace("⌫ provider", ""),
+        searchText: option.label.replace("✕", ""),
       })),
     );
     if (selected === undefined) return;
     const selectedOption = options.find((option) => option.label === selected);
-    if (!selectedOption || selectedOption.kind === "plain") continue;
-
-    if (selectedOption.kind === "provider") {
-      const confirmed = await ctx.ui.confirm(
-        "Remove provider?",
-        `Remove custom provider ${selectedOption.provider} and all of its models from models.json?`,
-      );
-      if (!confirmed) return;
-
-      const freshConfig = await readModelsJson();
-      await writeModelsJson(
-        removeCustomProviderFromConfig(freshConfig, selectedOption.provider),
-      );
-
-      ctx.modelRegistry.refresh();
-      ctx.ui.notify(`Removed provider ${selectedOption.provider}.`, "info");
-      return;
-    }
+    if (!selectedOption) continue;
 
     const modelRef = `${selectedOption.provider}/${selectedOption.modelId}`;
     const confirmed = await ctx.ui.confirm(
@@ -199,7 +149,7 @@ async function handleList(ctx: ExtensionCommandContext): Promise<void> {
 
 export function registerModelCommand(api: ExtensionAPI): void {
   api.registerCommand("model-setup", {
-    description: "Add, list, or remove custom providers and models",
+    description: "Add custom providers/models or remove custom model entries",
     async handler(args: string, ctx: ExtensionCommandContext) {
       const sub = args.trim().toLowerCase();
 
@@ -213,9 +163,9 @@ export function registerModelCommand(api: ExtensionAPI): void {
           searchText: "add custom provider model",
         },
         {
-          label: "list   — Show custom providers/models / remove custom",
+          label: "list   — Show custom models / remove model entries",
           value: "list",
-          searchText: "list remove custom providers models",
+          searchText: "list remove custom models",
         },
       ]);
       if (!choice) return;

@@ -37,16 +37,16 @@ describe("documentation coverage", () => {
     );
 
     expect(readme).toContain(
-      "| `/model-setup` | Add, list, or remove custom providers and models |",
+      "| `/model-setup` | Add custom providers/models or remove custom model entries |",
     );
     expect(readme).toContain(
-      "| `/provider-auth` | Remove stored auth for bundled providers |",
+      "| `/manage-providers` | Remove stored auth for bundled providers |",
     );
     expect(readme).toContain(
       "`/model-setup` is for custom providers and custom model entries only.",
     );
     expect(readme).toContain(
-      "Use `/provider-auth` to remove stored auth for bundled Pi providers.",
+      "Use `/manage-providers` to remove stored auth for bundled Pi providers.",
     );
   });
 });

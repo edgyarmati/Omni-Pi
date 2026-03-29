@@ -48,8 +48,8 @@ Custom provider setup and bundled provider behavior are documented in [PROVIDERS
 
 | Command | Description |
 |---------|-------------|
-| `/model-setup` | Add, list, or remove custom providers and models |
-| `/provider-auth` | Remove stored auth for bundled providers |
+| `/model-setup` | Add custom providers/models or remove custom model entries |
+| `/manage-providers` | Remove stored auth for bundled providers |
 | `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
 | `/update` | Check for Omni-Pi updates |
 
@@ -74,7 +74,7 @@ Use it when you want to configure:
 - an API key for that custom provider
 - discovered models or manual model entries
 
-Use `/provider-auth` to remove stored auth for bundled Pi providers.
+Use `/manage-providers` to remove stored auth for bundled Pi providers.
 
 See [PROVIDERS.md](PROVIDERS.md) for the current supported-provider list and auth-management split.
 

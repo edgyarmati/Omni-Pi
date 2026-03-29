@@ -4,10 +4,7 @@ import omniProvidersExtension from "../extensions/omni-providers/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
 import { createOmniCommands } from "../src/commands.js";
-import {
-  removeCustomModelFromConfig,
-  removeCustomProviderFromConfig,
-} from "../src/model-command.js";
+import { removeCustomModelFromConfig } from "../src/model-command.js";
 import { buildKnownProviderAuthOptions } from "../src/provider-auth-command.js";
 
 describe("Omni command surface", () => {
@@ -36,7 +33,7 @@ describe("Omni command surface", () => {
     expect(rendererRegistrations).toBeGreaterThan(0);
     expect(commands).toEqual([
       "model-setup",
-      "provider-auth",
+      "manage-providers",
       "theme",
       "update",
     ]);
@@ -124,31 +121,6 @@ describe("Omni command surface", () => {
       providers: {},
     });
   });
-
-  test("removeCustomProviderFromConfig removes an entire custom provider", () => {
-    expect(
-      removeCustomProviderFromConfig(
-        {
-          providers: {
-            alpha: {
-              models: [{ id: "one" }],
-            },
-            beta: {
-              models: [{ id: "two" }],
-            },
-          },
-        },
-        "alpha",
-      ),
-    ).toEqual({
-      providers: {
-        beta: {
-          models: [{ id: "two" }],
-        },
-      },
-    });
-  });
-
   test("buildKnownProviderAuthOptions only includes bundled providers with stored auth", () => {
     expect(
       buildKnownProviderAuthOptions(

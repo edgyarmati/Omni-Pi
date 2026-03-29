@@ -14,7 +14,7 @@ Use it when you want to configure:
 - an API key for that custom provider
 - discovered models or manual model entries
 
-`/model-setup list` only shows custom providers and models from `models.json`, and it can remove either a single custom model or an entire custom provider.
+`/model-setup list` only shows custom models from `models.json`, and it removes individual custom model entries only.
 
 ## Bundled Providers
 
@@ -28,7 +28,7 @@ That means:
 
 If a bundled provider already has valid auth in the Pi runtime, Omni-Pi may use it through normal model selection, but its setup is outside the custom-provider flow documented here.
 
-Use `/provider-auth` to list bundled providers that currently have stored auth and remove that auth when needed.
+Use `/manage-providers` to list bundled providers that currently have stored auth and remove that auth when needed.
 
 The bundled-provider list below is expected to stay in sync with the exported provider setup list in `src/model-setup.ts`. The test suite checks that this section matches the code list.
 

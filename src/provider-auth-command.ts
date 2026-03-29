@@ -95,8 +95,8 @@ async function handleList(ctx: ExtensionCommandContext): Promise<void> {
 }
 
 export function registerProviderAuthCommand(api: ExtensionAPI): void {
-  api.registerCommand("provider-auth", {
-    description: "List or remove stored auth for bundled providers",
+  api.registerCommand("manage-providers", {
+    description: "Remove stored auth for bundled providers",
     async handler(_args: string, ctx: ExtensionCommandContext) {
       await handleList(ctx);
     },
