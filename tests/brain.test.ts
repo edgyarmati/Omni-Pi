@@ -24,7 +24,7 @@ describe("Omni brain runtime", () => {
     );
 
     expect(result).toBe("initialized");
-    expect(state).toContain("Capture exact requirements");
+    expect(state).toContain("Run onboarding interview");
   });
 
   test("buildBrainSystemPromptSuffix includes the single-brain workflow and durable files", async () => {
@@ -38,13 +38,14 @@ describe("Omni brain runtime", () => {
     expect(prompt).toContain("use the interview tool to ask targeted clarification questions instead of asking them in chat");
     expect(prompt).toContain("treat direct user instructions as requested Omni app/product behavior by default");
     expect(prompt).toContain(".omni/TASKS.md");
-    expect(prompt).toContain("Capture exact requirements");
+    expect(prompt).toContain("Run onboarding interview");
   });
 
   test("omniCoreExtension bootstraps startup messaging and prompt injection", async () => {
     const rootDir = await createTempProject("omni-brain-ext-");
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const statuses: Array<string | undefined> = [];
+    const sentMessages: string[] = [];
 
     omniCoreExtension({
       registerMessageRenderer() {
@@ -52,6 +53,9 @@ describe("Omni brain runtime", () => {
       },
       registerCommand() {},
       registerShortcut() {},
+      sendUserMessage(message: string) {
+        sentMessages.push(message);
+      },
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, handler);
       },
@@ -65,6 +69,7 @@ describe("Omni brain runtime", () => {
           setTitle() {},
           setTheme() {},
           setHeader() {},
+          notify() {},
           setStatus(_key: string, value: string | undefined) {
             statuses.push(value);
           },
@@ -81,6 +86,8 @@ describe("Omni brain runtime", () => {
     );
 
     expect(statuses).toEqual(["\x1b[2mctrl+shift+t tasks\x1b[0m"]);
+    expect(sentMessages).toHaveLength(1);
+    expect(sentMessages[0]).toContain("use the interview tool now to run a concise onboarding interview");
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
     expect(beforeStart.systemPrompt).toContain("use the interview tool to ask targeted clarification questions instead of asking them in chat");

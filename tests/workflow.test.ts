@@ -141,6 +141,63 @@ describe("Omni workflow", () => {
     expect(result.repoSignals.tools).toContain("make");
   });
 
+  test("initializeOmniProject marks sparse repos as needing onboarding interview", async () => {
+    const rootDir = await createTempProject("omni-init-onboarding-");
+
+    const result = await initializeOmniProject(rootDir);
+    const state = await readOmniStatus(rootDir);
+
+    expect(result.onboardingInterviewNeeded).toBe(true);
+    expect(result.onboardingReason).toContain("First-run onboarding needed");
+    expect(state.activeTask).toBe("Run onboarding interview");
+    expect(state.nextStep).toContain("Run a short onboarding interview");
+  });
+
+  test("initializeOmniProject skips onboarding interview for well-documented repos", async () => {
+    const rootDir = await createTempProject("omni-init-docs-clear-");
+    await writeFile(
+      path.join(rootDir, "package.json"),
+      JSON.stringify({
+        name: "clear-repo",
+        description: "A documented product for operations teams to manage deployment workflows safely.",
+      }),
+      "utf8",
+    );
+    await writeFile(
+      path.join(rootDir, "README.md"),
+      `# Clear Repo
+
+This product helps operations teams manage deployment workflows safely across multiple environments. It exists to reduce release errors and make approvals auditable. Success means teams can ship with fewer incidents and a clear record of why each deployment happened.
+
+## Users
+
+Platform engineers, release managers, and operators use the system every day.
+
+## Constraints
+
+The product must preserve audit history, avoid surprise downtime, and keep rollback steps explicit. Non-goals include replacing the underlying CI provider or storing long-term secrets.
+`,
+      "utf8",
+    );
+    await mkdir(path.join(rootDir, "docs"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "docs", "architecture.md"),
+      "# Architecture\n\nSystem overview.",
+      "utf8",
+    );
+    await writeFile(
+      path.join(rootDir, "docs", "constraints.md"),
+      "# Constraints\n\nOperational limits and non-goals.",
+      "utf8",
+    );
+
+    const result = await initializeOmniProject(rootDir);
+    const state = await readOmniStatus(rootDir);
+
+    expect(result.onboardingInterviewNeeded).toBe(false);
+    expect(state.activeTask).toBe("Capture exact requirements");
+  });
+
   test("planOmniProject writes spec, tasks, tests, and updates status", async () => {
     const rootDir = await createTempProject("omni-plan-");
     await initializeOmniProject(rootDir);
@@ -175,7 +232,7 @@ describe("Omni workflow", () => {
     const rendered = renderPlainStatus(status);
 
     expect(rendered).toContain("Phase: Understand");
-    expect(rendered).toContain("Active task: Capture exact requirements");
+    expect(rendered).toContain("Active task: Run onboarding interview");
     expect(rendered).toContain("Next step:");
   });
 

@@ -3,6 +3,7 @@ import path from "node:path";
 
 import type { OmniState } from "./contracts.js";
 import { ensurePiSettings, loadSavedTheme } from "./theme.js";
+import type { InitResult } from "./workflow.js";
 import { initializeOmniProject, readOmniStatus } from "./workflow.js";
 
 const BRAIN_SYSTEM_APPEND = `## Omni-Pi Single-Brain Mode
@@ -68,18 +69,30 @@ function clipSection(value: string | null, maxChars: number): string {
   return `${trimmed.slice(0, maxChars)}…`;
 }
 
-export async function ensureOmniInitialized(
+export interface EnsureOmniInitResult {
+  status: "initialized" | "existing";
+  initResult?: InitResult;
+}
+
+export async function ensureOmniInitializedDetailed(
   cwd: string,
-): Promise<"initialized" | "existing"> {
+): Promise<EnsureOmniInitResult> {
   await ensurePiSettings(cwd);
   loadSavedTheme(cwd);
   const statePath = path.join(cwd, ".omni", "STATE.md");
   if (await fileExists(statePath)) {
-    return "existing";
+    return { status: "existing" };
   }
 
-  await initializeOmniProject(cwd);
-  return "initialized";
+  const initResult = await initializeOmniProject(cwd);
+  return { status: "initialized", initResult };
+}
+
+export async function ensureOmniInitialized(
+  cwd: string,
+): Promise<"initialized" | "existing"> {
+  const result = await ensureOmniInitializedDetailed(cwd);
+  return result.status;
 }
 
 export async function buildBrainSystemPromptSuffix(

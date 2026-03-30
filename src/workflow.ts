@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readConfig } from "./config.js";
 import type {
@@ -47,6 +47,9 @@ export interface InitResult {
     summary: string;
   }>;
   diagnostics: DoctorReport;
+  onboardingInterviewNeeded: boolean;
+  onboardingReason: string;
+  onboardingContextHints: string[];
 }
 
 export interface PlanResult {
@@ -185,6 +188,122 @@ ${recoverySection}`;
   await writeFile(statePath, content, "utf8");
 }
 
+async function readOptionalText(filePath: string): Promise<string> {
+  try {
+    return await readFile(filePath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+function summarizeFirstParagraph(markdown: string): string {
+  const cleaned = markdown
+    .replace(/^#.*$/gmu, "")
+    .split(/\n\s*\n/u)
+    .map((part) => part.replace(/[`*_>#-]/gu, " ").replace(/\s+/gu, " ").trim())
+    .find((part) => part.length >= 40);
+  return cleaned ?? "";
+}
+
+function hasKeyword(text: string, pattern: RegExp): boolean {
+  return pattern.test(text.toLowerCase());
+}
+
+async function assessInitialProjectClarity(rootDir: string): Promise<{
+  onboardingInterviewNeeded: boolean;
+  onboardingReason: string;
+  onboardingContextHints: string[];
+}> {
+  const [readme, packageJson] = await Promise.all([
+    readOptionalText(path.join(rootDir, "README.md")),
+    readOptionalText(path.join(rootDir, "package.json")),
+  ]);
+
+  let packageDescription = "";
+  if (packageJson) {
+    try {
+      const parsed = JSON.parse(packageJson) as { description?: string; name?: string };
+      packageDescription = parsed.description?.trim() ?? "";
+      if (!packageDescription && parsed.name) {
+        packageDescription = parsed.name.trim();
+      }
+    } catch {
+      // ignore malformed package metadata during clarity assessment
+    }
+  }
+
+  let docFiles: string[] = [];
+  try {
+    docFiles = (await readdir(path.join(rootDir, "docs"))).filter((file) =>
+      file.toLowerCase().endsWith(".md"),
+    );
+  } catch {
+    // docs/ missing is fine
+  }
+
+  const readmeSummary = summarizeFirstParagraph(readme);
+  const combinedDocs = `${packageDescription}\n${readme}`;
+  const hasStrongReadme = readme.trim().length >= 900;
+  const goalClear =
+    packageDescription.length >= 20 || readmeSummary.length >= 80 || hasStrongReadme;
+  const usersClear =
+    hasKeyword(combinedDocs, /(users?|audience|personas?|customers?|developers?|operators?|admins?)/u) ||
+    docFiles.length >= 2;
+  const constraintsClear =
+    hasKeyword(combinedDocs, /(constraints?|non-goals?|limitations?|requirements?|scope|trade-?offs?)/u) ||
+    docFiles.length >= 2;
+
+  const hints: string[] = [];
+  if (packageDescription) {
+    hints.push(`Package description: ${packageDescription}`);
+  }
+  if (readmeSummary) {
+    hints.push(`README summary: ${readmeSummary}`);
+  }
+  if (docFiles.length > 0) {
+    hints.push(`Docs files: ${docFiles.slice(0, 5).join(", ")}${docFiles.length > 5 ? ", ..." : ""}`);
+  }
+
+  const missing: string[] = [];
+  if (!goalClear) missing.push("project goal/success is not clear from repo docs");
+  if (!usersClear) missing.push("primary users are not clear from repo docs");
+  if (!constraintsClear) {
+    missing.push("current constraints/non-goals are not clear from repo docs");
+  }
+
+  return {
+    onboardingInterviewNeeded: missing.length > 0,
+    onboardingReason:
+      missing.length > 0
+        ? `First-run onboarding needed: ${missing.join("; ")}.`
+        : "Repository docs look clear enough to skip first-run onboarding interview.",
+    onboardingContextHints: hints,
+  };
+}
+
+export function buildOnboardingInterviewKickoff(init: InitResult): string {
+  const hints =
+    init.onboardingContextHints.length > 0
+      ? init.onboardingContextHints.map((hint) => `- ${hint}`).join("\n")
+      : "- No reliable repo summary was detected yet.";
+
+  return `This is the first run in this project and the repository context is not yet clear enough to implement safely.
+
+Before doing any planning or implementation work, use the interview tool now to run a concise onboarding interview.
+
+Capture:
+- project goal and success criteria
+- primary users
+- current constraints and non-goals
+- preferred workflow style/preset
+- anything missing from the repo/docs that would otherwise force guessing
+
+Known repo context:
+${hints}
+
+After the interview, write the resulting context into .omni/PROJECT.md, .omni/SPEC.md, and .omni/SESSION-SUMMARY.md before proceeding. Do not implement anything yet.`;
+}
+
 function buildSkillCandidates(
   repoSignals: Awaited<ReturnType<typeof detectRepoSignals>>,
 ): SkillCandidate[] {
@@ -275,17 +394,23 @@ export async function initializeOmniProject(
   }
 
   const diagnostics = await runDoctor(rootDir);
+  const onboarding = await assessInitialProjectClarity(rootDir);
 
   await writeState(rootDir, {
     currentPhase: "understand",
-    activeTask: "Capture exact requirements",
-    statusSummary:
-      "Omni-Pi has created its project memory files and scanned the repository for useful signals.",
+    activeTask: onboarding.onboardingInterviewNeeded
+      ? "Run onboarding interview"
+      : "Capture exact requirements",
+    statusSummary: onboarding.onboardingInterviewNeeded
+      ? `Omni-Pi has created its project memory files and needs first-run onboarding context. ${onboarding.onboardingReason}`
+      : "Omni-Pi has created its project memory files and scanned the repository for useful signals.",
     blockers: [],
     nextStep:
       diagnostics.overall === "red"
         ? "Review the recorded issues before proceeding."
-        : "Interview the user, capture the exact spec in .omni/, then break the work into bounded slices.",
+        : onboarding.onboardingInterviewNeeded
+          ? "Run a short onboarding interview to capture project goal, users, constraints, workflow style, and missing context before planning or implementation."
+          : "Interview the user, capture the exact spec in .omni/, then break the work into bounded slices.",
   });
 
   return {
@@ -297,6 +422,9 @@ export async function initializeOmniProject(
     installCommands,
     installSteps,
     diagnostics,
+    onboardingInterviewNeeded: onboarding.onboardingInterviewNeeded,
+    onboardingReason: onboarding.onboardingReason,
+    onboardingContextHints: onboarding.onboardingContextHints,
   };
 }
 
