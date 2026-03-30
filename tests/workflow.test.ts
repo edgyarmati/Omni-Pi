@@ -418,6 +418,109 @@ describe("Omni workflow", () => {
     expect(spec).toContain("Use server components");
   });
 
+  test("planOmniProject archives unrelated prior tasks and resets carried task state", async () => {
+    const rootDir = await createTempProject("omni-plan-unrelated-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "Build auth flow",
+      desiredOutcome: "Auth flow",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const engine: WorkEngine = {
+      async runWorkerTask(task) {
+        return {
+          summary: `Completed ${task.id}`,
+          verification: {
+            taskId: task.id,
+            passed: true,
+            checksRun: ["npm test"],
+            failureSummary: [],
+            retryRecommended: false,
+          },
+        };
+      },
+      async runExpertTask() {
+        throw new Error("should not run");
+      },
+    };
+
+    await workOnOmniProject(rootDir, engine);
+    await planOmniProject(rootDir, {
+      summary: "Fix payment webhook retries",
+      desiredOutcome: "Webhook reliability",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
+    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const sessionSummary = await readFile(
+      path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
+      "utf8",
+    );
+    const plans = await readPlanIndex(rootDir);
+
+    expect(spec).toContain("Webhook reliability");
+    expect(spec).not.toContain("Build auth flow");
+    expect(tasks).toContain(
+      "| T01 | Lock the exact user requirements | - | todo |",
+    );
+    expect(sessionSummary).toContain("## Archived task summaries");
+    expect(sessionSummary).toContain("Auth flow");
+    expect(sessionSummary).toContain("T01 (done): Lock the exact user requirements");
+    expect(plans.some((plan) => plan.status === "discarded")).toBe(true);
+  });
+
+  test("planOmniProject keeps carried task state for related follow-up requests", async () => {
+    const rootDir = await createTempProject("omni-plan-related-");
+    await initializeOmniProject(rootDir);
+    await planOmniProject(rootDir, {
+      summary: "Build auth flow",
+      desiredOutcome: "Auth flow",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const engine: WorkEngine = {
+      async runWorkerTask(task) {
+        return {
+          summary: `Completed ${task.id}`,
+          verification: {
+            taskId: task.id,
+            passed: true,
+            checksRun: ["npm test"],
+            failureSummary: [],
+            retryRecommended: false,
+          },
+        };
+      },
+      async runExpertTask() {
+        throw new Error("should not run");
+      },
+    };
+
+    await workOnOmniProject(rootDir, engine);
+    await planOmniProject(rootDir, {
+      summary: "Improve auth error handling",
+      desiredOutcome: "Auth error handling",
+      constraints: [],
+      userSignals: [],
+    });
+
+    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const sessionSummary = await readFile(
+      path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
+      "utf8",
+    );
+
+    expect(tasks).toContain(
+      "| T01 | Lock the exact user requirements | - | done |",
+    );
+    expect(sessionSummary).not.toContain("## Archived task summaries");
+  });
+
   test("applyInstallResults moves failed skills to deferred", async () => {
     const rootDir = await createTempProject("omni-skill-recovery-");
     await initializeOmniProject(rootDir);

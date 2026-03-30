@@ -11,11 +11,18 @@ import { buildStarterFileMap, listStarterFiles } from "./memory.js";
 import {
   createInitialSpec,
   gatherPlanningContext,
+  isRequestRelated,
   renderSpecMarkdown,
   renderTasksMarkdown,
   renderTestsMarkdown,
 } from "./planning.js";
-import { appendProgress, cleanupCompletedPlans, createPlan } from "./plans.js";
+import {
+  appendProgress,
+  cleanupCompletedPlans,
+  createPlan,
+  readPlanIndex,
+  updatePlanStatus,
+} from "./plans.js";
 import { detectRepoSignals } from "./repo.js";
 import {
   appendSkillUsageNote,
@@ -88,6 +95,77 @@ async function replaceSection(
     ? current.replace(sectionRegex, replacement)
     : `${current.trimEnd()}\n\n${heading}\n\n${lines.join("\n")}\n`;
   await writeFile(filePath, next, "utf8");
+}
+
+async function appendBullets(
+  filePath: string,
+  heading: string,
+  bullets: string[],
+): Promise<void> {
+  if (bullets.length === 0) {
+    return;
+  }
+
+  const content = await readFile(filePath, "utf8");
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  const sectionRegex = new RegExp(
+    `(${escapedHeading}\\n\\n)([\\s\\S]*?)(?=\\n## |$)`,
+    "u",
+  );
+  const match = content.match(sectionRegex);
+  if (!match) {
+    await writeFile(
+      filePath,
+      `${content.trimEnd()}\n\n${heading}\n\n${bullets.map((bullet) => `- ${bullet}`).join("\n")}\n`,
+      "utf8",
+    );
+    return;
+  }
+
+  const prefix = match[1];
+  const body = match[2].trimEnd();
+  const merged = [body, ...bullets.map((bullet) => `- ${bullet}`)]
+    .filter(Boolean)
+    .join("\n");
+  await writeFile(
+    filePath,
+    content.replace(sectionRegex, `${prefix}${merged}\n`),
+    "utf8",
+  );
+}
+
+function buildArchivedTaskSummary(
+  title: string,
+  taskSummaries: string[],
+): string | null {
+  if (!title && taskSummaries.length === 0) {
+    return null;
+  }
+
+  const compactTasks = taskSummaries.slice(0, 3).join("; ");
+  const extraCount = Math.max(0, taskSummaries.length - 3);
+  const taskTail = extraCount > 0 ? `; +${extraCount} more` : "";
+  const label = title || "Previous plan";
+  return compactTasks
+    ? `${label} -> ${compactTasks}${taskTail}`
+    : `${label} -> task summary unavailable`;
+}
+
+async function archiveReplacedTaskList(
+  rootDir: string,
+  summary: string,
+): Promise<void> {
+  const sessionPath = path.join(rootDir, ".omni", "SESSION-SUMMARY.md");
+  await appendBullets(sessionPath, "## Archived task summaries", [summary]);
+}
+
+async function discardActivePlans(rootDir: string): Promise<void> {
+  const entries = await readPlanIndex(rootDir);
+  await Promise.all(
+    entries
+      .filter((entry) => entry.status === "active")
+      .map((entry) => updatePlanStatus(rootDir, entry.id, "discarded")),
+  );
 }
 
 async function writeState(rootDir: string, state: OmniState): Promise<void> {
@@ -240,7 +318,27 @@ export async function planOmniProject(
 
   const repoSignals = await detectRepoSignals(rootDir);
   const planningCtx = await gatherPlanningContext(rootDir);
-  const spec = createInitialSpec(brief, repoSignals, planningCtx);
+  const unrelatedRequest =
+    Boolean(planningCtx.priorTitle || planningCtx.priorScope.length > 0) &&
+    !isRequestRelated(brief, planningCtx);
+
+  if (unrelatedRequest) {
+    const archivedSummary = buildArchivedTaskSummary(
+      planningCtx.priorTitle,
+      planningCtx.priorTaskSummaries,
+    );
+    if (archivedSummary) {
+      await archiveReplacedTaskList(rootDir, archivedSummary);
+    }
+    await discardActivePlans(rootDir);
+  }
+
+  const spec = createInitialSpec(brief, repoSignals, {
+    ...planningCtx,
+    priorScope: unrelatedRequest ? [] : planningCtx.priorScope,
+    completedTaskIds: unrelatedRequest ? [] : planningCtx.completedTaskIds,
+    sessionNotes: unrelatedRequest ? [] : planningCtx.sessionNotes,
+  });
   await writeFile(specPath, renderSpecMarkdown(spec), "utf8");
   await writeFile(tasksPath, renderTasksMarkdown(spec.taskSlices), "utf8");
   await writeFile(testsPath, renderTestsMarkdown(repoSignals), "utf8");
@@ -256,8 +354,9 @@ export async function planOmniProject(
   await writeState(rootDir, {
     currentPhase: "plan",
     activeTask: "Prepare the first bounded implementation slice",
-    statusSummary:
-      "Omni-Pi refreshed the spec, task slices, and verification plan.",
+    statusSummary: unrelatedRequest
+      ? "Omni-Pi archived the previous unrelated task list and refreshed the spec, task slices, and verification plan."
+      : "Omni-Pi refreshed the spec, task slices, and verification plan.",
     blockers: [],
     nextStep:
       "Implement the next bounded slice and keep .omni/STATE.md in sync with progress.",

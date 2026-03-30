@@ -14,8 +14,10 @@ import { escapeTaskTableCell } from "./tasks.js";
 export interface PlanningContext {
   existingDecisions: string[];
   sessionNotes: string[];
+  priorTitle: string;
   priorScope: string[];
   completedTaskIds: string[];
+  priorTaskSummaries: string[];
 }
 
 export async function gatherPlanningContext(
@@ -24,8 +26,10 @@ export async function gatherPlanningContext(
   const ctx: PlanningContext = {
     existingDecisions: [],
     sessionNotes: [],
+    priorTitle: "",
     priorScope: [],
     completedTaskIds: [],
+    priorTaskSummaries: [],
   };
 
   try {
@@ -62,6 +66,8 @@ export async function gatherPlanningContext(
 
   try {
     const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
+    const titleMatch = spec.match(/## Title\n\n([\s\S]*?)(?=\n## |$)/u);
+    ctx.priorTitle = titleMatch?.[1]?.trim() ?? "";
     const scopeMatch = spec.match(/## Scope\n\n([\s\S]*?)(?=\n## |$)/u);
     if (scopeMatch) {
       ctx.priorScope = scopeMatch[1]
@@ -78,11 +84,22 @@ export async function gatherPlanningContext(
       path.join(rootDir, ".omni", "TASKS.md"),
       "utf8",
     );
-    ctx.completedTaskIds = tasks
+    const taskRows = tasks
       .split("\n")
-      .filter((line) => line.startsWith("| T") && line.includes("| done |"))
+      .filter((line) => line.startsWith("| T"));
+    ctx.completedTaskIds = taskRows
+      .filter((line) => line.includes("| done |"))
       .map((line) => line.split("|")[1]?.trim())
       .filter((id): id is string => Boolean(id));
+    ctx.priorTaskSummaries = taskRows
+      .map((line) => line.split("|").map((part) => part.trim()))
+      .map((parts) => {
+        const id = parts[1] ?? "";
+        const title = parts[2] ?? "";
+        const status = parts[4] ?? "";
+        return id && title && status ? `${id} (${status}): ${title}` : "";
+      })
+      .filter(Boolean);
   } catch {
     /* no tasks yet */
   }
@@ -148,6 +165,94 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   }
 
   return tasks;
+}
+
+const RELATION_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "app",
+  "build",
+  "change",
+  "create",
+  "feature",
+  "fix",
+  "for",
+  "from",
+  "implement",
+  "improve",
+  "make",
+  "new",
+  "omni",
+  "omni-pi",
+  "please",
+  "project",
+  "repo",
+  "request",
+  "task",
+  "the",
+  "this",
+  "update",
+  "workflow",
+  "work",
+]);
+
+function tokenizeRelationText(value: string): Set<string> {
+  return new Set(
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, " ")
+      .split(/\s+/u)
+      .map((token) => token.trim())
+      .filter(
+        (token) =>
+          token.length >= 3 &&
+          !RELATION_STOPWORDS.has(token) &&
+          !/^t\d+$/u.test(token),
+      ),
+  );
+}
+
+export function isRequestRelated(
+  brief: ConversationBrief,
+  planningCtx?: PlanningContext,
+): boolean {
+  if (!planningCtx) {
+    return true;
+  }
+
+  const previous = [
+    planningCtx.priorTitle,
+    ...planningCtx.priorScope,
+    ...planningCtx.priorTaskSummaries,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const current = [
+    brief.summary,
+    brief.desiredOutcome,
+    ...brief.constraints,
+    ...brief.userSignals,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (!previous.trim() || !current.trim()) {
+    return true;
+  }
+
+  const previousTokens = tokenizeRelationText(previous);
+  const currentTokens = tokenizeRelationText(current);
+  if (previousTokens.size === 0 || currentTokens.size === 0) {
+    return true;
+  }
+
+  const overlap = [...currentTokens].filter((token) => previousTokens.has(token));
+  if (overlap.length >= 1) {
+    return true;
+  }
+
+  return overlap.length / Math.min(previousTokens.size, currentTokens.size) >= 0.34;
 }
 
 export function createInitialSpec(
