@@ -13,7 +13,7 @@ Requires Node.js 22 or newer.
 - One conversational brain interviews the user until the request is precise.
 - Writes specs, tasks, and progress into `.omni/` as durable project memory.
 - Breaks work into small, verifiable slices and implements them one at a time.
-- Bundles web search, guided interviews, themed UI, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
+- Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
 
 ## Install
 
@@ -39,10 +39,19 @@ Custom provider setup and bundled provider behavior are documented in [PROVIDERS
 | **omni-core** | Brain workflow, themed header, session init, system prompt injection |
 | **omni-providers** | Model provider wiring |
 | **omni-memory** | `.omni/` durable memory bootstrap |
+| **glimpseui** | Native micro-UI windows and the optional floating companion widget |
 | **pi-web-access** | Web search and fetch tools for the agent |
 | **pi-interview** | Guided Q&A when the agent needs clarification |
 | **pi-powerbar** | Powerline-style status bar with segments |
 | **pi-extension-settings** | Settings persistence for extensions |
+
+### Native Micro-UI
+
+Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro-UI windows:
+
+- the bundled `glimpse` skill lets the agent open native dialogs, forms, previews, and other rich UI when a task benefits from it
+- the `/companion` command toggles an optional floating status pill that follows the cursor and reflects live agent activity
+- the companion is optional; Glimpse-backed windows remain available even when the floating widget is disabled
 
 ### Commands
 
@@ -50,6 +59,7 @@ Custom provider setup and bundled provider behavior are documented in [PROVIDERS
 |---------|-------------|
 | `/model-setup` | Add custom providers/models or remove custom model entries |
 | `/manage-providers` | Remove stored auth for bundled providers |
+| `/companion` | Toggle the Glimpse floating companion widget |
 | `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
 | `/update` | Check for Omni-Pi updates |
 

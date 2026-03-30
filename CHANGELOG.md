@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.2 - 2026-03-30
+
+### Native micro-UI
+
+- bundled `glimpseui` as a first-class Omni-Pi dependency
+- loaded the packaged Glimpse Pi extension and `glimpse` skill so native dialogs, forms, previews, and overlays are available to the agent
+- added support for the `/companion` command to toggle the optional floating Glimpse status widget
+
+### Documentation
+
+- documented the bundled Glimpse integration in `README.md`
+- clarified that Glimpse UI support is available even when the floating companion is disabled
+
 ## 0.6.1 - 2026-03-29
 
 ### Provider management

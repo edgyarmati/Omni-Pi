@@ -1,6 +1,6 @@
 {
   "name": "omni-pi",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
   "license": "MIT",
@@ -61,6 +61,7 @@
       "./extensions/omni-providers/index.ts",
       "./extensions/omni-core/index.ts",
       "./extensions/omni-memory/index.ts",
+      "./node_modules/glimpseui/pi-extension/index.ts",
       "./node_modules/pi-web-access/index.ts",
       "./node_modules/pi-interview/index.ts",
       "./node_modules/@juanibiapina/pi-extension-settings/dist/index.js",
@@ -68,6 +69,7 @@
     ],
     "skills": [
       "./skills",
+      "./node_modules/glimpseui/skills",
       "./node_modules/pi-web-access/skills"
     ],
     "prompts": [
@@ -79,6 +81,7 @@
     "@juanibiapina/pi-extension-settings": "^0.6.0",
     "@juanibiapina/pi-powerbar": "^0.7.1",
     "@mariozechner/pi-coding-agent": "^0.63.0",
+    "glimpseui": "^0.6.2",
     "pi-interview": "^0.5.5",
     "pi-subagents": "^0.11.11",
     "pi-web-access": "^0.10.3",
