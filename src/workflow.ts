@@ -200,7 +200,12 @@ function summarizeFirstParagraph(markdown: string): string {
   const cleaned = markdown
     .replace(/^#.*$/gmu, "")
     .split(/\n\s*\n/u)
-    .map((part) => part.replace(/[`*_>#-]/gu, " ").replace(/\s+/gu, " ").trim())
+    .map((part) =>
+      part
+        .replace(/[`*_>#-]/gu, " ")
+        .replace(/\s+/gu, " ")
+        .trim(),
+    )
     .find((part) => part.length >= 40);
   return cleaned ?? "";
 }
@@ -222,7 +227,10 @@ async function assessInitialProjectClarity(rootDir: string): Promise<{
   let packageDescription = "";
   if (packageJson) {
     try {
-      const parsed = JSON.parse(packageJson) as { description?: string; name?: string };
+      const parsed = JSON.parse(packageJson) as {
+        description?: string;
+        name?: string;
+      };
       packageDescription = parsed.description?.trim() ?? "";
       if (!packageDescription && parsed.name) {
         packageDescription = parsed.name.trim();
@@ -245,13 +253,19 @@ async function assessInitialProjectClarity(rootDir: string): Promise<{
   const combinedDocs = `${packageDescription}\n${readme}`;
   const hasStrongReadme = readme.trim().length >= 900;
   const goalClear =
-    packageDescription.length >= 20 || readmeSummary.length >= 80 || hasStrongReadme;
+    packageDescription.length >= 20 ||
+    readmeSummary.length >= 80 ||
+    hasStrongReadme;
   const usersClear =
-    hasKeyword(combinedDocs, /(users?|audience|personas?|customers?|developers?|operators?|admins?)/u) ||
-    docFiles.length >= 2;
+    hasKeyword(
+      combinedDocs,
+      /(users?|audience|personas?|customers?|developers?|operators?|admins?)/u,
+    ) || docFiles.length >= 2;
   const constraintsClear =
-    hasKeyword(combinedDocs, /(constraints?|non-goals?|limitations?|requirements?|scope|trade-?offs?)/u) ||
-    docFiles.length >= 2;
+    hasKeyword(
+      combinedDocs,
+      /(constraints?|non-goals?|limitations?|requirements?|scope|trade-?offs?)/u,
+    ) || docFiles.length >= 2;
 
   const hints: string[] = [];
   if (packageDescription) {
@@ -261,11 +275,14 @@ async function assessInitialProjectClarity(rootDir: string): Promise<{
     hints.push(`README summary: ${readmeSummary}`);
   }
   if (docFiles.length > 0) {
-    hints.push(`Docs files: ${docFiles.slice(0, 5).join(", ")}${docFiles.length > 5 ? ", ..." : ""}`);
+    hints.push(
+      `Docs files: ${docFiles.slice(0, 5).join(", ")}${docFiles.length > 5 ? ", ..." : ""}`,
+    );
   }
 
   const missing: string[] = [];
-  if (!goalClear) missing.push("project goal/success is not clear from repo docs");
+  if (!goalClear)
+    missing.push("project goal/success is not clear from repo docs");
   if (!usersClear) missing.push("primary users are not clear from repo docs");
   if (!constraintsClear) {
     missing.push("current constraints/non-goals are not clear from repo docs");

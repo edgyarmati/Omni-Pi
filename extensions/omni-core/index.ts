@@ -35,7 +35,10 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
       init.initResult?.onboardingInterviewNeeded &&
       typeof api.sendUserMessage === "function"
     ) {
-      ctx.ui.notify("Omni needs a short onboarding interview before planning.", "info");
+      ctx.ui.notify(
+        "Omni needs a short onboarding interview before planning.",
+        "info",
+      );
       api.sendUserMessage(buildOnboardingInterviewKickoff(init.initResult));
     }
   });

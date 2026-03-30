@@ -35,8 +35,12 @@ describe("Omni brain runtime", () => {
 
     expect(prompt).toContain("Omni-Pi Single-Brain Mode");
     expect(prompt).toContain("Interview the user until the requested behavior");
-    expect(prompt).toContain("use the interview tool to ask targeted clarification questions instead of asking them in chat");
-    expect(prompt).toContain("treat direct user instructions as requested Omni app/product behavior by default");
+    expect(prompt).toContain(
+      "use the interview tool to ask targeted clarification questions instead of asking them in chat",
+    );
+    expect(prompt).toContain(
+      "treat direct user instructions as requested Omni app/product behavior by default",
+    );
     expect(prompt).toContain(".omni/TASKS.md");
     expect(prompt).toContain("Run onboarding interview");
   });
@@ -87,9 +91,13 @@ describe("Omni brain runtime", () => {
 
     expect(statuses).toEqual(["\x1b[2mctrl+shift+t tasks\x1b[0m"]);
     expect(sentMessages).toHaveLength(1);
-    expect(sentMessages[0]).toContain("use the interview tool now to run a concise onboarding interview");
+    expect(sentMessages[0]).toContain(
+      "use the interview tool now to run a concise onboarding interview",
+    );
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
-    expect(beforeStart.systemPrompt).toContain("use the interview tool to ask targeted clarification questions instead of asking them in chat");
+    expect(beforeStart.systemPrompt).toContain(
+      "use the interview tool to ask targeted clarification questions instead of asking them in chat",
+    );
   });
 });

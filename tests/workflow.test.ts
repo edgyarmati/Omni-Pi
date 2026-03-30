@@ -159,7 +159,8 @@ describe("Omni workflow", () => {
       path.join(rootDir, "package.json"),
       JSON.stringify({
         name: "clear-repo",
-        description: "A documented product for operations teams to manage deployment workflows safely.",
+        description:
+          "A documented product for operations teams to manage deployment workflows safely.",
       }),
       "utf8",
     );
@@ -512,7 +513,10 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
-    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
     const sessionSummary = await readFile(
       path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
       "utf8",
@@ -526,7 +530,9 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     );
     expect(sessionSummary).toContain("## Archived task summaries");
     expect(sessionSummary).toContain("Auth flow");
-    expect(sessionSummary).toContain("T01 (done): Lock the exact user requirements");
+    expect(sessionSummary).toContain(
+      "T01 (done): Lock the exact user requirements",
+    );
     expect(plans.some((plan) => plan.status === "discarded")).toBe(true);
   });
 
@@ -566,7 +572,10 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       userSignals: [],
     });
 
-    const tasks = await readFile(path.join(rootDir, ".omni", "TASKS.md"), "utf8");
+    const tasks = await readFile(
+      path.join(rootDir, ".omni", "TASKS.md"),
+      "utf8",
+    );
     const sessionSummary = await readFile(
       path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
       "utf8",

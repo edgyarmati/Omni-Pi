@@ -84,9 +84,7 @@ export async function gatherPlanningContext(
       path.join(rootDir, ".omni", "TASKS.md"),
       "utf8",
     );
-    const taskRows = tasks
-      .split("\n")
-      .filter((line) => line.startsWith("| T"));
+    const taskRows = tasks.split("\n").filter((line) => line.startsWith("| T"));
     ctx.completedTaskIds = taskRows
       .filter((line) => line.includes("| done |"))
       .map((line) => line.split("|")[1]?.trim())
@@ -247,12 +245,16 @@ export function isRequestRelated(
     return true;
   }
 
-  const overlap = [...currentTokens].filter((token) => previousTokens.has(token));
+  const overlap = [...currentTokens].filter((token) =>
+    previousTokens.has(token),
+  );
   if (overlap.length >= 1) {
     return true;
   }
 
-  return overlap.length / Math.min(previousTokens.size, currentTokens.size) >= 0.34;
+  return (
+    overlap.length / Math.min(previousTokens.size, currentTokens.size) >= 0.34
+  );
 }
 
 export function createInitialSpec(

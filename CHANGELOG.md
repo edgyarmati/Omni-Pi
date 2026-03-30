@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 - 2026-03-30
+
+### Interview-first workflow
+
+- require the interview tool for ambiguous requests instead of ad hoc chat clarification
+- treat direct instructions in this repo as Omni app/product behavior changes by default unless explicitly marked as meta
+- add first-run onboarding for ambiguous projects so Omni captures goal, users, constraints, workflow preferences, and missing context before planning or implementation
+
+### Planning continuity
+
+- reset stale active tasks when a new request is unrelated to the previous work
+- archive concise summaries of replaced task lists outside `.omni/TASKS.md` while keeping related follow-up work continuous
+
 ## 0.6.4 - 2026-03-30
 
 ### Publishing and release automation
