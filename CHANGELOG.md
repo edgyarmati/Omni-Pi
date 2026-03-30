@@ -5,14 +5,20 @@
 ### Provider management
 
 - renamed bundled provider auth management from `/provider-auth` to `/manage-providers`
-- limited `/model-setup list` to removing individual custom model entries instead of deleting whole custom providers
-- documented the bundled provider list directly in `PROVIDERS.md`
+- narrowed `/model-setup` so its list flow removes only custom model entries, not whole custom providers
+- updated command labels and docs to reflect the split between custom model setup and bundled provider auth management
 
-### CI and documentation
+### Documentation and validation
 
-- added a unified `npm run verify` gate for local development, CI, and publish checks
-- added docs coverage tests so command docs and the bundled provider list fail CI when they drift from the code
-- added a tag-triggered release workflow that re-verifies the repo, creates a GitHub release, and publishes to npm when credentials are configured
+- added the bundled provider list to `PROVIDERS.md`
+- added documentation coverage tests for the bundled provider list and the README command contract
+- made docs drift fail the test suite when the code-backed provider list or command docs change without matching documentation
+
+### CI/CD
+
+- added a unified `npm run verify` gate for local development, CI, and prepublish checks
+- updated CI to run the shared verify gate instead of separate ad hoc steps
+- added a tag-triggered release workflow that re-verifies the repo, creates a GitHub release, and publishes to npm when workflow credentials are configured
 
 ## 0.6.0 - 2026-03-27
 
