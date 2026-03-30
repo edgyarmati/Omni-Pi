@@ -1,13 +1,13 @@
 {
   "name": "omni-pi",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
   "license": "MIT",
   "author": "Eduard-David Gyarmati",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/EdGy2k/Omni-Pi.git"
+    "url": "https://github.com/EdGy2k/Omni-Pi"
   },
   "homepage": "https://github.com/EdGy2k/Omni-Pi#readme",
   "bugs": {

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.4 - 2026-03-30
+
+### Publishing and release automation
+
+- normalized the package repository URL to the canonical GitHub repository form used by npm trusted publishing
+- updated GitHub Actions workflows to the current Node 24 action/toolchain path
+- replaced the JavaScript GitHub release action with the GitHub CLI so the release workflow no longer depends on deprecated Node 20 action runtimes
+
+### Runtime and UX
+
+- upgraded `@mariozechner/pi-coding-agent` to `0.64.0`
+- suppressed the redundant success toast after a successful self-update install while still prompting for restart
+
 ## 0.6.3 - 2026-03-30
 
 ### Runtime and UX
