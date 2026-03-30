@@ -33,11 +33,11 @@ jobs:
       - name: Create package tarball
         run: npm pack
 
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           files: "*.tgz"
           generate_release_notes: true
-
-      - name: Publish to npm
-        run: npm publish --provenance --access public

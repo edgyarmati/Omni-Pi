@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.3 - 2026-03-30
+
+### Runtime and UX
+
+- upgraded `@mariozechner/pi-coding-agent` to `0.64.0`
+- suppressed the redundant success toast after a successful self-update install while still prompting for restart
+
+### Release workflow
+
+- moved npm publishing ahead of GitHub release creation so failed npm publishes do not leave behind a misleading GitHub release
+- kept trusted publishing with provenance as the release path for tagged builds
+
 ## 0.6.2 - 2026-03-30
 
 ### Native micro-UI
