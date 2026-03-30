@@ -139,10 +139,6 @@ async function doInstall(
   ctx.ui.notify(`Installing ${PACKAGE_NAME}@${version}...`, "info");
   const result = await runNpmInstall(version);
   if (result.code === 0) {
-    ctx.ui.notify(
-      `Updated to ${PACKAGE_NAME}@${version}. Restart omni to apply.`,
-      "info",
-    );
     return true;
   }
   ctx.ui.notify(`Update failed: ${result.stderr}`, "error");
