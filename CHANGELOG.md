@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1 - 2026-04-05
+
+### Dependencies
+
+- upgraded `@mariozechner/pi-coding-agent` to `0.65.0`
+- removed `session_switch` handler from omni-memory extension (event removed upstream; `session_start` now covers session switches via `event.reason`)
+
 ## 0.7.0 - 2026-03-30
 
 ### Interview-first workflow

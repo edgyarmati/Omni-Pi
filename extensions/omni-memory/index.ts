@@ -62,10 +62,6 @@ export default function omniMemoryExtension(api: ExtensionAPI): void {
     await updateWidget(ctx);
   });
 
-  api.on("session_switch", async (_event, ctx) => {
-    await updateWidget(ctx);
-  });
-
   api.on("turn_end", async (_event, ctx) => {
     await updateWidget(ctx);
   });

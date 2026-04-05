@@ -1,6 +1,6 @@
 {
   "name": "omni-pi",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
   "license": "MIT",
@@ -80,7 +80,7 @@
     "@anthropic-ai/claude-agent-sdk": "0.2.84",
     "@juanibiapina/pi-extension-settings": "^0.6.0",
     "@juanibiapina/pi-powerbar": "^0.7.1",
-    "@mariozechner/pi-coding-agent": "^0.64.0",
+    "@mariozechner/pi-coding-agent": "^0.65.0",
     "glimpseui": "^0.6.2",
     "pi-interview": "^0.5.5",
     "pi-subagents": "^0.11.11",
