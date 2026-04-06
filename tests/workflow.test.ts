@@ -34,8 +34,11 @@ import {
 } from "../src/plans.js";
 import {
   applyInstallResults,
+  cleanupUnusedProjectSkills,
+  ensureTaskSkillDependencies,
   loadSkillTriggers,
   matchSkillsForTask,
+  projectSkillsDir,
   readSkillRegistry,
 } from "../src/skills.js";
 import {
@@ -68,6 +71,7 @@ describe("Omni workflow", () => {
 
     const result = await initializeOmniProject(rootDir);
 
+    expect(result.created).toContain(".omni/VERSION");
     expect(result.created).toContain(".omni/PROJECT.md");
     expect(result.created).toContain(".omni/STATE.md");
     expect(result.created).toContain(".pi/agents/omni-brain.md");
@@ -87,6 +91,76 @@ describe("Omni workflow", () => {
 
     const registry = await readSkillRegistry(rootDir);
     expect(registry.installed[0]?.name).toBe("find-skills");
+  });
+
+  test("initializeOmniProject discovers repo-wide standards and leaves them pending without confirmation", async () => {
+    const rootDir = await createTempProject("omni-init-standards-");
+    await writeFile(
+      path.join(rootDir, "AGENTS.md"),
+      "# AGENTS\n\nKeep diffs small and test changes.",
+      "utf8",
+    );
+
+    const result = await initializeOmniProject(rootDir);
+    const standards = await readFile(
+      path.join(rootDir, ".omni", "STANDARDS.md"),
+      "utf8",
+    );
+
+    expect(
+      result.discoveredStandards.some((entry) => entry.path === "AGENTS.md"),
+    ).toBe(true);
+    expect(
+      result.pendingStandards.some((entry) => entry.path === "AGENTS.md"),
+    ).toBe(true);
+    expect(result.standardsPromptNeeded).toBe(true);
+    expect(standards).toContain(
+      "No imported standards have been accepted yet.",
+    );
+  });
+
+  test("initializeOmniProject can import discovered standards when confirmed", async () => {
+    const rootDir = await createTempProject("omni-init-standards-accept-");
+    await writeFile(
+      path.join(rootDir, "CLAUDE.md"),
+      "# CLAUDE\n\nPrefer updating docs when behavior changes.",
+      "utf8",
+    );
+
+    const result = await initializeOmniProject(rootDir, {
+      ui: {
+        async confirm() {
+          return true;
+        },
+      },
+    });
+    const standards = await readFile(
+      path.join(rootDir, ".omni", "STANDARDS.md"),
+      "utf8",
+    );
+
+    expect(
+      result.acceptedStandards.some((entry) => entry.path === "CLAUDE.md"),
+    ).toBe(true);
+    expect(result.pendingStandards).toEqual([]);
+    expect(standards).toContain("CLAUDE.md");
+    expect(standards).toContain("Prefer updating docs when behavior changes.");
+  });
+
+  test("initializeOmniProject adds .pi to .gitignore in git repos", async () => {
+    const rootDir = await createTempProject("omni-init-gitignore-");
+    await mkdir(path.join(rootDir, ".git"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, ".gitignore"),
+      "node_modules/\n",
+      "utf8",
+    );
+
+    const result = await initializeOmniProject(rootDir);
+    const gitignore = await readFile(path.join(rootDir, ".gitignore"), "utf8");
+
+    expect(result.gitignoreUpdated).toBe(true);
+    expect(gitignore).toContain(".pi/");
   });
 
   test("initializeOmniProject detects repo signals from a TypeScript frontend project", async () => {
@@ -602,6 +676,79 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(registry.installed.some((s) => s.name === "find-skills")).toBe(
       false,
     );
+  });
+
+  test("ensureTaskSkillDependencies installs bundled skills project-scope", async () => {
+    const rootDir = await createTempProject("omni-skill-deps-");
+    await initializeOmniProject(rootDir);
+
+    const result = await ensureTaskSkillDependencies(rootDir, {
+      id: "T01",
+      title: "Lock requirements",
+      objective: "Refine the implementation-ready spec.",
+      contextFiles: [".omni/SPEC.md"],
+      skills: ["omni-planning"],
+      doneCriteria: ["Requirements are explicit."],
+      role: "worker",
+      status: "todo",
+      dependsOn: [],
+    });
+
+    const skillFile = await readFile(
+      path.join(projectSkillsDir(rootDir), "omni-planning", "SKILL.md"),
+      "utf8",
+    );
+
+    expect(result.task.skills).toContain("omni-planning");
+    expect(result.installed).toContain("omni-planning");
+    expect(skillFile).toContain("omni-planning");
+  });
+
+  test("ensureTaskSkillDependencies creates a project skill when no skill matches", async () => {
+    const rootDir = await createTempProject("omni-skill-create-");
+    await initializeOmniProject(rootDir);
+
+    const result = await ensureTaskSkillDependencies(rootDir, {
+      id: "T77",
+      title: "Invent niche protocol adapter",
+      objective: "Implement a custom adapter for an internal protocol.",
+      contextFiles: [],
+      skills: ["totally-missing-project-skill"],
+      doneCriteria: ["Adapter is documented."],
+      role: "worker",
+      status: "todo",
+      dependsOn: [],
+    });
+
+    expect(result.created.length).toBe(1);
+    const createdName = result.created[0];
+    const createdSkill = await readFile(
+      path.join(projectSkillsDir(rootDir), createdName, "SKILL.md"),
+      "utf8",
+    );
+    expect(result.task.skills).toContain(createdName);
+    expect(createdSkill).toContain("Project-specific skill");
+  });
+
+  test("cleanupUnusedProjectSkills removes project skills with no active task refs", async () => {
+    const rootDir = await createTempProject("omni-skill-cleanup-");
+    await initializeOmniProject(rootDir);
+
+    const ensured = await ensureTaskSkillDependencies(rootDir, {
+      id: "T99",
+      title: "Invent niche protocol adapter",
+      objective: "Implement a custom adapter for an internal protocol.",
+      contextFiles: [],
+      skills: [],
+      doneCriteria: ["Adapter is documented."],
+      role: "worker",
+      status: "todo",
+      dependsOn: [],
+    });
+
+    const removed = await cleanupUnusedProjectSkills(rootDir, []);
+
+    expect(removed).toContain(ensured.task.skills[0]);
   });
 
   test("worker modified files are tracked through escalation", async () => {
@@ -1416,7 +1563,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         title: "Build feature",
         objective: "Build feature",
         contextFiles: [],
-        skills: [],
+        skills: ["omni-planning"],
         doneCriteria: ["Passes tests", "Compiles"],
         role: "worker" as const,
         status: "todo" as const,
@@ -1432,6 +1579,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(parsed).toHaveLength(1);
     expect(parsed[0].id).toBe("T01");
     expect(parsed[0].doneCriteria).toEqual(["Passes tests", "Compiles"]);
+    expect(parsed[0].skills).toEqual(["omni-planning"]);
   });
 
   test("renderTaskTable round-trips titles with pipe characters", async () => {

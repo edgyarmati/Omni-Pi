@@ -12,8 +12,14 @@ import type {
   TaskBrief,
 } from "./contracts.js";
 import {
+  cleanupUnusedProjectSkills,
+  ensureTaskSkillDependencies,
+  loadAvailableSkills,
+} from "./skills.js";
+import {
   findNextExecutableTask,
   readTasks,
+  updateTask,
   updateTaskStatus,
   writeTasks,
 } from "./tasks.js";
@@ -132,32 +138,46 @@ export async function prepareNextTaskDispatch(
     };
   }
 
+  const dependencyResult = await ensureTaskSkillDependencies(rootDir, nextTask);
+  const preparedTask = dependencyResult.task;
   const taskDir = await ensureTaskDir(rootDir);
-  await writeTaskBrief(taskDir, nextTask);
+  await writeTaskBrief(taskDir, preparedTask);
   await writeTasks(
     tasksPath,
-    updateTaskStatus(tasks, nextTask.id, "in_progress"),
+    updateTaskStatus(
+      updateTask(tasks, preparedTask.id, preparedTask),
+      preparedTask.id,
+      "in_progress",
+    ),
   );
 
-  const briefPath = path.join(taskDir, `${nextTask.id}-BRIEF.md`);
-  const preReadContext = await gatherTaskContext(rootDir, nextTask, 4000);
+  const briefPath = path.join(taskDir, `${preparedTask.id}-BRIEF.md`);
+  const preReadContext = await gatherTaskContext(rootDir, preparedTask, 4000);
+  const availableSkills = await loadAvailableSkills(rootDir);
+  const availableNames = new Set(availableSkills.map((skill) => skill.name));
+  const missingSkills = preparedTask.skills.filter(
+    (name) => !availableNames.has(name),
+  );
   const prompt = [
     "You are working inside an Omni-Pi implementation session.",
     "",
-    `Task: ${nextTask.id} - ${nextTask.title}`,
-    `Objective: ${nextTask.objective}`,
+    `Task: ${preparedTask.id} - ${preparedTask.title}`,
+    `Objective: ${preparedTask.objective}`,
     "",
     "Read these files first:",
     "- .omni/PROJECT.md",
     "- .omni/SPEC.md",
     "- .omni/TESTS.md",
     `- ${path.relative(rootDir, briefPath)}`,
-    ...nextTask.contextFiles.map((file) => `- ${file}`),
+    ...preparedTask.contextFiles.map((file) => `- ${file}`),
     "",
     "Then implement the task, explain the change briefly, and run the planned verification steps before finishing.",
-    nextTask.skills.length > 0
-      ? `Relevant skills: ${nextTask.skills.join(", ")}`
+    preparedTask.skills.length > 0
+      ? `Relevant skills: ${preparedTask.skills.join(", ")}`
       : "Relevant skills: none explicitly listed",
+    missingSkills.length > 0
+      ? `Missing skills were auto-generated for this task: ${missingSkills.join(", ")}`
+      : "All required skills are available project-scope.",
     ...(preReadContext.length > 0
       ? [
           "",
@@ -171,10 +191,10 @@ export async function prepareNextTaskDispatch(
 
   return {
     kind: "ready",
-    taskId: nextTask.id,
+    taskId: preparedTask.id,
     prompt,
     briefPath,
-    message: `Prepared ${nextTask.id} for a focused implementation session.`,
+    message: `Prepared ${preparedTask.id} for a focused implementation session.`,
   };
 }
 
@@ -286,55 +306,86 @@ export async function executeNextTask(
   }
 
   const taskDir = await ensureTaskDir(rootDir);
-  await writeTaskBrief(taskDir, nextTask);
+  const dependencyResult = await ensureTaskSkillDependencies(rootDir, nextTask);
+  const preparedTask = dependencyResult.task;
+  const preparedTasks = updateTask(tasks, preparedTask.id, preparedTask);
+  await writeTasks(tasksPath, preparedTasks);
+  await writeTaskBrief(taskDir, preparedTask);
 
-  const history = await readTaskHistory(taskDir, nextTask.id);
+  const history = await readTaskHistory(taskDir, preparedTask.id);
   const retryLimit = await readRetryLimit(testsPath);
   const attempt = history.length + 1;
-  const implementationResult = await engine.runWorkerTask(nextTask, attempt);
+  const implementationResult = await engine.runWorkerTask(
+    preparedTask,
+    attempt,
+  );
   const implementationHistory = [...history, implementationResult];
-  await writeTaskHistory(taskDir, nextTask.id, implementationHistory);
+  await writeTaskHistory(taskDir, preparedTask.id, implementationHistory);
 
   if (implementationResult.verification.passed) {
-    await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "done"));
+    const completedTasks = updateTaskStatus(
+      preparedTasks,
+      preparedTask.id,
+      "done",
+    );
+    await writeTasks(tasksPath, completedTasks);
+    await cleanupUnusedProjectSkills(
+      rootDir,
+      completedTasks.filter((task) => task.status !== "done"),
+    );
     return {
       kind: "completed",
-      taskId: nextTask.id,
-      message: `Completed ${nextTask.id} in the implementation pass. ${formatVerificationSummary(implementationResult)}`,
+      taskId: preparedTask.id,
+      message: `Completed ${preparedTask.id} in the implementation pass. ${formatVerificationSummary(implementationResult)}`,
     };
   }
 
   if (attempt < retryLimit) {
-    await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "todo"));
+    await writeTasks(
+      tasksPath,
+      updateTaskStatus(preparedTasks, preparedTask.id, "todo"),
+    );
     return {
       kind: "blocked",
-      taskId: nextTask.id,
-      message: `Implementation attempt ${attempt} for ${nextTask.id} failed verification and is queued for retry. ${formatVerificationSummary(implementationResult)}`,
+      taskId: preparedTask.id,
+      message: `Implementation attempt ${attempt} for ${preparedTask.id} failed verification and is queued for retry. ${formatVerificationSummary(implementationResult)}`,
     };
   }
 
-  const escalation = createEscalationBrief(nextTask, implementationHistory);
+  const escalation = createEscalationBrief(preparedTask, implementationHistory);
   await writeRecoveryBrief(taskDir, escalation);
-  const expertResult = await engine.runExpertTask(nextTask, escalation);
-  await writeTaskHistory(taskDir, nextTask.id, [
+  const expertResult = await engine.runExpertTask(preparedTask, escalation);
+  await writeTaskHistory(taskDir, preparedTask.id, [
     ...implementationHistory,
     expertResult,
   ]);
 
   if (expertResult.verification.passed) {
-    await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "done"));
+    const completedTasks = updateTaskStatus(
+      preparedTasks,
+      preparedTask.id,
+      "done",
+    );
+    await writeTasks(tasksPath, completedTasks);
+    await cleanupUnusedProjectSkills(
+      rootDir,
+      completedTasks.filter((task) => task.status !== "done"),
+    );
     return {
       kind: "expert_completed",
-      taskId: nextTask.id,
-      message: `Completed ${nextTask.id} after a recovery pass. ${formatVerificationSummary(expertResult)}`,
+      taskId: preparedTask.id,
+      message: `Completed ${preparedTask.id} after a recovery pass. ${formatVerificationSummary(expertResult)}`,
     };
   }
 
-  await writeTasks(tasksPath, updateTaskStatus(tasks, nextTask.id, "blocked"));
+  await writeTasks(
+    tasksPath,
+    updateTaskStatus(preparedTasks, preparedTask.id, "blocked"),
+  );
   return {
     kind: "blocked",
-    taskId: nextTask.id,
-    message: `Task ${nextTask.id} remains blocked after repeated implementation attempts and a recovery pass. ${formatVerificationSummary(expertResult)}`,
+    taskId: preparedTask.id,
+    message: `Task ${preparedTask.id} remains blocked after repeated implementation attempts and a recovery pass. ${formatVerificationSummary(expertResult)}`,
     recoveryOptions: [
       "Review the recovery notes in `.omni/tasks/` and refine the task inputs.",
       "Restructure the task into smaller slices.",

@@ -7,6 +7,7 @@ import type {
   Theme,
 } from "@mariozechner/pi-coding-agent";
 import { Box, Text } from "@mariozechner/pi-tui";
+import { readOmniMode } from "./theme.js";
 
 async function readOptional(filePath: string): Promise<string | null> {
   try {
@@ -203,6 +204,16 @@ function countTasks(raw: string): { done: number; total: number } {
 let widgetVisible = false;
 
 async function renderTodoWidget(ctx: ExtensionContext): Promise<void> {
+  if (!readOmniMode(ctx.cwd)) {
+    ctx.ui.notify(
+      "Omni task widgets are only available while Omni mode is ON.",
+      "info",
+    );
+    ctx.ui.setWidget("omni-todos", undefined);
+    widgetVisible = false;
+    return;
+  }
+
   const tasksContent = await readOptional(
     path.join(ctx.cwd, ".omni", "TASKS.md"),
   );

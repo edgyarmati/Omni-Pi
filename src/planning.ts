@@ -364,16 +364,18 @@ export function renderTasksMarkdown(tasks: TaskBrief[]): string {
   const rows = tasks.map((task) => {
     const dependsOn =
       task.dependsOn.length > 0 ? task.dependsOn.join(", ") : "-";
-    const doneCriteria = task.doneCriteria.join("; ");
-    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} |`;
+    const doneCriteria =
+      task.doneCriteria.length > 0 ? task.doneCriteria.join("; ") : "-";
+    const skills = task.skills.length > 0 ? task.skills.join(", ") : "-";
+    return `| ${escapeTaskTableCell(task.id)} | ${escapeTaskTableCell(task.title)} | ${escapeTaskTableCell(dependsOn)} | ${escapeTaskTableCell(task.status)} | ${escapeTaskTableCell(doneCriteria)} | ${escapeTaskTableCell(skills)} |`;
   });
 
   return `# Tasks
 
 ## Task slices
 
-| ID | Title | Depends On | Status | Done Criteria |
-| --- | --- | --- | --- | --- |
+| ID | Title | Depends On | Status | Done Criteria | Skills |
+| --- | --- | --- | --- | --- | --- |
 ${rows.join("\n")}
 `;
 }

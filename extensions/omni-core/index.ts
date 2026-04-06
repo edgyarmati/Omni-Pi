@@ -1,15 +1,25 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import {
-  buildBrainSystemPromptSuffix,
-  ensureOmniInitialized,
-  ensureOmniInitializedDetailed,
+  buildPassiveOmniPromptSuffix,
+  buildWorkflowPromptSuffix,
+  ensureOmniReady,
 } from "../../src/brain.js";
+import { createOmniCommands } from "../../src/commands.js";
 import { renderHeader } from "../../src/header.js";
 import { registerModelCommand } from "../../src/model-command.js";
-import { registerOmniMessageRenderer } from "../../src/pi.js";
+import {
+  registerOmniMessageRenderer,
+  registerPiCommands,
+} from "../../src/pi.js";
 import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
-import { createOmniTheme } from "../../src/theme.js";
+import {
+  createOmniTheme,
+  ensurePiSettings,
+  formatOmniModeStatus,
+  loadSavedTheme,
+  readOmniMode,
+} from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
 import { registerTodoShortcut } from "../../src/todo-shortcut.js";
 import { registerUpdater } from "../../src/updater.js";
@@ -17,6 +27,7 @@ import { buildOnboardingInterviewKickoff } from "../../src/workflow.js";
 
 export default function omniCoreExtension(api: ExtensionAPI): void {
   registerOmniMessageRenderer(api);
+  registerPiCommands(api, createOmniCommands());
   registerModelCommand(api);
   registerProviderAuthCommand(api);
   registerThemeCommand(api);
@@ -24,31 +35,52 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
   registerUpdater(api);
 
   api.on("session_start", async (_event, ctx) => {
-    const init = await ensureOmniInitializedDetailed(ctx.cwd);
+    await ensurePiSettings(ctx.cwd);
+    loadSavedTheme(ctx.cwd);
+    const omniMode = readOmniMode(ctx.cwd);
     ctx.ui.setTitle("Omni-Pi");
     ctx.ui.setTheme(createOmniTheme());
     ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
-    ctx.ui.setStatus("omni", "\x1b[2mctrl+shift+t tasks\x1b[0m");
-
-    if (
-      init.status === "initialized" &&
-      init.initResult?.onboardingInterviewNeeded &&
-      typeof api.sendUserMessage === "function"
-    ) {
-      ctx.ui.notify(
-        "Omni needs a short onboarding interview before planning.",
-        "info",
-      );
-      api.sendUserMessage(buildOnboardingInterviewKickoff(init.initResult));
-    }
+    ctx.ui.setStatus("omni", formatOmniModeStatus(omniMode));
   });
 
   api.on("before_agent_start", async (event, ctx) => {
-    await ensureOmniInitialized(ctx.cwd);
-    const brainPrompt = await buildBrainSystemPromptSuffix(ctx.cwd);
+    const omniMode = readOmniMode(ctx.cwd);
+    const passivePrompt = await buildPassiveOmniPromptSuffix(ctx.cwd);
+    if (!omniMode) {
+      return {
+        systemPrompt: [event.systemPrompt, passivePrompt]
+          .filter(Boolean)
+          .join("\n\n"),
+      };
+    }
+
+    const init = await ensureOmniReady(ctx.cwd, {
+      ui: "ui" in ctx ? ctx.ui : undefined,
+    });
+    const workflowPrompt = await buildWorkflowPromptSuffix(ctx.cwd);
+    const prompt = [event.systemPrompt, passivePrompt, workflowPrompt]
+      .filter(Boolean)
+      .join("\n\n");
+
+    if (
+      init.initResult?.onboardingInterviewNeeded &&
+      typeof api.sendUserMessage === "function"
+    ) {
+      api.sendUserMessage(buildOnboardingInterviewKickoff(init.initResult));
+    }
+    if (init.initResult?.standardsPromptNeeded) {
+      api.sendMessage({
+        customType: "omni-update",
+        content:
+          "Omni found external instruction files that can be imported into .omni/STANDARDS.md. Please confirm in chat whether Omni should keep those standards.",
+        display: true,
+        details: { title: "omni-mode" },
+      });
+    }
 
     return {
-      systemPrompt: `${event.systemPrompt}\n\n${brainPrompt}`,
+      systemPrompt: prompt,
     };
   });
 }

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
@@ -98,6 +98,7 @@ export function applyPreset(name: string): void {
 interface PiSettings {
   quietStartup?: boolean;
   omniTheme?: string;
+  omniMode?: boolean;
   [key: string]: unknown;
 }
 
@@ -113,7 +114,12 @@ function readSettings(cwd: string): PiSettings {
   }
 }
 
+export function readPiSettings(cwd: string): PiSettings {
+  return readSettings(cwd);
+}
+
 function writeSettings(cwd: string, settings: PiSettings): void {
+  mkdirSync(path.join(cwd, ".pi"), { recursive: true });
   writeFileSync(
     settingsPath(cwd),
     `${JSON.stringify(settings, null, 2)}\n`,
@@ -129,6 +135,15 @@ export async function ensurePiSettings(cwd: string): Promise<void> {
     await mkdir(path.join(cwd, ".pi"), { recursive: true });
     writeSettings(cwd, { quietStartup: true });
   }
+}
+
+export function readOmniMode(cwd: string): boolean {
+  return readSettings(cwd).omniMode === true;
+}
+
+export function saveOmniMode(cwd: string, enabled: boolean): void {
+  const settings = readSettings(cwd);
+  writeSettings(cwd, { ...settings, omniMode: enabled });
 }
 
 /** Load the saved theme from .pi/settings.json, or fall back to default. */
@@ -160,6 +175,13 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 export function ansiColor(hex: string, text: string): string {
   const { r, g, b } = hexToRgb(hex);
   return `\x1b[38;2;${r};${g};${b}m${text}${ANSI_RESET}`;
+}
+
+export function formatOmniModeStatus(enabled: boolean): string {
+  const label = enabled ? "Omni mode ON" : "Omni mode OFF";
+  return enabled
+    ? `${ansiColor(activeBrand, label)}  \x1b[2mctrl+shift+t tasks\x1b[0m`
+    : `\x1b[2m${label}  ctrl+shift+t tasks\x1b[0m`;
 }
 
 /** Wrap text in true-color ANSI foreground using the active brand color. */

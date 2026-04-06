@@ -27,10 +27,20 @@ import { detectRepoSignals } from "./repo.js";
 import {
   appendSkillUsageNote,
   buildSkillInstallPlan,
+  cleanupUnusedProjectSkills,
   defaultSkillSignals,
+  ensureTaskSkillDependencies,
   renderSkillDecision,
   toSkillCandidate,
 } from "./skills.js";
+import {
+  type DiscoveredStandard,
+  ensurePiIgnoredInGitignore,
+  OMNI_STANDARD_VERSION,
+  readOmniVersion,
+  resolveImportedStandards,
+  writeOmniVersion,
+} from "./standards.js";
 import { type SyncRequest, syncOmniMemory } from "./sync.js";
 import { executeNextTask, type WorkEngine, type WorkResult } from "./work.js";
 
@@ -50,6 +60,18 @@ export interface InitResult {
   onboardingInterviewNeeded: boolean;
   onboardingReason: string;
   onboardingContextHints: string[];
+  discoveredStandards: DiscoveredStandard[];
+  pendingStandards: DiscoveredStandard[];
+  acceptedStandards: DiscoveredStandard[];
+  standardsPromptNeeded: boolean;
+  gitignoreUpdated: boolean;
+  version: number;
+}
+
+export interface InitializeOmniOptions {
+  ui?: {
+    confirm(title: string, message: string): Promise<boolean>;
+  };
 }
 
 export interface PlanResult {
@@ -344,6 +366,7 @@ function buildSkillCandidates(
 
 export async function initializeOmniProject(
   rootDir: string,
+  options: InitializeOmniOptions = {},
 ): Promise<InitResult> {
   const created: string[] = [];
   const reused: string[] = [];
@@ -410,6 +433,10 @@ export async function initializeOmniProject(
     );
   }
 
+  const imports = await resolveImportedStandards(rootDir, options.ui);
+  const gitignoreUpdated = await ensurePiIgnoredInGitignore(rootDir);
+  await writeOmniVersion(rootDir);
+
   const diagnostics = await runDoctor(rootDir);
   const onboarding = await assessInitialProjectClarity(rootDir);
 
@@ -442,7 +469,45 @@ export async function initializeOmniProject(
     onboardingInterviewNeeded: onboarding.onboardingInterviewNeeded,
     onboardingReason: onboarding.onboardingReason,
     onboardingContextHints: onboarding.onboardingContextHints,
+    discoveredStandards: imports.discovered,
+    pendingStandards: imports.pending,
+    acceptedStandards: imports.accepted,
+    standardsPromptNeeded: imports.promptNeeded,
+    gitignoreUpdated,
+    version: OMNI_STANDARD_VERSION,
   };
+}
+
+export interface EnsureCurrentOmniResult {
+  status: "initialized" | "migrated" | "existing";
+  initResult?: InitResult;
+}
+
+export async function ensureOmniProjectCurrent(
+  rootDir: string,
+  options: InitializeOmniOptions = {},
+): Promise<EnsureCurrentOmniResult> {
+  const statePath = path.join(rootDir, ".omni", "STATE.md");
+  const currentVersion = await readOmniVersion(rootDir);
+  const needsInit = !(await readOptionalText(statePath));
+  const needsMigration =
+    currentVersion == null || currentVersion < OMNI_STANDARD_VERSION;
+
+  if (needsInit) {
+    return {
+      status: "initialized",
+      initResult: await initializeOmniProject(rootDir, options),
+    };
+  }
+
+  if (needsMigration) {
+    return {
+      status: "migrated",
+      initResult: await initializeOmniProject(rootDir, options),
+    };
+  }
+
+  return { status: "existing" };
 }
 
 export async function planOmniProject(
@@ -484,15 +549,21 @@ export async function planOmniProject(
     completedTaskIds: unrelatedRequest ? [] : planningCtx.completedTaskIds,
     sessionNotes: unrelatedRequest ? [] : planningCtx.sessionNotes,
   });
+  const enrichedTasks = [];
+  for (const task of spec.taskSlices) {
+    const enriched = await ensureTaskSkillDependencies(rootDir, task);
+    enrichedTasks.push(enriched.task);
+  }
   await writeFile(specPath, renderSpecMarkdown(spec), "utf8");
-  await writeFile(tasksPath, renderTasksMarkdown(spec.taskSlices), "utf8");
+  await writeFile(tasksPath, renderTasksMarkdown(enrichedTasks), "utf8");
   await writeFile(testsPath, renderTestsMarkdown(repoSignals), "utf8");
+  await cleanupUnusedProjectSkills(rootDir, enrichedTasks);
 
   const planEntry = await createPlan(
     rootDir,
     spec.title,
     brief.summary,
-    spec.taskSlices.map((t) => `${t.id}: ${t.title}`),
+    enrichedTasks.map((t) => `${t.id}: ${t.title}`),
   );
   await appendProgress(rootDir, `Created plan ${planEntry.id}: ${spec.title}`);
 

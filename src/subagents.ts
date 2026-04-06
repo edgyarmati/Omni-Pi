@@ -17,7 +17,7 @@ import type {
   TaskBrief,
 } from "./contracts.js";
 import { detectRepoSignals } from "./repo.js";
-import { loadSkillTriggers, matchSkillsForTask } from "./skills.js";
+import { loadAvailableSkills, matchSkillsForTask } from "./skills.js";
 import type { WorkEngine } from "./work.js";
 
 interface SubagentConfig {
@@ -954,10 +954,7 @@ export async function createSubagentWorkEngine(
     "reviewer",
   );
   const sessionDir = path.join(rootDir, ".omni", "subagent-sessions");
-  const packageDir = omniPackageDir();
-  const skillTriggers = await loadSkillTriggers(
-    path.join(packageDir, "skills"),
-  );
+  const skillTriggers = await loadAvailableSkills(rootDir);
 
   function getSkillContext(task: TaskBrief): string | undefined {
     const matched = matchSkillsForTask(task, skillTriggers);

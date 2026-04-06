@@ -9,6 +9,7 @@ import type {
 import type { OmniState } from "../../src/contracts.js";
 import { runDoctor } from "../../src/doctor.js";
 import { renderCompactStatusWidget } from "../../src/status.js";
+import { readOmniMode } from "../../src/theme.js";
 
 async function readState(cwd: string): Promise<OmniState | null> {
   try {
@@ -44,6 +45,10 @@ async function readState(cwd: string): Promise<OmniState | null> {
 }
 
 async function updateWidget(ctx: ExtensionContext): Promise<void> {
+  if (!readOmniMode(ctx.cwd)) {
+    ctx.ui.setWidget("omni-dashboard", undefined);
+    return;
+  }
   const state = await readState(ctx.cwd);
   if (state) {
     const report = await runDoctor(ctx.cwd);

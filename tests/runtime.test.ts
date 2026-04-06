@@ -30,9 +30,11 @@ describe("Omni runtime flow", () => {
     expect(dispatch.kind).toBe("ready");
     expect(dispatch.taskId).toBe("T01");
     expect(dispatch.prompt).toContain("Task: T01");
+    expect(dispatch.prompt).toContain("Relevant skills:");
     expect(dispatch.message).toContain("focused implementation session");
     expect(tasks).toContain(
       "| T01 | Lock the exact user requirements | - | in_progress |",
     );
+    expect(tasks).toContain("| omni-planning |");
   });
 });

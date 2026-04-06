@@ -7,6 +7,11 @@ export interface StarterFile {
 
 export const starterFiles: StarterFile[] = [
   {
+    path: `${OMNI_DIR}/VERSION`,
+    content: `1
+`,
+  },
+  {
     path: `${OMNI_DIR}/PROJECT.md`,
     content: `# Project
 
@@ -61,6 +66,15 @@ Record important choices here as the project evolves.
 `,
   },
   {
+    path: `${OMNI_DIR}/STANDARDS.md`,
+    content: `# Imported Standards
+
+These standards were imported from other harness-specific instruction files and approved for Omni use.
+
+No imported standards have been accepted yet.
+`,
+  },
+  {
     path: `${OMNI_DIR}/STATE.md`,
     content: `# State
 
@@ -94,6 +108,20 @@ Next Step: Interview the user, write the exact spec into .omni/, then implement 
 ## Usage Notes
 
 - Record why a skill was installed, recommended, or skipped.
+`,
+  },
+  {
+    path: `${OMNI_DIR}/project-skills/README.md`,
+    content: `# Project Skills
+
+Store project-scoped skills that Omni auto-installs or creates for active tasks here.
+`,
+  },
+  {
+    path: `${OMNI_DIR}/SKILLS-STATE.json`,
+    content: `{
+  "managed": []
+}
 `,
   },
   {

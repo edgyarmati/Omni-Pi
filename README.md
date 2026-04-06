@@ -1,6 +1,6 @@
 # Omni-Pi
 
-A batteries-included [Pi](https://github.com/badlogic/pi-mono) package that interviews the user, documents the spec, and implements work in bounded slices.
+A batteries-included [Pi](https://github.com/badlogic/pi-mono) package with an opt-in Omni workflow for interviewing, documenting the spec, and implementing work in bounded slices.
 
 Requires Node.js 22 or newer.
 
@@ -10,9 +10,10 @@ Requires Node.js 22 or newer.
 
 ## What It Does
 
-- One conversational brain interviews the user until the request is precise.
-- Writes specs, tasks, and progress into `.omni/` as durable project memory.
-- Breaks work into small, verifiable slices and implements them one at a time.
+- Starts in normal Pi behavior by default while keeping Omni-Pi branding and UI.
+- `/omni-mode` turns on Omni's specialized interview, plan, build, and verify workflow for the current project.
+- Keeps durable standards and project context in `.omni/`, even when Omni mode is off.
+- Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
 - Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
 
 ## Install
@@ -59,6 +60,7 @@ Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro
 |---------|-------------|
 | `/model-setup` | Add custom providers/models or remove custom model entries |
 | `/manage-providers` | Remove stored auth for bundled providers |
+| `/omni-mode` | Toggle persistent Omni mode on or off for this project |
 | `/companion` | Toggle the Glimpse floating companion widget |
 | `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
 | `/update` | Check for Omni-Pi updates |
@@ -88,6 +90,16 @@ Use `/manage-providers` to remove stored auth for bundled Pi providers.
 
 See [PROVIDERS.md](PROVIDERS.md) for the current supported-provider list and auth-management split.
 
+## Omni Mode
+
+Omni-Pi keeps its current branding and shell at all times, but the specialized workflow is opt-in.
+
+- When Omni mode is off, Omni behaves like normal Pi and only uses `.omni/` as passive standards/context when those files already exist.
+- When Omni mode is on, Omni lazily initializes or migrates `.omni/` on the first real turn, then uses the full interview, planning, task, and verification workflow.
+- During Omni init, Omni can discover standards from files like `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, Cursor rules, Windsurf rules, and Continue rules, then ask whether to keep those standards in Omni's durable memory.
+- In Git repos, Omni ensures `.pi/` is ignored because that directory is only runtime-local Pi state.
+- While Omni mode is on, every planned or executed task checks for required skills, auto-installs matching skills into `.omni/project-skills/`, creates a project skill when none exists, records task-to-skill dependencies, and removes project skills once no open task still needs them.
+
 ## Durable Memory
 
 Omni-Pi keeps its working notes in `.omni/`:
@@ -95,12 +107,15 @@ Omni-Pi keeps its working notes in `.omni/`:
 | File | Purpose |
 |------|---------|
 | `PROJECT.md` | Problem, users, constraints, success criteria |
+| `STANDARDS.md` | Imported standards accepted from other harness instruction files |
+| `project-skills/` | Project-scoped skills auto-installed or created for active tasks |
 | `SPEC.md` | Exact requested behavior and implementation shape |
 | `TASKS.md` | Work broken into bounded slices |
 | `TESTS.md` | Checks for the current slice |
 | `STATE.md` | Current phase, active task, blockers |
 | `SESSION-SUMMARY.md` | Progress notes across sessions |
 | `DECISIONS.md` | Rationale for key choices |
+| `VERSION` | Current `.omni/` standard version |
 
 ## Development
 
