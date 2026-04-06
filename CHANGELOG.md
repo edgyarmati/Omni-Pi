@@ -2,6 +2,10 @@
 
 ## 0.8.0 - 2026-04-06
 
+### Runtime and UX
+
+- upgraded `@mariozechner/pi-coding-agent` to `0.65.2`
+
 ### Omni mode
 
 - changed Omni-Pi to start in standard Pi behavior by default while keeping Omni branding and shell UI
