@@ -10,7 +10,7 @@ Requires Node.js 22 or newer.
 
 ## What It Does
 
-- Starts in normal Pi behavior by default while keeping Omni-Pi branding and UI.
+- Starts in normal Pi behavior with an opinionated setup.
 - `/omni-mode` turns on Omni's specialized interview, plan, build, and verify workflow for the current project.
 - Keeps durable standards and project context in `.omni/`, even when Omni mode is off.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
