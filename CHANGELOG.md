@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.8.0 - 2026-04-06
+
+### Omni mode
+
+- changed Omni-Pi to start in standard Pi behavior by default while keeping Omni branding and shell UI
+- added persistent `/omni-mode` to toggle the specialized Omni workflow per project
+- made Omni mode initialize or migrate `.omni/` lazily on the first real turn instead of at session start
+- fixed the first-turn Omni onboarding race so the kickoff instructions are folded into the active prompt instead of trying to enqueue a second user message mid-turn
+
+### Durable standards and memory
+
+- split passive `.omni/` standards from active workflow state so normal mode can still follow durable project guidance without resuming task execution
+- added `.omni/VERSION` and migration handling for the Omni durable-memory standard
+- added external standards discovery/import for files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, Cursor rules, Windsurf rules, and Continue rules
+- automatically add `.pi/` to `.gitignore` during Omni init or migration when the workspace is a Git repository
+
+### Skills
+
+- bundled `find-skills`, `skill-creator`, and `brainstorming` directly with the npm package as built-in default skills
+- made Omni automatically check task skill requirements, install matching skills project-scope, create a project-specific skill when no match exists, and remove unused project skills when no open task still depends on them
+- persisted task skill dependencies in `.omni/TASKS.md` so planning, dispatch, and execution share the same skill graph
+- removed the mistaken default Rust-specific recommendations so task-driven skill discovery is now the primary path
+
+### Documentation
+
+- updated `README.md` and `AGENTS.md` to document opt-in Omni mode, bundled skills, standards import, and automatic task skill management
+
 ## 0.7.1 - 2026-04-05
 
 ### Dependencies

@@ -36,19 +36,6 @@ export const defaultSkillSignals: SkillSignal[] = [
     reason: "Useful when the project needs browser automation or UI testing.",
     policy: "recommend-only",
   },
-  {
-    label: "rust-debugging",
-    files: ["Cargo.toml"],
-    reason:
-      "Useful when a Rust project needs debugging or panic investigation.",
-    policy: "recommend-only",
-  },
-  {
-    label: "rust-ui-architecture",
-    files: ["Cargo.toml"],
-    reason: "Useful when a Rust UI project needs architectural guidance.",
-    policy: "recommend-only",
-  },
 ];
 
 export const BUNDLED_FOUNDATION_SKILLS = new Set([

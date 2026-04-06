@@ -219,6 +219,13 @@ describe("Omni workflow", () => {
     expect(result.repoSignals.languages).toContain("go");
     expect(result.repoSignals.languages).toContain("rust");
     expect(result.repoSignals.tools).toContain("make");
+    expect(
+      result.skillCandidates.some(
+        (candidate) =>
+          candidate.name === "rust-debugging" ||
+          candidate.name === "rust-ui-architecture",
+      ),
+    ).toBe(false);
   });
 
   test("initializeOmniProject marks sparse repos as needing onboarding interview", async () => {
