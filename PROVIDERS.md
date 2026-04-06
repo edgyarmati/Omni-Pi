@@ -30,6 +30,8 @@ If a bundled provider already has valid auth in the Pi runtime, Omni-Pi may use 
 
 Use `/manage-providers` to list bundled providers that currently have stored auth and remove that auth when needed.
 
+Anthropic is API-key-only in Omni-Pi. Anthropic OAuth login is intentionally disabled.
+
 The bundled-provider list below is expected to stay in sync with the exported provider setup list in `src/model-setup.ts`. The test suite checks that this section matches the code list.
 
 ### Bundled provider list

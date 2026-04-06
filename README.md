@@ -96,6 +96,8 @@ Use it when you want to configure:
 
 Use `/manage-providers` to remove stored auth for bundled Pi providers.
 
+Anthropic is intentionally API-key-only in Omni-Pi. Anthropic OAuth login is disabled.
+
 See [PROVIDERS.md](PROVIDERS.md) for the current supported-provider list and auth-management split.
 
 ## Omni Mode
