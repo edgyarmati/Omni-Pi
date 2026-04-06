@@ -113,7 +113,6 @@ describe("Omni brain runtime", () => {
     const rootDir = await createTempProject("omni-brain-ext-on-");
     saveOmniMode(rootDir, true);
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
-    const sentMessages: string[] = [];
 
     omniCoreExtension({
       registerMessageRenderer() {
@@ -121,9 +120,6 @@ describe("Omni brain runtime", () => {
       },
       registerCommand() {},
       registerShortcut() {},
-      sendUserMessage(message: string) {
-        sentMessages.push(message);
-      },
       sendMessage() {},
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, handler);
@@ -140,6 +136,8 @@ describe("Omni brain runtime", () => {
     );
 
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
-    expect(sentMessages).toHaveLength(1);
+    expect(beforeStart.systemPrompt).toContain(
+      "use the interview tool now to run a concise onboarding interview",
+    );
   });
 });

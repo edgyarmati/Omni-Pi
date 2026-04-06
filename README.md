@@ -33,6 +33,14 @@ Custom provider setup and bundled provider behavior are documented in [PROVIDERS
 
 ## Features
 
+### Bundled Skills
+
+Omni-Pi now ships the essential skill-discovery stack in the package itself:
+
+- `find-skills` is bundled for discovering relevant skills
+- `skill-creator` is bundled for creating project-specific skills when nothing suitable exists
+- `brainstorming` is bundled and used for Omni planning and task creation flows
+
 ### Bundled Extensions
 
 | Extension | What it does |

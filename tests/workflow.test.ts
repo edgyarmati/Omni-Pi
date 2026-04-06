@@ -86,11 +86,17 @@ describe("Omni workflow", () => {
       "utf8",
     );
     expect(skillsContent).toContain("find-skills");
+    expect(skillsContent).toContain("skill-creator");
     expect(skillsContent).toContain("auto-install");
-    expect(skillsContent).toContain("Planned install commands:");
+    expect(skillsContent).not.toContain("Planned install commands:");
 
     const registry = await readSkillRegistry(rootDir);
-    expect(registry.installed[0]?.name).toBe("find-skills");
+    expect(
+      registry.installed.some((skill) => skill.name === "find-skills"),
+    ).toBe(true);
+    expect(
+      registry.installed.some((skill) => skill.name === "skill-creator"),
+    ).toBe(true);
   });
 
   test("initializeOmniProject discovers repo-wide standards and leaves them pending without confirmation", async () => {

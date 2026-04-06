@@ -19,6 +19,18 @@ export const defaultSkillSignals: SkillSignal[] = [
     policy: "auto-install",
   },
   {
+    label: "skill-creator",
+    reason:
+      "Create project-specific skills when Omni cannot find one that fits.",
+    policy: "auto-install",
+  },
+  {
+    label: "brainstorming",
+    reason:
+      "Useful when Omni is designing or decomposing task slices before implementation.",
+    policy: "recommend-only",
+  },
+  {
     label: "agent-browser",
     files: ["playwright.config.ts", "cypress.config.ts"],
     reason: "Useful when the project needs browser automation or UI testing.",
@@ -38,6 +50,15 @@ export const defaultSkillSignals: SkillSignal[] = [
     policy: "recommend-only",
   },
 ];
+
+export const BUNDLED_FOUNDATION_SKILLS = new Set([
+  "find-skills",
+  "skill-creator",
+]);
+export const BUNDLED_OMNI_SKILLS = new Set([
+  ...BUNDLED_FOUNDATION_SKILLS,
+  "brainstorming",
+]);
 
 export interface SkillRegistry {
   installed: SkillCandidate[];
@@ -173,17 +194,19 @@ export function buildSkillInstallPlan(
   const installed = candidates.filter(
     (candidate) => candidate.policy === "auto-install",
   );
-  const steps = installed.map((candidate) => ({
-    command: "npx",
-    args: [
-      "skills",
-      "add",
-      "https://github.com/vercel-labs/skills",
-      "--skill",
-      candidate.name,
-    ],
-    summary: `Install ${candidate.name}`,
-  }));
+  const steps = installed
+    .filter((candidate) => !BUNDLED_OMNI_SKILLS.has(candidate.name))
+    .map((candidate) => ({
+      command: "npx",
+      args: [
+        "skills",
+        "add",
+        "https://github.com/vercel-labs/skills",
+        "--skill",
+        candidate.name,
+      ],
+      summary: `Install ${candidate.name}`,
+    }));
   const commands = steps.map((step) => [step.command, ...step.args].join(" "));
   return { commands, installed, steps };
 }

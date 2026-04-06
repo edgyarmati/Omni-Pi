@@ -59,16 +59,18 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
       ui: "ui" in ctx ? ctx.ui : undefined,
     });
     const workflowPrompt = await buildWorkflowPromptSuffix(ctx.cwd);
-    const prompt = [event.systemPrompt, passivePrompt, workflowPrompt]
+    const onboardingKickoff = init.initResult?.onboardingInterviewNeeded
+      ? buildOnboardingInterviewKickoff(init.initResult)
+      : "";
+    const prompt = [
+      event.systemPrompt,
+      passivePrompt,
+      workflowPrompt,
+      onboardingKickoff,
+    ]
       .filter(Boolean)
       .join("\n\n");
 
-    if (
-      init.initResult?.onboardingInterviewNeeded &&
-      typeof api.sendUserMessage === "function"
-    ) {
-      api.sendUserMessage(buildOnboardingInterviewKickoff(init.initResult));
-    }
     if (init.initResult?.standardsPromptNeeded) {
       api.sendMessage({
         customType: "omni-update",

@@ -29,6 +29,7 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 - `pi-powerbar` — powerline-style status bar
 
 **Skills**: Bundled workflow skills live in `skills/`. Pi discovers them via `pi.skills` in `package.json`.
+Bundled defaults now include `find-skills`, `skill-creator`, and `brainstorming`, so Omni can discover, create, and use planning-oriented skills without external installation.
 
 ## Workflow
 

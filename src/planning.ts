@@ -113,7 +113,7 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
       objective:
         "Refine the requested behavior, constraints, and success criteria into an implementation-ready spec.",
       contextFiles: [".omni/PROJECT.md", ".omni/IDEAS.md", ".omni/SPEC.md"],
-      skills: ["omni-planning"],
+      skills: ["omni-planning", "brainstorming"],
       doneCriteria: [
         "The requested behavior is explicit.",
         "Constraints are captured.",
@@ -129,7 +129,7 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
       objective:
         "Break the first meaningful delivery slice into bounded tasks with clear verification steps.",
       contextFiles: [".omni/SPEC.md", ".omni/TASKS.md", ".omni/TESTS.md"],
-      skills: ["omni-planning"],
+      skills: ["omni-planning", "brainstorming"],
       doneCriteria: [
         "The first slice is broken into bounded tasks.",
         "Each task has explicit done criteria.",

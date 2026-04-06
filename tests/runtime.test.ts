@@ -35,6 +35,7 @@ describe("Omni runtime flow", () => {
     expect(tasks).toContain(
       "| T01 | Lock the exact user requirements | - | in_progress |",
     );
-    expect(tasks).toContain("| omni-planning |");
+    expect(tasks).toContain("omni-planning, brainstorming");
+    expect(tasks).toContain("brainstorming");
   });
 });
