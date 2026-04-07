@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.2 - 2026-04-07
+
+### Single-brain runtime
+
+- removed the legacy multi-agent execution path and deleted the dormant subagent runtime
+- simplified task execution to a single-brain retry flow with recovery notes instead of worker/expert escalation
+- removed outdated worker, expert, and planner role/config concepts so runtime, config, and tests now match the current brain-only architecture
+
+### Startup
+
+- defaulted first-run `omni` launcher installs to quiet startup so package resource listings do not appear unless the user opts in
+
+### Model setup and config
+
+- simplified Omni model configuration to a single `brain` model assignment
+- stopped offering automatic model discovery for `google-generative-ai`, which was not implemented
+- stopped persisting fake placeholder API keys for local or unauthenticated custom providers
+
+### Dependencies
+
+- removed the unused `pi-subagents` dependency
+- added npm overrides for `@mozilla/readability`, `brace-expansion`, `picomatch`, and `vite`
+
 ## 0.8.0 - 2026-04-06
 
 ### Runtime and UX

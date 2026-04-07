@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,6 +27,60 @@ export function buildOmniEnvironment(baseEnv = process.env) {
   };
 }
 
+function resolveAgentDir(baseEnv = process.env) {
+  const envDir = baseEnv.PI_CODING_AGENT_DIR;
+  if (!envDir) {
+    return path.join(os.homedir(), ".pi", "agent");
+  }
+
+  if (envDir === "~") {
+    return os.homedir();
+  }
+
+  if (envDir.startsWith("~/")) {
+    return path.join(os.homedir(), envDir.slice(2));
+  }
+
+  return envDir;
+}
+
+export function ensureQuietStartupDefault(baseEnv = process.env) {
+  const agentDir = resolveAgentDir(baseEnv);
+  const settingsFile = path.join(agentDir, "settings.json");
+
+  try {
+    const raw = readFileSync(settingsFile, "utf8");
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      parsed.quietStartup === undefined
+    ) {
+      writeFileSync(
+        settingsFile,
+        `${JSON.stringify({ ...parsed, quietStartup: true }, null, 2)}\n`,
+        "utf8",
+      );
+    }
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? error.code
+        : undefined;
+
+    if (code !== "ENOENT") {
+      return;
+    }
+
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(
+      settingsFile,
+      `${JSON.stringify({ quietStartup: true }, null, 2)}\n`,
+      "utf8",
+    );
+  }
+}
+
 export function buildPiProcessSpec(
   argv = process.argv.slice(2),
   baseEnv = process.env,
@@ -38,6 +93,7 @@ export function buildPiProcessSpec(
 }
 
 export async function runOmni(argv = process.argv.slice(2), options = {}) {
+  ensureQuietStartupDefault(options.env);
   const spec = buildPiProcessSpec(argv, options.env);
 
   await new Promise((resolve, reject) => {
