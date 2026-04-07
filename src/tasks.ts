@@ -73,7 +73,6 @@ export function parseTaskRow(row: string): TaskBrief | null {
             .split(";")
             .map((item) => item.trim())
             .filter(Boolean),
-    role: "worker",
     status: (status as TaskStatus) || "todo",
     dependsOn:
       dependsOn === "-"

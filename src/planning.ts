@@ -119,7 +119,6 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
         "Constraints are captured.",
         "Success criteria are explicit.",
       ],
-      role: "worker",
       status: "todo",
       dependsOn: [],
     },
@@ -135,7 +134,6 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
         "Each task has explicit done criteria.",
         "Verification requirements are listed.",
       ],
-      role: "worker",
       status: "todo",
       dependsOn: ["T01"],
     },
@@ -156,7 +154,6 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
         "Browser testing expectations are documented.",
         "The verification plan names the browser toolchain.",
       ],
-      role: "worker",
       status: "todo",
       dependsOn: ["T02"],
     });
@@ -289,7 +286,7 @@ export function createInitialSpec(
   ];
 
   if (presetConfig) {
-    architecture.push(`Implementation hint: ${presetConfig.workerHint}`);
+    architecture.push(`Implementation hint: ${presetConfig.executionHint}`);
   }
 
   if (planningCtx?.existingDecisions.length) {
@@ -382,10 +379,6 @@ ${rows.join("\n")}
 
 export function renderTestsMarkdown(repoSignals: RepoSignals): string {
   const projectChecks = ["npm test"];
-
-  if (repoSignals.tools.includes("vitest")) {
-    projectChecks.push("npm run test");
-  }
 
   if (repoSignals.tools.includes("playwright")) {
     projectChecks.push("npx playwright test");

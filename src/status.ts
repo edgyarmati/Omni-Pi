@@ -2,7 +2,6 @@ import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import type { OmniPhase, OmniState } from "./contracts.js";
 import type { HealthLevel } from "./doctor.js";
-import type { RunHistoryEntry } from "./subagents.js";
 
 const phaseLabels: Record<OmniPhase, string> = {
   understand: "Understanding",
@@ -116,48 +115,5 @@ export function renderPlainStatus(state: OmniState): string {
       `Recovery options:\n${state.recoveryOptions.map((option) => `  - ${option}`).join("\n")}`,
     );
   }
-  return lines.join("\n");
-}
-
-export function renderMetrics(
-  workerRuns: RunHistoryEntry[],
-  expertRuns: RunHistoryEntry[],
-): string {
-  const allRuns = [...workerRuns, ...expertRuns];
-  if (allRuns.length === 0) {
-    return "No agent run history available yet.";
-  }
-
-  function stats(runs: RunHistoryEntry[]): {
-    total: number;
-    successRate: string;
-    avgDuration: string;
-  } {
-    if (runs.length === 0)
-      return { total: 0, successRate: "n/a", avgDuration: "n/a" };
-    const successes = runs.filter((r) => r.status === "ok").length;
-    const avgMs = runs.reduce((sum, r) => sum + r.duration, 0) / runs.length;
-    return {
-      total: runs.length,
-      successRate: `${Math.round((successes / runs.length) * 100)}%`,
-      avgDuration: `${(avgMs / 1000).toFixed(1)}s`,
-    };
-  }
-
-  const workerStats = stats(workerRuns);
-  const expertStats = stats(expertRuns);
-
-  const lines = ["Agent Metrics:"];
-  if (workerStats.total > 0) {
-    lines.push(
-      `  Worker: ${workerStats.total} runs, ${workerStats.successRate} success, avg ${workerStats.avgDuration}`,
-    );
-  }
-  if (expertStats.total > 0) {
-    lines.push(
-      `  Expert: ${expertStats.total} runs, ${expertStats.successRate} success, avg ${expertStats.avgDuration}`,
-    );
-  }
-  lines.push(`  Total: ${allRuns.length} runs`);
   return lines.join("\n");
 }

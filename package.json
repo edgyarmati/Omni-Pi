@@ -1,6 +1,6 @@
 {
   "name": "omni-pi",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
   "license": "MIT",
@@ -83,8 +83,13 @@
     "@mariozechner/pi-coding-agent": "^0.65.2",
     "glimpseui": "^0.6.2",
     "pi-interview": "^0.5.5",
-    "pi-subagents": "^0.11.11",
     "pi-web-access": "^0.10.3",
     "zod": "^4.3.6"
+  },
+  "overrides": {
+    "@mozilla/readability": "0.6.0",
+    "brace-expansion": "5.0.5",
+    "picomatch": "4.0.4",
+    "vite": "7.3.2"
   }
 }

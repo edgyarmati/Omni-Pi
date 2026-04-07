@@ -50,15 +50,12 @@ async function checkConfigParseable(
 ): Promise<DiagnosticResult> {
   try {
     const config = await readConfig(rootDir);
-    const roles = ["worker", "expert", "planner", "brain"] as const;
-    for (const role of roles) {
-      if (!config.models[role]) {
-        return {
-          name: "config",
-          level: "yellow",
-          message: `Model for ${role} is empty in CONFIG.md.`,
-        };
-      }
+    if (!config.models.brain) {
+      return {
+        name: "config",
+        level: "yellow",
+        message: "Model for brain is empty in CONFIG.md.",
+      };
     }
     return { name: "config", level: "green", message: "Config is valid." };
   } catch {

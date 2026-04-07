@@ -6,11 +6,7 @@ import {
   renderContextBlocks,
   renderContextSummary,
 } from "./context.js";
-import type {
-  EscalationBrief,
-  TaskAttemptResult,
-  TaskBrief,
-} from "./contracts.js";
+import type { TaskAttemptResult, TaskBrief } from "./contracts.js";
 import {
   cleanupUnusedProjectSkills,
   ensureTaskSkillDependencies,
@@ -25,18 +21,11 @@ import {
 } from "./tasks.js";
 
 export interface WorkEngine {
-  runWorkerTask: (
-    task: TaskBrief,
-    attempt: number,
-  ) => Promise<TaskAttemptResult>;
-  runExpertTask: (
-    task: TaskBrief,
-    escalation: EscalationBrief,
-  ) => Promise<TaskAttemptResult>;
+  runTask: (task: TaskBrief, attempt: number) => Promise<TaskAttemptResult>;
 }
 
 export interface WorkResult {
-  kind: "completed" | "expert_completed" | "blocked" | "idle";
+  kind: "completed" | "blocked" | "idle";
   taskId: string | null;
   message: string;
   recoveryOptions?: string[];
@@ -200,26 +189,38 @@ export async function prepareNextTaskDispatch(
 
 async function writeRecoveryBrief(
   taskDir: string,
-  escalation: EscalationBrief,
+  task: TaskBrief,
+  history: TaskAttemptResult[],
 ): Promise<void> {
-  const verificationResultsSection = escalation.verificationResults
-    ? escalation.verificationResults
+  const failureLogs = history
+    .filter((attempt) => !attempt.verification.passed)
+    .map((attempt) => attempt.verification.failureSummary.join("; "))
+    .filter((log) => log.length > 0);
+  const verificationResultsSection = history.length
+    ? history
+        .flatMap((attempt) =>
+          attempt.verification.checksRun.map((command) => ({
+            command,
+            passed: attempt.verification.passed,
+          })),
+        )
         .map((r) => `- ${r.command}: ${r.passed ? "passed" : "failed"}`)
         .join("\n")
     : "- None recorded";
   const modifiedFilesSection =
-    escalation.modifiedFiles?.map((f) => `- ${f}`).join("\n") ||
-    "- None recorded";
+    [...new Set(history.flatMap((attempt) => attempt.modifiedFiles ?? []))]
+      .map((f) => `- ${f}`)
+      .join("\n") || "- None recorded";
 
-  const content = `# Recovery for ${escalation.taskId}
+  const content = `# Recovery for ${task.id}
 
 ## Prior Attempts
 
-${escalation.priorAttempts}
+${history.length}
 
 ## Failure Logs
 
-${escalation.failureLogs.map((item) => `- ${item}`).join("\n") || "- None"}
+${failureLogs.map((item) => `- ${item}`).join("\n") || "- None"}
 
 ## Verification Results
 
@@ -231,45 +232,13 @@ ${modifiedFilesSection}
 
 ## Recovery Objective
 
-${escalation.expertObjective}
+Revisit the task inputs, tighten the scope, and retry ${task.id} with a narrower, clearer implementation slice.
 `;
   await writeFile(
-    path.join(taskDir, `${escalation.taskId}-RECOVERY.md`),
+    path.join(taskDir, `${task.id}-RECOVERY.md`),
     content,
     "utf8",
   );
-}
-
-function createEscalationBrief(
-  task: TaskBrief,
-  history: TaskAttemptResult[],
-): EscalationBrief {
-  const failureLogs = history
-    .filter((attempt) => !attempt.verification.passed)
-    .map((attempt) => attempt.verification.failureSummary.join("; "))
-    .filter((log) => log.length > 0);
-
-  const verificationResults = history.flatMap((attempt) =>
-    attempt.verification.checksRun.map((command) => ({
-      command,
-      passed: attempt.verification.passed,
-      stdout: "",
-      stderr: attempt.verification.failureSummary.join("\n"),
-    })),
-  );
-
-  const modifiedFiles = [
-    ...new Set(history.flatMap((attempt) => attempt.modifiedFiles ?? [])),
-  ];
-
-  return {
-    taskId: task.id,
-    priorAttempts: history.length,
-    failureLogs,
-    expertObjective: `Resolve the root cause preventing ${task.id} from passing verification and complete the task.`,
-    verificationResults,
-    modifiedFiles,
-  };
 }
 
 function formatVerificationSummary(result: TaskAttemptResult): string {
@@ -315,10 +284,7 @@ export async function executeNextTask(
   const history = await readTaskHistory(taskDir, preparedTask.id);
   const retryLimit = await readRetryLimit(testsPath);
   const attempt = history.length + 1;
-  const implementationResult = await engine.runWorkerTask(
-    preparedTask,
-    attempt,
-  );
+  const implementationResult = await engine.runTask(preparedTask, attempt);
   const implementationHistory = [...history, implementationResult];
   await writeTaskHistory(taskDir, preparedTask.id, implementationHistory);
 
@@ -352,32 +318,7 @@ export async function executeNextTask(
     };
   }
 
-  const escalation = createEscalationBrief(preparedTask, implementationHistory);
-  await writeRecoveryBrief(taskDir, escalation);
-  const expertResult = await engine.runExpertTask(preparedTask, escalation);
-  await writeTaskHistory(taskDir, preparedTask.id, [
-    ...implementationHistory,
-    expertResult,
-  ]);
-
-  if (expertResult.verification.passed) {
-    const completedTasks = updateTaskStatus(
-      preparedTasks,
-      preparedTask.id,
-      "done",
-    );
-    await writeTasks(tasksPath, completedTasks);
-    await cleanupUnusedProjectSkills(
-      rootDir,
-      completedTasks.filter((task) => task.status !== "done"),
-    );
-    return {
-      kind: "expert_completed",
-      taskId: preparedTask.id,
-      message: `Completed ${preparedTask.id} after a recovery pass. ${formatVerificationSummary(expertResult)}`,
-    };
-  }
-
+  await writeRecoveryBrief(taskDir, preparedTask, implementationHistory);
   await writeTasks(
     tasksPath,
     updateTaskStatus(preparedTasks, preparedTask.id, "blocked"),
@@ -385,7 +326,7 @@ export async function executeNextTask(
   return {
     kind: "blocked",
     taskId: preparedTask.id,
-    message: `Task ${preparedTask.id} remains blocked after repeated implementation attempts and a recovery pass. ${formatVerificationSummary(expertResult)}`,
+    message: `Task ${preparedTask.id} remains blocked after ${attempt} implementation attempts. ${formatVerificationSummary(implementationResult)}`,
     recoveryOptions: [
       "Review the recovery notes in `.omni/tasks/` and refine the task inputs.",
       "Restructure the task into smaller slices.",

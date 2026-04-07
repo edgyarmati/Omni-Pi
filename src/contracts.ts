@@ -32,7 +32,6 @@ export interface TaskBrief {
   contextFiles: string[];
   skills: string[];
   doneCriteria: string[];
-  role: "worker" | "expert";
   status: TaskStatus;
   dependsOn: string[];
 }
@@ -48,20 +47,6 @@ export interface VerificationResult {
 export interface TaskAttemptResult {
   summary: string;
   verification: VerificationResult;
-  modifiedFiles?: string[];
-}
-
-export interface EscalationBrief {
-  taskId: string;
-  priorAttempts: number;
-  failureLogs: string[];
-  expertObjective: string;
-  verificationResults?: Array<{
-    command: string;
-    passed: boolean;
-    stdout: string;
-    stderr: string;
-  }>;
   modifiedFiles?: string[];
 }
 
@@ -94,7 +79,7 @@ export interface PresetConfig {
   maxTasks: number;
   skipInterview: boolean;
   requireVerification: boolean;
-  workerHint: string;
+  executionHint: string;
 }
 
 export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
@@ -105,7 +90,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 2,
     skipInterview: true,
     requireVerification: true,
-    workerHint:
+    executionHint:
       "Focus on the root cause. Write a regression test before fixing.",
   },
   feature: {
@@ -115,7 +100,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 8,
     skipInterview: false,
     requireVerification: true,
-    workerHint: "Follow the spec. Keep tasks bounded and verifiable.",
+    executionHint: "Follow the spec. Keep tasks bounded and verifiable.",
   },
   refactor: {
     name: "refactor",
@@ -123,7 +108,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 5,
     skipInterview: true,
     requireVerification: true,
-    workerHint:
+    executionHint:
       "Preserve all existing behavior. Run the full test suite after each change.",
   },
   spike: {
@@ -133,7 +118,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 1,
     skipInterview: true,
     requireVerification: false,
-    workerHint: "Explore freely. Document findings in .omni/research/.",
+    executionHint: "Explore freely. Document findings in .omni/research/.",
   },
   "security-audit": {
     name: "security-audit",
@@ -141,7 +126,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 3,
     skipInterview: true,
     requireVerification: false,
-    workerHint:
+    executionHint:
       "Analyze for OWASP Top 10, secrets in code, dependency vulnerabilities. Do not modify source code.",
   },
 };
@@ -162,13 +147,8 @@ export function detectPreset(
 
 export interface OmniConfig {
   models: {
-    worker: string;
-    expert: string;
-    planner: string;
     brain: string;
   };
-  retryLimit: number;
-  chainEnabled: boolean;
   cleanupCompletedPlans: boolean;
 }
 

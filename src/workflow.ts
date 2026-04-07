@@ -620,9 +620,9 @@ export async function workOnOmniProject(
   const result = await executeNextTask(rootDir, engine);
 
   let state: OmniState;
-  if (result.kind === "completed" || result.kind === "expert_completed") {
+  if (result.kind === "completed") {
     state = {
-      currentPhase: result.kind === "expert_completed" ? "escalate" : "build",
+      currentPhase: "build",
       activeTask: result.taskId ?? "None",
       statusSummary: result.message,
       blockers: [],
@@ -655,7 +655,7 @@ export async function workOnOmniProject(
   }
 
   await writeState(rootDir, state);
-  if (result.kind === "completed" || result.kind === "expert_completed") {
+  if (result.kind === "completed") {
     await appendProgress(
       rootDir,
       `Completed ${result.taskId ?? "task"}: ${result.message}`,

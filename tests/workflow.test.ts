@@ -41,11 +41,7 @@ import {
   projectSkillsDir,
   readSkillRegistry,
 } from "../src/skills.js";
-import {
-  renderCompactStatus,
-  renderMetrics,
-  renderPlainStatus,
-} from "../src/status.js";
+import { renderCompactStatus, renderPlainStatus } from "../src/status.js";
 import {
   findNextExecutableTask,
   readTasks,
@@ -324,7 +320,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(rendered).toContain("Next step:");
   });
 
-  test("workOnOmniProject completes the next task when worker verification passes", async () => {
+  test("workOnOmniProject completes the next task when verification passes", async () => {
     const rootDir = await createTempProject("omni-work-pass-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -335,7 +331,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
+      async runTask(task) {
         return {
           summary: `Completed ${task.id}`,
           verification: {
@@ -346,9 +342,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
             retryRecommended: false,
           },
         };
-      },
-      async runExpertTask() {
-        throw new Error("Expert path should not run");
       },
     };
 
@@ -376,7 +369,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
+      async runTask(task) {
         return {
           summary: `Failed ${task.id}`,
           verification: {
@@ -387,9 +380,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
             retryRecommended: true,
           },
         };
-      },
-      async runExpertTask() {
-        throw new Error("Expert path should not run on first failure");
       },
     };
 
@@ -405,8 +395,8 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(history).toContain("Unit test failed");
   });
 
-  test("workOnOmniProject uses a recovery pass after the retry limit", async () => {
-    const rootDir = await createTempProject("omni-work-escalate-");
+  test("workOnOmniProject blocks the task after the retry limit and writes recovery notes", async () => {
+    const rootDir = await createTempProject("omni-work-blocked-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
       summary: "Build the first slice.",
@@ -415,33 +405,18 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       userSignals: [],
     });
 
-    let workerCalls = 0;
+    let runCalls = 0;
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
-        workerCalls += 1;
+      async runTask(task) {
+        runCalls += 1;
         return {
           summary: `Failed ${task.id}`,
           verification: {
             taskId: task.id,
             passed: false,
             checksRun: ["npm test"],
-            failureSummary: [`Worker failure ${workerCalls}`],
+            failureSummary: [`Attempt failure ${runCalls}`],
             retryRecommended: true,
-          },
-        };
-      },
-      async runExpertTask(task, escalation) {
-        expect(escalation.priorAttempts).toBe(2);
-        expect(escalation.failureLogs).toContain("Worker failure 1");
-        expect(escalation.failureLogs).toContain("Worker failure 2");
-        return {
-          summary: `Expert completed ${task.id}`,
-          verification: {
-            taskId: task.id,
-            passed: true,
-            checksRun: ["npm test"],
-            failureSummary: [],
-            retryRecommended: false,
           },
         };
       },
@@ -459,15 +434,17 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     );
 
     expect(firstResult.kind).toBe("blocked");
-    expect(secondResult.kind).toBe("expert_completed");
-    expect(secondResult.message).toContain("Verification passed: npm test");
-    expect(tasks).toContain(
-      "| T01 | Lock the exact user requirements | - | done |",
+    expect(secondResult.kind).toBe("blocked");
+    expect(secondResult.message).toContain(
+      "remains blocked after 2 implementation attempts",
     );
-    expect(recovery).toContain("Worker failure 1");
+    expect(tasks).toContain(
+      "| T01 | Lock the exact user requirements | - | blocked |",
+    );
+    expect(recovery).toContain("Attempt failure 1");
   });
 
-  test("workOnOmniProject surfaces recovery options when the recovery pass also fails", async () => {
+  test("workOnOmniProject surfaces recovery options when repeated attempts fail", async () => {
     const rootDir = await createTempProject("omni-work-recovery-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -477,30 +454,18 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       userSignals: [],
     });
 
-    let workerCalls = 0;
+    let runCalls = 0;
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
-        workerCalls += 1;
+      async runTask(task) {
+        runCalls += 1;
         return {
           summary: `Failed ${task.id}`,
           verification: {
             taskId: task.id,
             passed: false,
             checksRun: ["npm test"],
-            failureSummary: [`Worker failure ${workerCalls}`],
+            failureSummary: [`Attempt failure ${runCalls}`],
             retryRecommended: true,
-          },
-        };
-      },
-      async runExpertTask(task) {
-        return {
-          summary: `Expert also failed ${task.id}`,
-          verification: {
-            taskId: task.id,
-            passed: false,
-            checksRun: ["npm test"],
-            failureSummary: ["Expert could not resolve"],
-            retryRecommended: false,
           },
         };
       },
@@ -511,10 +476,10 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     const state = await readOmniStatus(rootDir);
 
     expect(result.kind).toBe("blocked");
-    expect(result.message).toContain("recovery pass");
+    expect(result.message).toContain("remains blocked");
     expect(result.recoveryOptions).toBeDefined();
     expect(result.recoveryOptions?.length).toBeGreaterThan(0);
-    expect(state.currentPhase).toBe("escalate");
+    expect(state.currentPhase).toBe("check");
     expect(state.recoveryOptions).toBeDefined();
     expect(state.recoveryOptions?.length).toBeGreaterThan(0);
 
@@ -574,7 +539,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
+      async runTask(task) {
         return {
           summary: `Completed ${task.id}`,
           verification: {
@@ -585,9 +550,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
             retryRecommended: false,
           },
         };
-      },
-      async runExpertTask() {
-        throw new Error("should not run");
       },
     };
 
@@ -634,7 +596,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
+      async runTask(task) {
         return {
           summary: `Completed ${task.id}`,
           verification: {
@@ -645,9 +607,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
             retryRecommended: false,
           },
         };
-      },
-      async runExpertTask() {
-        throw new Error("should not run");
       },
     };
 
@@ -702,7 +661,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       contextFiles: [".omni/SPEC.md"],
       skills: ["omni-planning"],
       doneCriteria: ["Requirements are explicit."],
-      role: "worker",
       status: "todo",
       dependsOn: [],
     });
@@ -728,7 +686,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       contextFiles: [],
       skills: ["totally-missing-project-skill"],
       doneCriteria: ["Adapter is documented."],
-      role: "worker",
       status: "todo",
       dependsOn: [],
     });
@@ -754,7 +711,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       contextFiles: [],
       skills: [],
       doneCriteria: ["Adapter is documented."],
-      role: "worker",
       status: "todo",
       dependsOn: [],
     });
@@ -764,7 +720,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(removed).toContain(ensured.task.skills[0]);
   });
 
-  test("worker modified files are tracked through escalation", async () => {
+  test("modified files are preserved in recovery notes after repeated failures", async () => {
     const rootDir = await createTempProject("omni-work-modfiles-");
     await initializeOmniProject(rootDir);
     await planOmniProject(rootDir, {
@@ -774,40 +730,31 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       userSignals: [],
     });
 
-    let workerCalls = 0;
+    let runCalls = 0;
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
-        workerCalls += 1;
+      async runTask(task) {
+        runCalls += 1;
         return {
           summary: `Failed ${task.id}`,
           verification: {
             taskId: task.id,
             passed: false,
             checksRun: ["npm test"],
-            failureSummary: [`Worker failure ${workerCalls}`],
+            failureSummary: [`Attempt failure ${runCalls}`],
             retryRecommended: true,
           },
           modifiedFiles: ["src/feature.ts"],
         };
       },
-      async runExpertTask(task, escalation) {
-        expect(escalation.modifiedFiles).toContain("src/feature.ts");
-        return {
-          summary: `Expert completed ${task.id}`,
-          verification: {
-            taskId: task.id,
-            passed: true,
-            checksRun: ["npm test"],
-            failureSummary: [],
-            retryRecommended: false,
-          },
-        };
-      },
     };
 
     await workOnOmniProject(rootDir, engine);
-    const result = await workOnOmniProject(rootDir, engine);
-    expect(result.kind).toBe("expert_completed");
+    await workOnOmniProject(rootDir, engine);
+    const recovery = await readFile(
+      path.join(rootDir, ".omni", "tasks", "T01-RECOVERY.md"),
+      "utf8",
+    );
+    expect(recovery).toContain("src/feature.ts");
   });
 
   test("renderCompactStatus produces a widget-friendly status array", async () => {
@@ -845,46 +792,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(lines[0]).toContain("[Working]");
   });
 
-  test("renderMetrics formats agent run history", () => {
-    const metrics = renderMetrics(
-      [
-        {
-          agent: "omni-worker",
-          task: "T01",
-          ts: 1000,
-          status: "ok",
-          duration: 5000,
-        },
-        {
-          agent: "omni-worker",
-          task: "T01",
-          ts: 1001,
-          status: "error",
-          duration: 3000,
-          exit: 1,
-        },
-      ],
-      [
-        {
-          agent: "omni-expert",
-          task: "T01",
-          ts: 1002,
-          status: "ok",
-          duration: 8000,
-        },
-      ],
-    );
-    expect(metrics).toContain("Worker: 2 runs");
-    expect(metrics).toContain("50%");
-    expect(metrics).toContain("Expert: 1 runs");
-    expect(metrics).toContain("Total: 3 runs");
-  });
-
-  test("renderMetrics handles empty history", () => {
-    const metrics = renderMetrics([], []);
-    expect(metrics).toContain("No agent run history");
-  });
-
   test("loadSkillTriggers and matchSkillsForTask match execution triggers", async () => {
     const skillsDir = path.join(
       path.dirname(new URL(import.meta.url).pathname),
@@ -902,7 +809,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker",
         status: "todo",
         dependsOn: [],
       },
@@ -937,7 +843,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       contextFiles: [],
       skills: [],
       doneCriteria: ["Auth works"],
-      role: "worker",
       status: "done",
       dependsOn: [],
     });
@@ -954,7 +859,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: ["Works", "Tests pass"],
-        role: "worker",
         status: "done",
         dependsOn: [],
       },
@@ -976,7 +880,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     });
 
     const engine: WorkEngine = {
-      async runWorkerTask(task) {
+      async runTask(task) {
         return {
           summary: `Completed ${task.id}`,
           verification: {
@@ -987,9 +891,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
             retryRecommended: false,
           },
         };
-      },
-      async runExpertTask() {
-        throw new Error("should not run");
       },
     };
 
@@ -1056,21 +957,14 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
 
     await writeConfig(rootDir, {
       models: {
-        worker: "google/gemini-2.5-pro",
-        expert: "openai/gpt-5.4",
-        planner: "anthropic/claude-opus-4-6",
-        brain: "anthropic/claude-opus-4-6",
+        brain: "openai/gpt-5.4",
       },
-      retryLimit: 5,
-      chainEnabled: true,
+      cleanupCompletedPlans: true,
     });
 
     const config = await readConfig(rootDir);
-    expect(config.models.worker).toBe("google/gemini-2.5-pro");
-    expect(config.models.expert).toBe("openai/gpt-5.4");
-    expect(config.models.planner).toBe("anthropic/claude-opus-4-6");
-    expect(config.retryLimit).toBe(5);
-    expect(config.chainEnabled).toBe(true);
+    expect(config.models.brain).toBe("openai/gpt-5.4");
+    expect(config.cleanupCompletedPlans).toBe(true);
   });
 
   test("runDoctor reports healthy on an initialized project", async () => {
@@ -1289,7 +1183,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
       contextFiles: [".omni/PROJECT.md"],
       skills: [],
       doneCriteria: [],
-      role: "worker" as const,
       status: "todo" as const,
       dependsOn: [],
     };
@@ -1440,7 +1333,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
     expect(tasks[0].id).toBe("T01");
     expect(tasks[0].dependsOn).toEqual([]);
     expect(tasks[1].dependsOn).toEqual(["T01"]);
-    expect(tasks[1].role).toBe("worker");
   });
 
   test("readTasks skips malformed rows", async () => {
@@ -1476,7 +1368,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: [],
       },
@@ -1487,7 +1378,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: ["T01"],
       },
@@ -1510,7 +1400,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "done" as const,
         dependsOn: [],
       },
@@ -1528,7 +1417,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "blocked" as const,
         dependsOn: [],
       },
@@ -1539,7 +1427,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: ["T01"],
       },
@@ -1558,7 +1445,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: [],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: [],
       },
@@ -1578,7 +1464,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: ["omni-planning"],
         doneCriteria: ["Passes tests", "Compiles"],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: [],
       },
@@ -1604,7 +1489,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: ["Passes tests"],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: [],
       },
@@ -1631,7 +1515,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: ["CLI shows a | separator", "Compiles"],
-        role: "worker" as const,
         status: "todo" as const,
         dependsOn: [],
       },
@@ -1658,7 +1541,6 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
         contextFiles: [],
         skills: [],
         doneCriteria: ["CLI shows a | separator", "Compiles"],
-        role: "worker",
         status: "todo",
         dependsOn: [],
       },
@@ -1713,9 +1595,7 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
   test("readConfig returns defaults for missing CONFIG.md", async () => {
     const rootDir = await createTempProject("omni-config-missing-");
     const config = await readConfig(rootDir);
-    expect(config.models.worker).toBe("anthropic/claude-sonnet-4-6");
-    expect(config.retryLimit).toBe(2);
-    expect(config.chainEnabled).toBe(false);
+    expect(config.models.brain).toBe("anthropic/claude-opus-4-6");
     expect(config.cleanupCompletedPlans).toBe(false);
   });
 
@@ -1730,27 +1610,18 @@ The product must preserve audit history, avoid surprise downtime, and keep rollb
 
 | Agent | Model |
 |-------|-------|
-|  worker  |  anthropic/claude-sonnet-4-5  |
-| expert |openai/gpt-5|
-| planner | openai/gpt-5.4 |
-| brain | anthropic/claude-opus-4-6 |
+| brain | openai/gpt-5.4 |
 
-## Retry Policy
+## Memory
 
-Implementation retries before the plan must be tightened: 3
-
-## Execution
-
-Chain execution enabled: true
+Delete completed plan files: true
 `,
       "utf8",
     );
 
     const config = await readConfig(rootDir);
-    expect(config.models.worker).toBe("anthropic/claude-sonnet-4-5");
-    expect(config.models.expert).toBe("openai/gpt-5");
-    expect(config.retryLimit).toBe(3);
-    expect(config.chainEnabled).toBe(true);
+    expect(config.models.brain).toBe("openai/gpt-5.4");
+    expect(config.cleanupCompletedPlans).toBe(true);
   });
 
   test("readConfig handles CONFIG.md missing Memory section", async () => {
@@ -1764,18 +1635,7 @@ Chain execution enabled: true
 
 | Agent | Model |
 |-------|-------|
-| worker | anthropic/claude-sonnet-4-6 |
-| expert | openai/gpt-5.4 |
-| planner | openai/gpt-5.4 |
 | brain | anthropic/claude-opus-4-6 |
-
-## Retry Policy
-
-Implementation retries before the plan must be tightened: 2
-
-## Execution
-
-Chain execution enabled: false
 `,
       "utf8",
     );
@@ -1796,16 +1656,12 @@ Chain execution enabled: false
 
 | Agent | Model |
 |-------|-------|
-| worker |  |
-| expert | openai/gpt-5.4 |
-| planner | openai/gpt-5.4 |
-| brain | anthropic/claude-opus-4-6 |
+| brain |  |
 `,
       "utf8",
     );
 
     const config = await readConfig(rootDir);
-    // Empty worker value — should fall back to default
-    expect(config.models.expert).toBe("openai/gpt-5.4");
+    expect(config.models.brain).toBe("anthropic/claude-opus-4-6");
   });
 });

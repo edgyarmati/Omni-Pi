@@ -473,21 +473,32 @@ export async function setupCustomProviderModel(
     apiKey,
   };
 
+  const setupOptions =
+    apiChoice === "google-generative-ai"
+      ? [
+          {
+            label: "Add a single model manually",
+            value: "manual",
+            searchText: "manual single model",
+          },
+        ]
+      : [
+          {
+            label: "Discover models automatically",
+            value: "discover",
+            searchText: "discover automatic provider models",
+          },
+          {
+            label: "Add a single model manually",
+            value: "manual",
+            searchText: "manual single model",
+          },
+        ];
+
   const setupMode = await searchableSelect(
     ui,
     `How should Omni-Pi configure ${provider}?`,
-    [
-      {
-        label: "Discover models automatically",
-        value: "discover",
-        searchText: "discover automatic provider models",
-      },
-      {
-        label: "Add a single model manually",
-        value: "manual",
-        searchText: "manual single model",
-      },
-    ],
+    setupOptions,
   );
   if (!setupMode) {
     return { summary: "Custom provider setup cancelled." };
@@ -612,7 +623,7 @@ async function setupDiscoveredProvider(
 
 export function buildCustomProviderConfigUpdate(
   current: ModelsJsonProviderConfig,
-  provider: string,
+  _provider: string,
   submission: BrowserCustomModelSubmission,
 ): ModelsJsonProviderConfig {
   const modelId = submission.modelId.trim();
@@ -624,8 +635,11 @@ export function buildCustomProviderConfigUpdate(
     ...current,
     baseUrl: normalizeBaseUrl(submission.baseUrl),
     api: submission.api,
-    apiKey:
-      submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
+    ...(submission.apiKey?.trim()
+      ? { apiKey: submission.apiKey.trim() }
+      : current.apiKey?.trim()
+        ? { apiKey: current.apiKey.trim() }
+        : {}),
     authHeader:
       submission.api === "openai-completions" ||
       submission.api === "openai-responses",
@@ -643,7 +657,7 @@ export function buildCustomProviderConfigUpdate(
 
 export function buildDiscoveredProviderConfigUpdate(
   current: ModelsJsonProviderConfig,
-  provider: string,
+  _provider: string,
   submission: ProviderConnectionSubmission,
   discovered: OmniProviderModel[],
 ): ModelsJsonProviderConfig {
@@ -656,8 +670,11 @@ export function buildDiscoveredProviderConfigUpdate(
     ...current,
     baseUrl: normalizeBaseUrl(submission.baseUrl),
     api: submission.api,
-    apiKey:
-      submission.apiKey?.trim() || current.apiKey || `${provider}-local-key`,
+    ...(submission.apiKey?.trim()
+      ? { apiKey: submission.apiKey.trim() }
+      : current.apiKey?.trim()
+        ? { apiKey: current.apiKey.trim() }
+        : {}),
     authHeader:
       submission.api === "openai-completions" ||
       submission.api === "openai-responses",
@@ -803,26 +820,8 @@ function renderBrowserModelSelectionPage(
     <main>
       <section class="panel">
         <h1>Configure Omni-Pi models</h1>
-        <p>Search Pi's available models for each role, then save all assignments in one pass.</p>
+        <p>Search Pi's available models, then save the single brain assignment.</p>
         <div class="grid">
-          <section class="role" data-role="worker">
-            <h2>worker</h2>
-            <label>Search<input id="search-worker" placeholder="Filter models" /></label>
-            <label>Selected model<input id="selected-worker" value="${escapeHtml(currentModels.worker)}" /></label>
-            <div id="results-worker" class="list"></div>
-          </section>
-          <section class="role" data-role="expert">
-            <h2>expert</h2>
-            <label>Search<input id="search-expert" placeholder="Filter models" /></label>
-            <label>Selected model<input id="selected-expert" value="${escapeHtml(currentModels.expert)}" /></label>
-            <div id="results-expert" class="list"></div>
-          </section>
-          <section class="role" data-role="planner">
-            <h2>planner</h2>
-            <label>Search<input id="search-planner" placeholder="Filter models" /></label>
-            <label>Selected model<input id="selected-planner" value="${escapeHtml(currentModels.planner)}" /></label>
-            <div id="results-planner" class="list"></div>
-          </section>
           <section class="role" data-role="brain">
             <h2>brain</h2>
             <label>Search<input id="search-brain" placeholder="Filter models" /></label>
@@ -830,13 +829,13 @@ function renderBrowserModelSelectionPage(
             <div id="results-brain" class="list"></div>
           </section>
         </div>
-        <button id="save">Save Model Assignments</button>
+        <button id="save">Save Brain Model</button>
       </section>
     </main>
     <script>
       const models = ${modelsJson};
       const currentModels = ${currentModelsJson};
-      const roles = ['worker', 'expert', 'planner', 'brain'];
+      const roles = ['brain'];
 
       const renderRole = (role) => {
         const searchEl = document.getElementById('search-' + role);
@@ -871,9 +870,6 @@ function renderBrowserModelSelectionPage(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             selectedModels: {
-              worker: document.getElementById('selected-worker').value,
-              expert: document.getElementById('selected-expert').value,
-              planner: document.getElementById('selected-planner').value,
               brain: document.getElementById('selected-brain').value
             }
           })

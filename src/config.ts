@@ -6,13 +6,8 @@ import { AVAILABLE_MODELS } from "./providers.js";
 
 export const DEFAULT_CONFIG: OmniConfig = {
   models: {
-    worker: "anthropic/claude-sonnet-4-6",
-    expert: "openai/gpt-5.4",
-    planner: "openai/gpt-5.4",
     brain: "anthropic/claude-opus-4-6",
   },
-  retryLimit: 2,
-  chainEnabled: false,
   cleanupCompletedPlans: false,
 };
 
@@ -38,22 +33,12 @@ function parseModelTable(
     if (rowMatch) {
       const agent = rowMatch[1].trim().toLowerCase();
       const model = rowMatch[2].trim();
-      models[agent] = model;
+      if (model.length > 0) {
+        models[agent] = model;
+      }
     }
   }
   return models;
-}
-
-function parseRetryLimit(content: string): number {
-  const match = content.match(
-    /(?:Implementation retries before the plan must be tightened|Worker retries before expert takeover):\s*(\d+)/u,
-  );
-  return match ? Number.parseInt(match[1], 10) : DEFAULT_CONFIG.retryLimit;
-}
-
-function parseChainEnabled(content: string): boolean {
-  const match = content.match(/Chain execution enabled:\s*(true|false)/u);
-  return match ? match[1] === "true" : DEFAULT_CONFIG.chainEnabled;
 }
 
 function parseCleanupCompletedPlans(content: string): boolean {
@@ -66,17 +51,11 @@ export async function readConfig(rootDir: string): Promise<OmniConfig> {
   try {
     const content = await readFile(configPath, "utf8");
     const models = parseModelTable(content, "## Models");
-    const retryLimit = parseRetryLimit(content);
 
     return {
       models: {
-        worker: models.worker ?? DEFAULT_CONFIG.models.worker,
-        expert: models.expert ?? DEFAULT_CONFIG.models.expert,
-        planner: models.planner ?? DEFAULT_CONFIG.models.planner,
         brain: models.brain ?? DEFAULT_CONFIG.models.brain,
       },
-      retryLimit,
-      chainEnabled: parseChainEnabled(content),
       cleanupCompletedPlans: parseCleanupCompletedPlans(content),
     };
   } catch {
@@ -91,18 +70,7 @@ function renderConfigContent(config: OmniConfig): string {
 
 | Agent | Model |
 |-------|-------|
-| worker | ${config.models.worker} |
-| expert | ${config.models.expert} |
-| planner | ${config.models.planner} |
 | brain | ${config.models.brain} |
-
-## Retry Policy
-
-Implementation retries before the plan must be tightened: ${config.retryLimit}
-
-## Execution
-
-Chain execution enabled: ${config.chainEnabled}
 
 ## Memory
 
@@ -125,7 +93,7 @@ export async function updateModelConfig(
   model: string,
 ): Promise<OmniConfig> {
   const config = await readConfig(rootDir);
-  const validAgents = ["worker", "expert", "planner", "brain"] as const;
+  const validAgents = ["brain"] as const;
   const normalizedAgent = agent.toLowerCase() as (typeof validAgents)[number];
 
   if (!validAgents.includes(normalizedAgent)) {
