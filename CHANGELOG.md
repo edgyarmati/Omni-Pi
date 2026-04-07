@@ -23,6 +23,10 @@
 - removed the unused `pi-subagents` dependency
 - added npm overrides for `@mozilla/readability`, `brace-expansion`, `picomatch`, and `vite`
 
+## 0.8.1 - 2026-04-07
+
+- blocked Anthropic oAuth login to avoid bans from recent policy changes on the Claude Code subscription ToS
+
 ## 0.8.0 - 2026-04-06
 
 ### Runtime and UX
