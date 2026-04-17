@@ -7,6 +7,17 @@ import path from "node:path";
 import type { ExtensionCommandContext } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
+import {
+  getLocalDateStamp,
+  readModelRefreshState,
+  writeModelRefreshState,
+} from "./model-refresh-state.js";
+export {
+  getLocalDateStamp,
+  readModelRefreshState,
+  writeModelRefreshState,
+} from "./model-refresh-state.js";
+
 import type { OmniConfig } from "./contracts.js";
 import { discoverProviderModels, type OmniProviderModel } from "./providers.js";
 import { searchableSelect } from "./searchable-select.js";
@@ -408,6 +419,40 @@ export async function refreshAuthenticatedProviderModels(
   await writeModelsJson(refreshed.config);
   modelRegistry.refresh();
   return refreshed.refreshedProviders;
+}
+
+export async function refreshAuthenticatedProviderModelsWithDailyGuard(
+  modelRegistry: ModelRegistryLike,
+  options?: {
+    force?: boolean;
+    now?: Date;
+    statePath?: string;
+  },
+): Promise<{ refreshedProviders: string[]; skipped: boolean }> {
+  const today = getLocalDateStamp(options?.now);
+  if (!options?.force) {
+    const state = await readModelRefreshState(options?.statePath);
+    if (state.lastSuccessfulRefreshDate === today) {
+      return { refreshedProviders: [], skipped: true };
+    }
+  }
+
+  const refreshedProviders = await refreshAuthenticatedProviderModels(
+    modelRegistry,
+  );
+
+  if (refreshedProviders.length > 0) {
+    try {
+      await writeModelRefreshState(
+        { lastSuccessfulRefreshDate: today },
+        options?.statePath,
+      );
+    } catch {
+      // Keep the refreshed models even if the durable refresh stamp cannot be written.
+    }
+  }
+
+  return { refreshedProviders, skipped: false };
 }
 
 function sanitizeProviderId(input: string): string {

@@ -62,7 +62,9 @@ The bundled-provider list below is expected to stay in sync with the exported pr
 
 For custom providers that expose a compatible model listing endpoint, Omni-Pi can fetch models for you after you add the provider details and credentials.
 
-On launch, Omni-Pi also refreshes authenticated, discoverable custom providers that are already configured in `models.json`.
+On launch, Omni-Pi refreshes authenticated, discoverable custom providers that are already configured in `models.json` at most once per day.
+
+You can also run `/model-setup refresh` to re-discover those custom provider models on demand.
 
 ## When To Use Which Path
 

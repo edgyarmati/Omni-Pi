@@ -29,7 +29,7 @@ cd your-project
 omni
 ```
 
-Custom provider setup and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).
+Custom provider setup, refresh behavior, and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).
 
 ## Features
 
@@ -66,7 +66,7 @@ Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro
 
 | Command | Description |
 |---------|-------------|
-| `/model-setup` | Add custom providers/models or remove custom model entries |
+| `/model-setup` | Add, refresh, or remove custom provider/model entries |
 | `/manage-providers` | Remove stored auth for bundled providers |
 | `/omni-mode` | Toggle persistent Omni mode on or off for this project |
 | `/companion` | Toggle the Glimpse floating companion widget |
@@ -87,12 +87,13 @@ Omni-Pi checks for new versions on startup (cached, re-checks every 4 hours). Wh
 
 `/model-setup` is for custom providers and custom model entries only.
 
-Use it when you want to configure:
+Use `/model-setup` when you want to configure:
 
 - a custom provider id
 - an API type and base URL
 - an API key for that custom provider
 - discovered models or manual model entries
+- a manual refresh of already configured custom providers
 
 Use `/manage-providers` to remove stored auth for bundled Pi providers.
 

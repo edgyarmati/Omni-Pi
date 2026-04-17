@@ -7,7 +7,10 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { getAgentDir } from "@mariozechner/pi-coding-agent";
 
-import { runModelSetupWizard } from "./model-setup.js";
+import {
+  refreshAuthenticatedProviderModelsWithDailyGuard,
+  runModelSetupWizard,
+} from "./model-setup.js";
 import { searchableSelect } from "./searchable-select.js";
 
 interface ModelsJsonModel {
@@ -101,6 +104,23 @@ async function handleAdd(ctx: ExtensionCommandContext): Promise<void> {
   ctx.ui.notify(result.summary, "info");
 }
 
+async function handleRefresh(ctx: ExtensionCommandContext): Promise<void> {
+  const result = await refreshAuthenticatedProviderModelsWithDailyGuard(
+    ctx.modelRegistry,
+    { force: true },
+  );
+
+  if (result.refreshedProviders.length === 0) {
+    ctx.ui.notify("No eligible custom providers were refreshed.", "info");
+    return;
+  }
+
+  ctx.ui.notify(
+    `Refreshed custom providers: ${result.refreshedProviders.join(", ")}.`,
+    "info",
+  );
+}
+
 async function handleList(ctx: ExtensionCommandContext): Promise<void> {
   const config = await readModelsJson();
   const custom = getCustomModels(config);
@@ -149,21 +169,28 @@ async function handleList(ctx: ExtensionCommandContext): Promise<void> {
 
 export function registerModelCommand(api: ExtensionAPI): void {
   api.registerCommand("model-setup", {
-    description: "Add custom providers/models or remove custom model entries",
+    description:
+      "Add custom providers/models, refresh discovered models, or remove custom model entries",
     async handler(args: string, ctx: ExtensionCommandContext) {
       const sub = args.trim().toLowerCase();
 
       if (sub === "add") return handleAdd(ctx);
+      if (sub === "refresh") return handleRefresh(ctx);
       if (sub === "list") return handleList(ctx);
 
       const choice = await searchableSelect(ctx.ui, "Model setup:", [
         {
-          label: "add    — Add a custom provider or model",
+          label: "add     — Add a custom provider or model",
           value: "add",
           searchText: "add custom provider model",
         },
         {
-          label: "list   — Show custom models / remove model entries",
+          label: "refresh — Re-discover models for configured custom providers",
+          value: "refresh",
+          searchText: "refresh rediscover custom provider models",
+        },
+        {
+          label: "list    — Show custom models / remove model entries",
           value: "list",
           searchText: "list remove custom models",
         },
@@ -171,6 +198,7 @@ export function registerModelCommand(api: ExtensionAPI): void {
       if (!choice) return;
 
       if (choice === "add") return handleAdd(ctx);
+      if (choice === "refresh") return handleRefresh(ctx);
       if (choice === "list") return handleList(ctx);
     },
   });

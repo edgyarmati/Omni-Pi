@@ -1,11 +1,18 @@
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import {
   type BrowserCustomModelSubmission,
   buildCustomProviderConfigUpdate,
   buildDiscoveredProviderConfigUpdate,
+  getLocalDateStamp,
+  readModelRefreshState,
   type ModelsJsonProviderConfig,
   refreshConfiguredProviderModels,
+  writeModelRefreshState,
 } from "../src/model-setup.js";
 import type { OmniProviderModel } from "../src/providers.js";
 
@@ -331,6 +338,25 @@ describe("model setup config updates", () => {
           },
         ],
       },
+    });
+  });
+
+  test("uses a local date stamp for daily refresh tracking", () => {
+    const stamp = getLocalDateStamp(new Date(2026, 3, 17, 8, 45, 0));
+    expect(stamp).toBe("2026-04-17");
+  });
+
+  test("reads and writes model refresh state in a standalone JSON file", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "omni-refresh-state-"));
+    const statePath = path.join(dir, "state.json");
+
+    await writeModelRefreshState(
+      { lastSuccessfulRefreshDate: "2026-04-17" },
+      statePath,
+    );
+
+    await expect(readModelRefreshState(statePath)).resolves.toEqual({
+      lastSuccessfulRefreshDate: "2026-04-17",
     });
   });
 });

@@ -37,7 +37,7 @@ describe("documentation coverage", () => {
     );
 
     expect(readme).toContain(
-      "| `/model-setup` | Add custom providers/models or remove custom model entries |",
+      "| `/model-setup` | Add, refresh, or remove custom provider/model entries |",
     );
     expect(readme).toContain(
       "| `/manage-providers` | Remove stored auth for bundled providers |",
@@ -46,7 +46,16 @@ describe("documentation coverage", () => {
       "`/model-setup` is for custom providers and custom model entries only.",
     );
     expect(readme).toContain(
+      "Use `/model-setup` when you want to configure:",
+    );
+    expect(readme).toContain(
+      "a manual refresh of already configured custom providers",
+    );
+    expect(readme).toContain(
       "Use `/manage-providers` to remove stored auth for bundled Pi providers.",
+    );
+    expect(readme).toContain(
+      "Custom provider setup, refresh behavior, and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).",
     );
   });
 });
