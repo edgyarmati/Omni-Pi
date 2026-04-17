@@ -45,9 +45,7 @@ describe("documentation coverage", () => {
     expect(readme).toContain(
       "`/model-setup` is for custom providers and custom model entries only.",
     );
-    expect(readme).toContain(
-      "Use `/model-setup` when you want to configure:",
-    );
+    expect(readme).toContain("Use `/model-setup` when you want to configure:");
     expect(readme).toContain(
       "a manual refresh of already configured custom providers",
     );

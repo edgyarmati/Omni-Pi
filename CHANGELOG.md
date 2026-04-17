@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 - 2026-04-17
+
+### Model refresh flow
+
+- added a custom model refresh flow so newly released provider models can be picked up without repeating setup from scratch
+- stored refresh state separately so daily checks can detect when a refresh is needed and avoid redundant prompts
+- added coverage for the refresh command, state handling, and daily refresh behavior
+
 ## 0.8.2 - 2026-04-07
 
 ### Single-brain runtime

@@ -18,15 +18,24 @@ import { registerModelCommand } from "../src/model-command.js";
 
 describe("model command", () => {
   test("dispatches refresh subcommand to the shared refresh helper", async () => {
-    const handlers = new Map<string, (args: string, ctx: never) => Promise<void>>();
+    const handlers = new Map<
+      string,
+      (args: string, ctx: never) => Promise<void>
+    >();
     registerModelCommand({
-      registerCommand(name: string, command: { handler: (args: string, ctx: never) => Promise<void> }) {
+      registerCommand(
+        name: string,
+        command: { handler: (args: string, ctx: never) => Promise<void> },
+      ) {
         handlers.set(name, command.handler);
       },
     } as never);
 
     const notify = vi.fn();
-    mocks.refresh.mockResolvedValue({ refreshedProviders: ["custom-openai"], skipped: false });
+    mocks.refresh.mockResolvedValue({
+      refreshedProviders: ["custom-openai"],
+      skipped: false,
+    });
 
     await handlers.get("model-setup")?.("refresh", {
       modelRegistry: {} as never,

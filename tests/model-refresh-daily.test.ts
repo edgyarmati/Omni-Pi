@@ -10,7 +10,8 @@ const mock = vi.hoisted(() => ({
 }));
 
 vi.mock("@mariozechner/pi-coding-agent", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@mariozechner/pi-coding-agent")>();
+  const actual =
+    await importOriginal<typeof import("@mariozechner/pi-coding-agent")>();
   return {
     ...actual,
     getAgentDir: () => mock.agentDir || actual.getAgentDir(),
@@ -91,7 +92,10 @@ describe("daily custom-provider refresh", () => {
       { now: new Date(2026, 3, 17, 8, 0, 0) },
     );
 
-    expect(first).toEqual({ refreshedProviders: ["custom-openai"], skipped: false });
+    expect(first).toEqual({
+      refreshedProviders: ["custom-openai"],
+      skipped: false,
+    });
     expect(modelRegistry.refresh).toHaveBeenCalledTimes(1);
 
     const saved = JSON.parse(await readFile(getModelsPath(), "utf8")) as {
@@ -205,7 +209,10 @@ describe("daily custom-provider refresh", () => {
       { now: new Date(2026, 3, 17, 9, 0, 0) },
     );
 
-    expect(result).toEqual({ refreshedProviders: ["good-provider"], skipped: false });
+    expect(result).toEqual({
+      refreshedProviders: ["good-provider"],
+      skipped: false,
+    });
     expect(modelRegistry.refresh).toHaveBeenCalledTimes(1);
 
     const saved = JSON.parse(await readFile(getModelsPath(), "utf8")) as {

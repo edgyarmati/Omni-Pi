@@ -9,8 +9,8 @@ import {
   buildCustomProviderConfigUpdate,
   buildDiscoveredProviderConfigUpdate,
   getLocalDateStamp,
-  readModelRefreshState,
   type ModelsJsonProviderConfig,
+  readModelRefreshState,
   refreshConfiguredProviderModels,
   writeModelRefreshState,
 } from "../src/model-setup.js";

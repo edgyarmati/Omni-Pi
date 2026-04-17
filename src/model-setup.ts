@@ -12,6 +12,7 @@ import {
   readModelRefreshState,
   writeModelRefreshState,
 } from "./model-refresh-state.js";
+
 export {
   getLocalDateStamp,
   readModelRefreshState,
@@ -437,9 +438,8 @@ export async function refreshAuthenticatedProviderModelsWithDailyGuard(
     }
   }
 
-  const refreshedProviders = await refreshAuthenticatedProviderModels(
-    modelRegistry,
-  );
+  const refreshedProviders =
+    await refreshAuthenticatedProviderModels(modelRegistry);
 
   if (refreshedProviders.length > 0) {
     try {

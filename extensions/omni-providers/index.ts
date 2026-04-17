@@ -1,9 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import { disableAnthropicOAuth } from "../../src/anthropic-auth-guard.js";
-import {
-  refreshAuthenticatedProviderModelsWithDailyGuard,
-} from "../../src/model-setup.js";
+import { refreshAuthenticatedProviderModelsWithDailyGuard } from "../../src/model-setup.js";
 import { registerOmniProviders } from "../../src/providers.js";
 
 export default async function omniProvidersExtension(
