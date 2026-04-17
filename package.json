@@ -7,11 +7,11 @@
   "author": "Eduard-David Gyarmati",
   "repository": {
     "type": "git",
-    "url": "https://github.com/EdGy2k/Omni-Pi"
+    "url": "https://github.com/edgyarmati/Omni-Pi"
   },
-  "homepage": "https://github.com/EdGy2k/Omni-Pi#readme",
+  "homepage": "https://github.com/edgyarmati/Omni-Pi#readme",
   "bugs": {
-    "url": "https://github.com/EdGy2k/Omni-Pi/issues"
+    "url": "https://github.com/edgyarmati/Omni-Pi/issues"
   },
   "engines": {
     "node": ">=22"
