@@ -103,7 +103,7 @@ describe("Omni brain runtime", () => {
       { cwd: rootDir },
     );
 
-    expect(statuses).toHaveLength(1);
+    expect(statuses).toHaveLength(3);
     expect(sentMessages).toHaveLength(0);
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).not.toContain("Omni-Pi Single-Brain Mode");

@@ -14,11 +14,17 @@ import {
 } from "../../src/pi.js";
 import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
 import {
+  formatRtkModeStatus,
+  refreshRtkStatusIndicator,
+  registerRtkBashRouting,
+} from "../../src/rtk.js";
+import {
   createOmniTheme,
   ensurePiSettings,
   formatOmniModeStatus,
   loadSavedTheme,
   readOmniMode,
+  readRtkMode,
 } from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
 import { registerTodoShortcut } from "../../src/todo-shortcut.js";
@@ -33,6 +39,7 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
   registerThemeCommand(api);
   registerTodoShortcut(api);
   registerUpdater(api);
+  registerRtkBashRouting(api);
 
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
@@ -42,6 +49,8 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
     ctx.ui.setTheme(createOmniTheme());
     ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
     ctx.ui.setStatus("omni", formatOmniModeStatus(omniMode));
+    ctx.ui.setStatus("rtk", formatRtkModeStatus(readRtkMode(ctx.cwd), false));
+    await refreshRtkStatusIndicator(ctx);
   });
 
   api.on("before_agent_start", async (event, ctx) => {

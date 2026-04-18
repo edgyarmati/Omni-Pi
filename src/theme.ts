@@ -95,10 +95,13 @@ export function applyPreset(name: string): void {
 
 // ── Persistence (.pi/settings.json) ─────────────────────────────
 
+export type RtkMode = "off" | "auto";
+
 interface PiSettings {
   quietStartup?: boolean;
   omniTheme?: string;
   omniMode?: boolean;
+  rtkMode?: RtkMode;
   [key: string]: unknown;
 }
 
@@ -144,6 +147,15 @@ export function readOmniMode(cwd: string): boolean {
 export function saveOmniMode(cwd: string, enabled: boolean): void {
   const settings = readSettings(cwd);
   writeSettings(cwd, { ...settings, omniMode: enabled });
+}
+
+export function readRtkMode(cwd: string): RtkMode {
+  return readSettings(cwd).rtkMode === "auto" ? "auto" : "off";
+}
+
+export function saveRtkMode(cwd: string, mode: RtkMode): void {
+  const settings = readSettings(cwd);
+  writeSettings(cwd, { ...settings, rtkMode: mode });
 }
 
 /** Load the saved theme from .pi/settings.json, or fall back to default. */

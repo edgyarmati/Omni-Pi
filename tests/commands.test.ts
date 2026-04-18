@@ -10,12 +10,14 @@ import omniStatusExtension from "../extensions/omni-status/index.js";
 import { createOmniCommands } from "../src/commands.js";
 import { removeCustomModelFromConfig } from "../src/model-command.js";
 import { buildKnownProviderAuthOptions } from "../src/provider-auth-command.js";
+import { rewriteCommandWithRtk } from "../src/rtk.js";
 import { readOmniMode } from "../src/theme.js";
 
 describe("Omni command surface", () => {
-  test("createOmniCommands exposes omni-mode toggle", () => {
+  test("createOmniCommands exposes Omni-Pi commands", () => {
     expect(createOmniCommands().map((command) => command.name)).toEqual([
       "omni-mode",
+      "omni-rtk",
     ]);
   });
 
@@ -40,6 +42,7 @@ describe("Omni command surface", () => {
     expect(rendererRegistrations).toBeGreaterThan(0);
     expect(commands).toEqual([
       "omni-mode",
+      "omni-rtk",
       "model-setup",
       "manage-providers",
       "theme",
@@ -47,6 +50,7 @@ describe("Omni command surface", () => {
     ]);
     expect(events).toContain("session_start");
     expect(events).toContain("before_agent_start");
+    expect(events).toContain("tool_call");
     expect(events).toContain("turn_end");
   });
 
@@ -193,5 +197,23 @@ describe("Omni command surface", () => {
 
     expect(readOmniMode(cwd)).toBe(false);
     expect(statuses).toHaveLength(2);
+  });
+
+  test("rewriteCommandWithRtk returns rewritten bash command when supported", async () => {
+    await expect(
+      rewriteCommandWithRtk("git status", process.cwd(), async () => ({
+        stdout: "rtk git status\n",
+        stderr: "",
+        code: 0,
+      })),
+    ).resolves.toBe("rtk git status");
+
+    await expect(
+      rewriteCommandWithRtk("echo hi", process.cwd(), async () => ({
+        stdout: "",
+        stderr: "unsupported",
+        code: 1,
+      })),
+    ).resolves.toBeNull();
   });
 });
