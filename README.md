@@ -14,6 +14,7 @@ Requires Node.js 22 or newer.
 - `/omni-mode` turns on Omni's specialized interview, plan, build, and verify workflow for the current project.
 - Keeps durable standards and project context in `.omni/`, even when Omni mode is off.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
+- Adds a repo map that indexes supported source files, ranks them by structure plus recent activity, and injects a compact codebase-awareness block into Omni prompts.
 - Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
 
 ## Install
@@ -40,6 +41,25 @@ Omni-Pi now ships the essential skill-discovery stack in the package itself:
 - `find-skills` is bundled for discovering relevant skills
 - `skill-creator` is bundled for creating project-specific skills when nothing suitable exists
 - `brainstorming` is bundled and used for Omni planning and task creation flows
+
+### Repo Map
+
+Omni-Pi now includes a SoulForge-style repo map for codebase awareness while Omni mode is on.
+
+The first shipped version includes:
+
+- incremental indexing of supported repo files while respecting `.gitignore`
+- symbol/import extraction for TypeScript/JavaScript-family files with graceful fallback for partial/unsupported cases
+- graph-aware ranking blended with current-turn boosts from recent reads, edits, writes, and prompt mentions
+- budget-aware prompt rendering so Omni gets a compact ranked view of important files and exported symbols
+- runtime cache storage under `.pi/repo-map/` rather than durable `.omni/` memory
+
+Current deferred roadmap items remain intentional and visible in docs rather than hidden in code:
+
+- semantic symbol summaries
+- git co-change ranking
+- richer analysis views such as dead-code or clone-detection signals
+- broader parser/language coverage as needed
 
 ### Bundled Extensions
 
@@ -107,6 +127,7 @@ Omni-Pi keeps its current branding and shell at all times, but the specialized w
 
 - When Omni mode is off, Omni behaves like normal Pi and only uses `.omni/` as passive standards/context when those files already exist.
 - When Omni mode is on, Omni lazily initializes or migrates `.omni/` on the first real turn, then uses the full interview, planning, task, and verification workflow.
+- While Omni mode is on, Omni also maintains a runtime repo map in `.pi/repo-map/` so prompts can include a compact ranked view of important files and symbols.
 - During Omni init, Omni can discover standards from files like `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, Cursor rules, Windsurf rules, and Continue rules, then ask whether to keep those standards in Omni's durable memory.
 - In Git repos, Omni ensures `.pi/` is ignored because that directory is only runtime-local Pi state.
 - While Omni mode is on, every planned or executed task checks for required skills, auto-installs matching skills into `.omni/project-skills/`, creates a project skill when none exists, records task-to-skill dependencies, and removes project skills once no open task still needs them.
