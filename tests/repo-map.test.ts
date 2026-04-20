@@ -194,6 +194,62 @@ describe("repo map", () => {
     );
   });
 
+  test("normal mode also includes a compact repo-map block", async () => {
+    const rootDir = await createTempProject("repo-map-normal-mode-");
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "src", "brain.ts"),
+      "export function brain() {}\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(rootDir, "src", "workflow.ts"),
+      "import { brain } from './brain';\nexport const workflow = brain;\n",
+      "utf8",
+    );
+    const handlers = new Map<string, (...args: unknown[]) => unknown>();
+
+    omniCoreExtension({
+      registerMessageRenderer() {
+        return undefined;
+      },
+      registerCommand() {},
+      registerShortcut() {},
+      sendMessage() {},
+      on(event: string, handler: (...args: unknown[]) => unknown) {
+        handlers.set(event, handler);
+      },
+    } as never);
+
+    await handlers.get("session_start")?.(
+      { type: "session_start" },
+      {
+        cwd: rootDir,
+        ui: {
+          setTitle() {},
+          setTheme() {},
+          setHeader() {},
+          notify() {},
+          setStatus() {},
+        },
+      },
+    );
+
+    const beforeStart = await handlers.get("before_agent_start")?.(
+      {
+        type: "before_agent_start",
+        prompt: "inspect workflow.ts",
+        systemPrompt: "BASE",
+      },
+      { cwd: rootDir },
+    );
+
+    expect(beforeStart.systemPrompt).toContain("BASE");
+    expect(beforeStart.systemPrompt).toContain("## Repo Map");
+    expect(beforeStart.systemPrompt).toContain("src/workflow.ts");
+    expect(beforeStart.systemPrompt).not.toContain("## Current Omni Workflow Files");
+  });
+
   test("parser/index fallback on one file does not collapse repo-map output", async () => {
     const rootDir = await createTempProject("repo-map-fallback-");
     await mkdir(path.join(rootDir, "src"), { recursive: true });

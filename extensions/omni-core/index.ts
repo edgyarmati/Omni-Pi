@@ -57,17 +57,19 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
     ctx.ui.setStatus("omni", formatOmniModeStatus(omniMode));
     ctx.ui.setStatus("rtk", formatRtkModeStatus(readRtkMode(ctx.cwd), false));
     await refreshRtkStatusIndicator(ctx);
-    if (omniMode) {
-      void warmRepoMap(ctx.cwd);
-    }
+    void warmRepoMap(ctx.cwd);
   });
 
   api.on("before_agent_start", async (event, ctx) => {
     const omniMode = readOmniMode(ctx.cwd);
     const passivePrompt = await buildPassiveOmniPromptSuffix(ctx.cwd);
+    const repoMapPrompt = await buildRepoMapPromptSuffix(ctx.cwd, {
+      prompt: typeof event.prompt === "string" ? event.prompt : "",
+      maxTokens: omniMode ? undefined : 120,
+    });
     if (!omniMode) {
       return {
-        systemPrompt: [event.systemPrompt, passivePrompt]
+        systemPrompt: [event.systemPrompt, passivePrompt, repoMapPrompt]
           .filter(Boolean)
           .join("\n\n"),
       };
@@ -80,9 +82,6 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
     const onboardingKickoff = init.initResult?.onboardingInterviewNeeded
       ? buildOnboardingInterviewKickoff(init.initResult)
       : "";
-    const repoMapPrompt = await buildRepoMapPromptSuffix(ctx.cwd, {
-      prompt: typeof event.prompt === "string" ? event.prompt : "",
-    });
     const prompt = [
       event.systemPrompt,
       passivePrompt,
