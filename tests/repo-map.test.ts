@@ -247,7 +247,9 @@ describe("repo map", () => {
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("## Repo Map");
     expect(beforeStart.systemPrompt).toContain("src/workflow.ts");
-    expect(beforeStart.systemPrompt).not.toContain("## Current Omni Workflow Files");
+    expect(beforeStart.systemPrompt).not.toContain(
+      "## Current Omni Workflow Files",
+    );
   });
 
   test("parser/index fallback on one file does not collapse repo-map output", async () => {
