@@ -12,6 +12,7 @@ export type OmniRpcCommandType =
   | "get_session_stats"
   | "get_commands"
   | "get_available_models"
+  | "export_html"
   | "set_model"
   | "set_thinking_level"
   | "set_session_name"

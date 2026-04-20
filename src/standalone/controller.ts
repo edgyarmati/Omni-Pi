@@ -1,4 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, copyFile } from "node:fs/promises";
+import { existsSync, mkdirSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { AuthStorage } from "../../node_modules/@mariozechner/pi-coding-agent/dist/core/auth-storage.js";
@@ -14,6 +16,9 @@ import {
 import { readTasks } from "../tasks.js";
 import {
   copyTextToClipboard,
+  createSecretGist,
+  getGhAuthStatus,
+  getShareViewerUrl,
   listSessionOptions,
   openExternalUrl,
   readEnabledModels,
@@ -861,6 +866,131 @@ export function createStandaloneController(
     });
   };
 
+  const handleExportCommand = async (args: string) => {
+    const outputPath = args.trim() || undefined;
+
+    try {
+      if (outputPath?.endsWith(".jsonl")) {
+        // JSONL export: read the session data through RPC messages and write locally
+        const sessionFile = state.session.sessionFile;
+        if (!sessionFile) {
+          pushConversation({ role: "system", text: "No active session to export." });
+          return;
+        }
+        const resolved = path.resolve(outputPath);
+        const dir = path.dirname(resolved);
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
+        }
+        await copyFile(sessionFile, resolved);
+        pushConversation({ role: "system", text: `Session exported to: ${resolved}` });
+        return;
+      }
+
+      const filePath = await rpcClient.exportHtml(outputPath);
+      pushConversation({ role: "system", text: `Session exported to: ${filePath ?? "(unknown path)"}` });
+    } catch (error) {
+      pushConversation({
+        role: "system",
+        text: `Failed to export session: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
+    }
+  };
+
+  const handleImportCommand = async (args: string) => {
+    const inputPath = args.trim();
+    if (!inputPath) {
+      pushConversation({ role: "system", text: "Usage: /import <path.jsonl>" });
+      return;
+    }
+
+    const resolvedPath = path.resolve(inputPath);
+    if (!existsSync(resolvedPath)) {
+      pushConversation({ role: "system", text: `File not found: ${resolvedPath}` });
+      return;
+    }
+
+    const confirmed = await requestConfirm(
+      "Import session",
+      `Replace current session with ${resolvedPath}?`,
+    );
+    if (!confirmed) {
+      pushConversation({ role: "system", text: "Import cancelled." });
+      return;
+    }
+
+    try {
+      // Copy the JSONL file into the sessions directory and switch to it
+      const sessionDir = path.join(cwd, ".pi", "sessions");
+      if (!existsSync(sessionDir)) {
+        mkdirSync(sessionDir, { recursive: true });
+      }
+      const destinationPath = path.join(sessionDir, path.basename(resolvedPath));
+      if (path.resolve(destinationPath) !== resolvedPath) {
+        await copyFile(resolvedPath, destinationPath);
+      }
+
+      await rpcClient.switchSession(destinationPath);
+      streamingAssistantId = undefined;
+      state.conversation = [];
+      await refreshSessionState();
+      await refreshWorkflowContext();
+      pushConversation({ role: "system", text: `Session imported from: ${resolvedPath}` });
+    } catch (error) {
+      pushConversation({
+        role: "system",
+        text: `Failed to import session: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
+    }
+  };
+
+  const handleShareCommand = async () => {
+    // Check if gh is available
+    const hasGh = await getGhAuthStatus();
+    if (!hasGh) {
+      pushConversation({
+        role: "system",
+        text: "GitHub CLI is not installed or not logged in. Install from https://cli.github.com/ and run 'gh auth login'.",
+      });
+      return;
+    }
+
+    // Export to a temp HTML file
+    const tmpFile = path.join(os.tmpdir(), `omni-share-${Date.now()}.html`);
+    try {
+      state.statuses = state.statuses.filter((item) => item.key !== "share");
+      state.statuses.push({ key: "share", text: "Creating gist…" });
+      emitChange();
+
+      await rpcClient.exportHtml(tmpFile);
+
+      const { gistUrl, gistId } = await createSecretGist(tmpFile);
+      const viewerUrl = getShareViewerUrl(gistId);
+
+      state.statuses = state.statuses.filter((item) => item.key !== "share");
+      emitChange();
+
+      pushConversation({
+        role: "system",
+        text: `Shared session:\n\n  Viewer: ${viewerUrl}\n  Gist: ${gistUrl}`,
+      });
+    } catch (error) {
+      state.statuses = state.statuses.filter((item) => item.key !== "share");
+      emitChange();
+      pushConversation({
+        role: "system",
+        text: `Failed to share session: ${error instanceof Error ? error.message : "Unknown error"}`,
+      });
+    } finally {
+      try {
+        const { unlink } = await import("node:fs/promises");
+        await unlink(tmpFile);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  };
+
   const submitPrompt = async (message: string) => {
     const trimmed = message.trim();
     if (!trimmed) {
@@ -1025,6 +1155,15 @@ export function createStandaloneController(
           return;
         case "scoped-models":
           await handleScopedModelsCommand();
+          return;
+        case "export":
+          await handleExportCommand(rest);
+          return;
+        case "import":
+          await handleImportCommand(rest);
+          return;
+        case "share":
+          await handleShareCommand();
           return;
         case "reload":
           await restartRuntime();

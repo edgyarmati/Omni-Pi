@@ -54,6 +54,7 @@ function createRpcClientStub(): OmniRpcClient & {
       { provider: "anthropic", id: "claude-sonnet", name: "Claude Sonnet" },
       { provider: "openai", id: "gpt-4.1", name: "GPT-4.1" },
     ]),
+    exportHtml: vi.fn(async () => "/tmp/test-export.html"),
     setModel: vi.fn(async () => {}),
     setThinkingLevel: vi.fn(async () => {}),
     setSessionName: vi.fn(async () => {}),
@@ -238,6 +239,64 @@ describe("standalone controller", () => {
     ) as { enabledModels?: string[] };
     expect(settings.enabledModels).toEqual(["anthropic/claude-sonnet"]);
     expect(rpcClient.restart).toHaveBeenCalled();
+  });
+
+  test("exports session to HTML via RPC", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    await controller.submitPrompt("/export");
+
+    expect(rpcClient.exportHtml).toHaveBeenCalledWith(undefined);
+    const lastItem = controller.state.conversation[controller.state.conversation.length - 1];
+    expect(lastItem?.text).toContain("/tmp/test-export.html");
+  });
+
+  test("exports session to JSONL by copying session file", async () => {
+    const rpcClient = createRpcClientStub();
+    const projectDir = await mkdtemp(
+      path.join(os.tmpdir(), "omni-standalone-export-"),
+    );
+    const sessionDir = path.join(projectDir, ".pi", "sessions");
+    await mkdir(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, "test-session.jsonl");
+    await writeFile(sessionFile, JSON.stringify({ type: "session", version: 1 }) + "\n");
+
+    const controller = createStandaloneController({ rpcClient, cwd: projectDir });
+    await controller.start();
+    // Simulate having an active session file
+    controller.state.session.sessionFile = sessionFile;
+
+    const outPath = path.join(projectDir, "exported.jsonl");
+    await controller.submitPrompt(`/export ${outPath}`);
+
+    const lastItem = controller.state.conversation[controller.state.conversation.length - 1];
+    expect(lastItem?.text).toContain("exported.jsonl");
+    const content = await readFile(outPath, "utf8");
+    expect(content).toContain("session");
+  });
+
+  test("shows usage error for /import with no path", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    await controller.submitPrompt("/import");
+
+    const lastItem = controller.state.conversation[controller.state.conversation.length - 1];
+    expect(lastItem?.text).toContain("Usage");
+  });
+
+  test("shows error for /import with missing file", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    await controller.submitPrompt("/import /nonexistent/path/session.jsonl");
+
+    const lastItem = controller.state.conversation[controller.state.conversation.length - 1];
+    expect(lastItem?.text).toContain("not found");
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

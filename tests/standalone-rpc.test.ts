@@ -137,6 +137,30 @@ describe("standalone RPC client", () => {
     await client.stop();
   });
 
+  test("exports session to HTML via RPC", async () => {
+    const { stdin, stdout, spawnImpl } = createSpawnStub();
+    const client = createOmniRpcClient({ spawnImpl, cwd: process.cwd() });
+
+    stdin.on("data", (chunk) => {
+      const command = JSON.parse(chunk.toString("utf8")) as OmniRpcCommand;
+      stdout.write(
+        serializeJsonLine({
+          id: command.id,
+          type: "response",
+          command: command.type,
+          success: true,
+          data: {
+            path: "/tmp/exported-session.html",
+          },
+        }),
+      );
+    });
+
+    await client.start();
+    await expect(client.exportHtml()).resolves.toBe("/tmp/exported-session.html");
+    await client.stop();
+  });
+
   test("routes extension UI requests separately from normal events", async () => {
     const { stdout, spawnImpl } = createSpawnStub();
     const client = createOmniRpcClient({ spawnImpl, cwd: process.cwd() });

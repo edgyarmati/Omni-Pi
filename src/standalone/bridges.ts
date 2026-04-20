@@ -138,16 +138,52 @@ export async function listSessionOptions(cwd: string): Promise<StandaloneDialogO
     }));
 }
 
-async function execFileAsync(command: string, args: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    execFile(command, args, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-  });
+async function execFileAsync(
+  command: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  return await new Promise<{ stdout: string; stderr: string; code: number }>(
+    (resolve, reject) => {
+      const child = execFile(command, args, { encoding: "utf-8" }, (error, stdout, stderr) => {
+        if (error && typeof error.code !== "number") {
+          reject(error);
+          return;
+        }
+        resolve({ stdout: stdout ?? "", stderr: stderr ?? "", code: (typeof error?.code === "number" ? error.code : 0) as number });
+      });
+      child.stdin?.end();
+    },
+  );
+}
+
+export async function getGhAuthStatus(): Promise<boolean> {
+  try {
+    const result = await execFileAsync("gh", ["auth", "status"]);
+    return result.code === 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function createSecretGist(
+  filePath: string,
+): Promise<{ gistUrl: string; gistId: string }> {
+  const result = await execFileAsync("gh", ["gist", "create", "--public=false", filePath]);
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || "Failed to create gist");
+  }
+  const gistUrl = result.stdout.trim();
+  const gistId = gistUrl.split("/").pop() ?? "";
+  if (!gistId) {
+    throw new Error("Failed to parse gist ID from gh output");
+  }
+  return { gistUrl, gistId };
+}
+
+export function getShareViewerUrl(gistId: string): string {
+  const baseUrl =
+    process.env.PI_SHARE_VIEWER_URL || "https://pi.dev/session/";
+  return `${baseUrl}#${gistId}`;
 }
 
 export async function openExternalUrl(url: string): Promise<void> {

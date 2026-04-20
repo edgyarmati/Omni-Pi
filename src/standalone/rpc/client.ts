@@ -48,6 +48,7 @@ export interface OmniRpcClient {
   getSessionStats(): Promise<Record<string, unknown> | undefined>;
   getCommands(): Promise<Array<{ name?: string; description?: string; source?: string }> | undefined>;
   getAvailableModels(): Promise<Array<{ provider?: string; id?: string; name?: string }> | undefined>;
+  exportHtml(outputPath?: string): Promise<string | undefined>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: string): Promise<void>;
   setSessionName(name: string): Promise<void>;
@@ -368,6 +369,17 @@ export function createOmniRpcClient(
     return response.data?.models;
   };
 
+  const exportHtml = async (outputPath?: string): Promise<string | undefined> => {
+    const response = await send<OmniRpcResponse<{ path?: string }>>({
+      type: "export_html",
+      ...(outputPath ? { outputPath } : {}),
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data?.path;
+  };
+
   const setModel = async (provider: string, modelId: string): Promise<void> => {
     const response = await send({ type: "set_model", provider, modelId });
     if (!response.success) {
@@ -434,6 +446,7 @@ export function createOmniRpcClient(
     getSessionStats,
     getCommands,
     getAvailableModels,
+    exportHtml,
     setModel,
     setThinkingLevel,
     setSessionName,
