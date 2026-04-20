@@ -56,4 +56,24 @@ describe("documentation coverage", () => {
       "Custom provider setup, refresh behavior, and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).",
     );
   });
+
+  test("README and backlog document the repo-map feature and deferred roadmap", () => {
+    const readme = readFileSync(
+      new URL("../README.md", import.meta.url),
+      "utf8",
+    );
+    const backlog = readFileSync(
+      new URL("../docs/BACKLOG.md", import.meta.url),
+      "utf8",
+    );
+
+    expect(readme).toContain("### Repo Map");
+    expect(readme).toContain("`.pi/repo-map/`");
+    expect(readme).toContain("semantic symbol summaries");
+    expect(readme).toContain("git co-change ranking");
+    expect(backlog).toContain("## Repo Map roadmap");
+    expect(backlog).toContain("Shipped core:");
+    expect(backlog).toContain("Deferred follow-up work:");
+    expect(backlog).toContain("dead-code / unused-export analysis");
+  });
 });

@@ -14,6 +14,11 @@ import {
 } from "../../src/pi.js";
 import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
 import {
+  buildRepoMapPromptSuffix,
+  registerRepoMapTracking,
+  warmRepoMap,
+} from "../../src/repo-map-runtime.js";
+import {
   formatRtkModeStatus,
   refreshRtkStatusIndicator,
   registerRtkBashRouting,
@@ -40,6 +45,7 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
   registerTodoShortcut(api);
   registerUpdater(api);
   registerRtkBashRouting(api);
+  registerRepoMapTracking(api);
 
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
@@ -51,6 +57,9 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
     ctx.ui.setStatus("omni", formatOmniModeStatus(omniMode));
     ctx.ui.setStatus("rtk", formatRtkModeStatus(readRtkMode(ctx.cwd), false));
     await refreshRtkStatusIndicator(ctx);
+    if (omniMode) {
+      void warmRepoMap(ctx.cwd);
+    }
   });
 
   api.on("before_agent_start", async (event, ctx) => {
@@ -71,10 +80,14 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
     const onboardingKickoff = init.initResult?.onboardingInterviewNeeded
       ? buildOnboardingInterviewKickoff(init.initResult)
       : "";
+    const repoMapPrompt = await buildRepoMapPromptSuffix(ctx.cwd, {
+      prompt: typeof event.prompt === "string" ? event.prompt : "",
+    });
     const prompt = [
       event.systemPrompt,
       passivePrompt,
       workflowPrompt,
+      repoMapPrompt,
       onboardingKickoff,
     ]
       .filter(Boolean)
