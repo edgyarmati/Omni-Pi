@@ -8,6 +8,8 @@ Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
   - Pi runtime, package model, extension system, skill loading, and terminal agent foundation
 - [@mariozechner/pi-coding-agent](https://www.npmjs.com/package/@mariozechner/pi-coding-agent) by Mario Zechner
   - Pi coding agent package (direct dependency)
+- [anomalyco/opentui](https://github.com/anomalyco/opentui)
+  - OpenTUI runtime used for Omni's standalone-app migration track
 
 ## Bundled third-party extensions
 
@@ -33,6 +35,11 @@ Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
   - Isolated worker/expert execution substrate (direct dependency) and broader subagent and extension ecosystem inspiration
 - The broader Pi community
   - Package, skill, and workflow ideas that shaped the Omni-Pi direction
+
+## Standalone app migration note
+
+- No OpenCode source has been copied into Omni-Pi yet.
+- If future migration work copies or substantively adapts MIT-licensed code from OpenCode or other projects, this file and the relevant source locations should be updated with explicit provenance.
 
 ## Attribution intent
 

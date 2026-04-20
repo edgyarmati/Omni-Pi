@@ -17,7 +17,8 @@
     "node": ">=22"
   },
   "bin": {
-    "omni": "bin/omni.js"
+    "omni": "bin/omni.js",
+    "omni-standalone": "bin/omni-standalone.js"
   },
   "keywords": [
     "pi-package",
@@ -42,6 +43,7 @@
   ],
   "scripts": {
     "chat": "node ./bin/omni.js",
+    "chat:standalone": "bun ./bin/omni-standalone.js",
     "check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -81,6 +83,7 @@
     "@juanibiapina/pi-extension-settings": "^0.6.1",
     "@juanibiapina/pi-powerbar": "^0.8.0",
     "@mariozechner/pi-coding-agent": "^0.67.68",
+    "@opentui/core": "^0.1.101",
     "glimpseui": "^0.7.0",
     "pi-interview": "^0.6.2",
     "pi-web-access": "^0.10.6",

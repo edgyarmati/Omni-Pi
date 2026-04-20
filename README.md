@@ -16,6 +16,7 @@ Requires Node.js 22 or newer.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
 - Adds a repo map that indexes supported source files, ranks them by structure plus recent activity, and injects a compact codebase-awareness block into Omni prompts.
 - Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
+- Now also includes an in-repo migration track toward a standalone Omni app with an Omni-owned OpenTUI shell backed by Pi over RPC.
 
 ## Install
 
@@ -148,6 +149,32 @@ Omni-Pi keeps its working notes in `.omni/`:
 | `SESSION-SUMMARY.md` | Progress notes across sessions |
 | `DECISIONS.md` | Rationale for key choices |
 | `VERSION` | Current `.omni/` standard version |
+
+## Standalone app migration
+
+On branch `feat/opentui-standalone-omni`, Omni is being migrated toward a standalone terminal app that owns its UI instead of inheriting Pi's built-in TUI.
+
+The planned architecture is:
+
+- **UI shell:** OpenTUI (Omni-owned layout, panels, and interactions)
+- **Engine:** Pi running in **RPC mode** as a subprocess
+- **Migration policy:** keep the current Pi-package path runnable while the standalone app reaches parity
+
+Today the repo includes an early standalone preview command:
+
+```bash
+npm run chat:standalone
+# or, after global install when Bun is available:
+omni-standalone
+```
+
+Current migration caveats:
+
+- the legacy `omni` command still launches the existing Pi-package UI path
+- the standalone preview currently uses **Bun** to run the OpenTUI shell because OpenTUI's Node integration is not yet clean enough for this repo's runtime path
+- the standalone shell already supports prompting, streaming conversation updates, abort, queue visibility, workflow/repo-map side panels, and basic slash-command controls for model/session actions
+
+The active migration contract and target package layout live in [`docs/architecture/standalone-app.md`](docs/architecture/standalone-app.md).
 
 ## Development
 
