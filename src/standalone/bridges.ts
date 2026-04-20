@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +15,16 @@ export interface StandaloneDialogOption {
   detail?: string;
 }
 
+export interface StandaloneScopedModelOption extends StandaloneDialogOption {
+  provider: string;
+  modelId: string;
+}
+
+interface PiSettingsFile {
+  enabledModels?: string[];
+  [key: string]: unknown;
+}
+
 export function getOmniPackageDir(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 }
@@ -22,6 +32,48 @@ export function getOmniPackageDir(): string {
 export async function readOmniChangelog(): Promise<string> {
   const changelogPath = path.join(getOmniPackageDir(), "CHANGELOG.md");
   return readFile(changelogPath, "utf8");
+}
+
+function getProjectSettingsPath(cwd: string): string {
+  return path.join(cwd, ".pi", "settings.json");
+}
+
+async function readProjectSettings(cwd: string): Promise<PiSettingsFile> {
+  try {
+    const content = await readFile(getProjectSettingsPath(cwd), "utf8");
+    const parsed = JSON.parse(content) as PiSettingsFile;
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function writeProjectSettings(
+  cwd: string,
+  settings: PiSettingsFile,
+): Promise<void> {
+  const settingsPath = getProjectSettingsPath(cwd);
+  await writeFile(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+}
+
+export async function readEnabledModels(cwd: string): Promise<string[]> {
+  const settings = await readProjectSettings(cwd);
+  return Array.isArray(settings.enabledModels)
+    ? settings.enabledModels.filter((value): value is string => typeof value === "string")
+    : [];
+}
+
+export async function writeEnabledModels(
+  cwd: string,
+  enabledModels: string[] | undefined,
+): Promise<void> {
+  const settings = await readProjectSettings(cwd);
+  if (enabledModels === undefined || enabledModels.length === 0) {
+    delete settings.enabledModels;
+  } else {
+    settings.enabledModels = [...enabledModels];
+  }
+  await writeProjectSettings(cwd, settings);
 }
 
 function formatRelativeTime(date: Date): string {

@@ -74,7 +74,7 @@ export interface OmniStandaloneDialogOption {
 
 export interface OmniStandaloneDialogState {
   id: string;
-  kind: "select" | "confirm" | "input" | "editor";
+  kind: "select" | "confirm" | "input" | "editor" | "scoped-models";
   title: string;
   message?: string;
   placeholder?: string;
@@ -82,6 +82,7 @@ export interface OmniStandaloneDialogState {
   query?: string;
   value?: string;
   selectedIndex?: number;
+  selectedValues?: string[];
 }
 
 export interface OmniStandaloneAppState {

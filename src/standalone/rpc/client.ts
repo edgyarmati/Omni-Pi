@@ -47,6 +47,7 @@ export interface OmniRpcClient {
   compact(customInstructions?: string): Promise<{ summary?: string; firstKeptEntryId?: string; tokensBefore?: number } | undefined>;
   getSessionStats(): Promise<Record<string, unknown> | undefined>;
   getCommands(): Promise<Array<{ name?: string; description?: string; source?: string }> | undefined>;
+  getAvailableModels(): Promise<Array<{ provider?: string; id?: string; name?: string }> | undefined>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: string): Promise<void>;
   setSessionName(name: string): Promise<void>;
@@ -357,6 +358,16 @@ export function createOmniRpcClient(
     return response.data?.commands;
   };
 
+  const getAvailableModels = async (): Promise<Array<{ provider?: string; id?: string; name?: string }> | undefined> => {
+    const response = await send<OmniRpcResponse<{ models?: Array<{ provider?: string; id?: string; name?: string }> }>>({
+      type: "get_available_models",
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data?.models;
+  };
+
   const setModel = async (provider: string, modelId: string): Promise<void> => {
     const response = await send({ type: "set_model", provider, modelId });
     if (!response.success) {
@@ -422,6 +433,7 @@ export function createOmniRpcClient(
     compact,
     getSessionStats,
     getCommands,
+    getAvailableModels,
     setModel,
     setThinkingLevel,
     setSessionName,

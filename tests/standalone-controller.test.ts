@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -50,6 +50,10 @@ function createRpcClientStub(): OmniRpcClient & {
     compact: vi.fn(async () => ({ summary: "Compacted summary", tokensBefore: 12345 })),
     getSessionStats: vi.fn(async () => ({ messageCount: 2, tokenCount: 3456 })),
     getCommands: vi.fn(async () => []),
+    getAvailableModels: vi.fn(async () => [
+      { provider: "anthropic", id: "claude-sonnet", name: "Claude Sonnet" },
+      { provider: "openai", id: "gpt-4.1", name: "GPT-4.1" },
+    ]),
     setModel: vi.fn(async () => {}),
     setThinkingLevel: vi.fn(async () => {}),
     setSessionName: vi.fn(async () => {}),
@@ -208,6 +212,32 @@ describe("standalone controller", () => {
     expect(controller.state.session.modelLabel).toBe("anthropic/claude-opus");
     expect(controller.state.session.thinkingLevel).toBe("high");
     expect(controller.state.session.sessionName).toBe("feature-branch");
+  });
+
+  test("opens scoped-models selector and persists enabled models", async () => {
+    const rpcClient = createRpcClientStub();
+    const projectDir = await mkdtemp(
+      path.join(os.tmpdir(), "omni-standalone-scoped-"),
+    );
+    await mkdir(path.join(projectDir, ".pi"), { recursive: true });
+
+    const controller = createStandaloneController({ rpcClient, cwd: projectDir });
+    await controller.start();
+
+    const pending = controller.submitPrompt("/scoped-models");
+    for (let i = 0; i < 20 && controller.state.dialog?.kind !== "scoped-models"; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(controller.state.dialog?.kind).toBe("scoped-models");
+    controller.toggleDialogSelection();
+    await controller.submitDialog();
+    await pending;
+
+    const settings = JSON.parse(
+      await readFile(path.join(projectDir, ".pi", "settings.json"), "utf8"),
+    ) as { enabledModels?: string[] };
+    expect(settings.enabledModels).toEqual(["anthropic/claude-sonnet"]);
+    expect(rpcClient.restart).toHaveBeenCalled();
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

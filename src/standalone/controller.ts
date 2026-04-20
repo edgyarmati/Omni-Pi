@@ -16,8 +16,11 @@ import {
   copyTextToClipboard,
   listSessionOptions,
   openExternalUrl,
+  readEnabledModels,
   readOmniChangelog,
+  writeEnabledModels,
   type StandaloneDialogOption,
+  type StandaloneScopedModelOption,
 } from "./bridges.js";
 import type {
   OmniStandaloneAppState,
@@ -40,6 +43,13 @@ interface OAuthAuthInfo {
   url: string;
   instructions?: string;
 }
+
+interface AvailableRpcModel {
+  provider?: string;
+  id?: string;
+  name?: string;
+}
+
 import type { OmniRpcClient } from "./rpc/client.js";
 import type {
   OmniRpcEvent,
@@ -54,6 +64,7 @@ export interface OmniStandaloneController {
   abort(): Promise<void>;
   updateDialogInput(value: string): void;
   moveDialogSelection(delta: number): void;
+  toggleDialogSelection(): void;
   submitDialog(): Promise<void>;
   cancelDialog(): Promise<void>;
   onChange(listener: (state: OmniStandaloneAppState) => void): () => void;
@@ -79,7 +90,7 @@ export function createStandaloneController(
   let streamingAssistantId: string | undefined;
   let itemCounter = 0;
   let pendingDialogResolve:
-    | ((result: string | boolean | undefined) => void)
+    | ((result: string | boolean | string[] | undefined) => void)
     | undefined;
 
   const emptyRepoSession: RepoMapSessionState = {
@@ -117,17 +128,35 @@ export function createStandaloneController(
     });
   };
 
+  const toScopedModelOption = (
+    model: AvailableRpcModel,
+    isSelected: boolean,
+  ): StandaloneScopedModelOption | undefined => {
+    if (!model.provider || !model.id) return undefined;
+    const label = `${isSelected ? "☑" : "☐"} ${model.provider}/${model.id}`;
+    return {
+      provider: model.provider,
+      modelId: model.id,
+      label,
+      value: `${model.provider}/${model.id}`,
+      searchText: `${model.provider} ${model.id} ${model.name ?? ""}`,
+      detail: model.name ? `${model.name}${isSelected ? "  ·  selected" : ""}` : isSelected ? "selected" : undefined,
+    };
+  };
+
   const openDialog = async (
     dialog: OmniStandaloneDialogState,
-  ): Promise<string | boolean | undefined> => {
+  ): Promise<string | boolean | string[] | undefined> => {
     state.dialog = dialog;
     emitChange();
-    return await new Promise<string | boolean | undefined>((resolve) => {
-      pendingDialogResolve = resolve;
+    return await new Promise<string | boolean | string[] | undefined>((resolve) => {
+      pendingDialogResolve = resolve as (
+        result: string | boolean | string[] | undefined,
+      ) => void;
     });
   };
 
-  const closeDialog = (result: string | boolean | undefined) => {
+  const closeDialog = (result: string | boolean | string[] | undefined) => {
     state.dialog = undefined;
     const resolve = pendingDialogResolve;
     pendingDialogResolve = undefined;
@@ -747,6 +776,91 @@ export function createStandaloneController(
     });
   };
 
+  const handleSettingsCommand = async () => {
+    const choice = await requestSelect("Settings", [
+      {
+        label: "Scoped models",
+        value: "/scoped-models",
+        searchText: "scoped models model scope ctrl+p",
+        detail: "Choose which models are available for cycling.",
+      },
+      {
+        label: "Theme",
+        value: "/theme",
+        searchText: "theme colors preset",
+        detail: "Open the Omni theme picker.",
+      },
+      {
+        label: "Model setup",
+        value: "/model-setup",
+        searchText: "model setup custom providers",
+        detail: "Add or refresh custom providers/models.",
+      },
+      {
+        label: "Manage providers",
+        value: "/manage-providers",
+        searchText: "manage providers oauth login logout",
+        detail: "Remove stored OAuth credentials for bundled providers.",
+      },
+      {
+        label: "Update",
+        value: "/update",
+        searchText: "update omni-pi version",
+        detail: "Check for a newer Omni-Pi release.",
+      },
+      {
+        label: "Omni mode",
+        value: "/omni-mode",
+        searchText: "omni mode toggle workflow",
+        detail: "Toggle Omni mode for this project.",
+      },
+    ], "Choose a settings action.");
+
+    if (!choice) return;
+    await submitPrompt(choice);
+  };
+
+  const handleScopedModelsCommand = async () => {
+    const availableModels = (await rpcClient.getAvailableModels()) ?? [];
+    if (availableModels.length === 0) {
+      pushConversation({ role: "system", text: "No available models were reported by the RPC engine." });
+      return;
+    }
+
+    const currentEnabled = new Set(await readEnabledModels(cwd));
+    const options = availableModels
+      .map((model) =>
+        toScopedModelOption(model, currentEnabled.has(`${model.provider}/${model.id}`)),
+      )
+      .filter((option): option is StandaloneScopedModelOption => option !== undefined);
+
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: "scoped-models",
+      title: "Scoped models",
+      message: "Space toggles a model, Enter saves, Esc cancels.",
+      placeholder: "Type to filter models…",
+      options,
+      query: "",
+      selectedIndex: 0,
+      selectedValues: [...currentEnabled],
+    });
+
+    if (!Array.isArray(result)) {
+      return;
+    }
+
+    const nextEnabled = result.filter((value): value is string => typeof value === "string");
+    await writeEnabledModels(cwd, nextEnabled.length > 0 ? nextEnabled : undefined);
+    await restartRuntime();
+    pushConversation({
+      role: "system",
+      text: nextEnabled.length > 0
+        ? `Scoped models updated (${nextEnabled.length} selected).`
+        : "Scoped models cleared.",
+    });
+  };
+
   const submitPrompt = async (message: string) => {
     const trimmed = message.trim();
     if (!trimmed) {
@@ -906,6 +1020,12 @@ export function createStandaloneController(
         case "hotkeys":
           handleHotkeysCommand();
           return;
+        case "settings":
+          await handleSettingsCommand();
+          return;
+        case "scoped-models":
+          await handleScopedModelsCommand();
+          return;
         case "reload":
           await restartRuntime();
           pushConversation({ role: "system", text: "Reloaded keybindings, extensions, skills, prompts, and themes." });
@@ -960,7 +1080,7 @@ export function createStandaloneController(
 
   const updateDialogInput = (value: string) => {
     if (!state.dialog) return;
-    if (state.dialog.kind === "select") {
+    if (state.dialog.kind === "select" || state.dialog.kind === "scoped-models") {
       state.dialog.query = value;
       state.dialog.selectedIndex = 0;
     } else {
@@ -981,12 +1101,31 @@ export function createStandaloneController(
     emitChange();
   };
 
+  const toggleDialogSelection = () => {
+    if (!state.dialog || state.dialog.kind !== "scoped-models") return;
+    const options = getFilteredDialogOptions(state.dialog);
+    const current = options[state.dialog.selectedIndex ?? 0];
+    if (!current) return;
+    const selected = new Set(state.dialog.selectedValues ?? []);
+    if (selected.has(current.value)) {
+      selected.delete(current.value);
+    } else {
+      selected.add(current.value);
+    }
+    state.dialog.selectedValues = [...selected];
+    emitChange();
+  };
+
   const submitDialog = async () => {
     if (!state.dialog) return;
     const dialog = state.dialog;
     if (dialog.kind === "select") {
       const selected = getFilteredDialogOptions(dialog)[dialog.selectedIndex ?? 0];
       closeDialog(selected?.value);
+      return;
+    }
+    if (dialog.kind === "scoped-models") {
+      closeDialog(dialog.selectedValues ?? []);
       return;
     }
     if (dialog.kind === "confirm") {
@@ -1009,6 +1148,7 @@ export function createStandaloneController(
     abort,
     updateDialogInput,
     moveDialogSelection,
+    toggleDialogSelection,
     submitDialog,
     cancelDialog,
     onChange(listener) {

@@ -376,7 +376,7 @@ export async function mountOmniShell(
       );
     }
 
-    if (dialog.kind === "select" || dialog.kind === "confirm") {
+    if (dialog.kind === "select" || dialog.kind === "confirm" || dialog.kind === "scoped-models") {
       const options =
         dialog.kind === "confirm"
           ? dialog.options ?? []
@@ -399,6 +399,8 @@ export async function mountOmniShell(
       for (let index = windowStart; index < windowEnd; index += 1) {
         const option = options[index];
         const selected = index === selectedIndex;
+        const isScoped = dialog.kind === "scoped-models";
+        const scopedSelected = isScoped && dialog.selectedValues?.includes(option?.value ?? "") === true;
         const row = new BoxRenderable(renderer, {
           id: `dialog-row-${index}`,
           width: "100%",
@@ -410,7 +412,7 @@ export async function mountOmniShell(
         row.add(
           new TextRenderable(renderer, {
             id: `dialog-label-${index}`,
-            content: `${selected ? "→" : " "} ${option?.label ?? ""}`,
+            content: `${isScoped ? (scopedSelected ? "☑" : "☐") : selected ? "→" : " "} ${option?.label ?? ""}`,
             fg: selected ? COLOR.accent : COLOR.text,
           }),
         );
@@ -432,7 +434,9 @@ export async function mountOmniShell(
           content:
             dialog.kind === "confirm"
               ? " ↑↓ choose  ·  enter confirm  ·  esc cancel"
-              : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
+              : dialog.kind === "scoped-models"
+                ? " type to search  ·  space toggle  ·  ↑↓ choose  ·  enter save  ·  esc cancel"
+                : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
           fg: COLOR.textFaint,
         }),
       );
@@ -563,6 +567,11 @@ export async function mountOmniShell(
       if (key.name === "down") {
         key.preventDefault();
         controller.moveDialogSelection(1);
+        return;
+      }
+      if (key.name === "space") {
+        key.preventDefault();
+        controller.toggleDialogSelection();
         return;
       }
       if (key.name === "escape") {
@@ -839,13 +848,13 @@ export async function mountOmniShell(
     if (state.dialog) {
       input.placeholder =
         state.dialog.placeholder ??
-        (state.dialog.kind === "select"
+        (state.dialog.kind === "select" || state.dialog.kind === "scoped-models"
           ? "Type to search…"
           : state.dialog.kind === "editor"
             ? "Edit text…"
             : "Enter a value…");
       const desiredValue =
-        state.dialog.kind === "select"
+        state.dialog.kind === "select" || state.dialog.kind === "scoped-models"
           ? (state.dialog.query ?? "")
           : (state.dialog.value ?? "");
       if (input.value !== desiredValue) {

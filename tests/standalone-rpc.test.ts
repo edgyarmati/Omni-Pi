@@ -109,6 +109,34 @@ describe("standalone RPC client", () => {
     await client.stop();
   });
 
+  test("reads available models for standalone selectors", async () => {
+    const { stdin, stdout, spawnImpl } = createSpawnStub();
+    const client = createOmniRpcClient({ spawnImpl, cwd: process.cwd() });
+
+    stdin.on("data", (chunk) => {
+      const command = JSON.parse(chunk.toString("utf8")) as OmniRpcCommand;
+      stdout.write(
+        serializeJsonLine({
+          id: command.id,
+          type: "response",
+          command: command.type,
+          success: true,
+          data: {
+            models: [
+              { provider: "anthropic", id: "claude-sonnet", name: "Claude Sonnet" },
+            ],
+          },
+        }),
+      );
+    });
+
+    await client.start();
+    await expect(client.getAvailableModels()).resolves.toEqual([
+      { provider: "anthropic", id: "claude-sonnet", name: "Claude Sonnet" },
+    ]);
+    await client.stop();
+  });
+
   test("routes extension UI requests separately from normal events", async () => {
     const { stdout, spawnImpl } = createSpawnStub();
     const client = createOmniRpcClient({ spawnImpl, cwd: process.cwd() });
