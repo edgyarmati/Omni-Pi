@@ -18,6 +18,7 @@ export function createStandaloneShellState(): OmniStandaloneAppState {
       steeringQueue: [],
       followUpQueue: [],
     },
+    todos: [],
     conversation: [],
   };
 }

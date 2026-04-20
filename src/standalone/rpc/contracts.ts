@@ -6,12 +6,15 @@ export type OmniRpcCommandType =
   | "new_session"
   | "switch_session"
   | "fork"
+  | "compact"
   | "get_state"
   | "get_messages"
   | "get_session_stats"
+  | "get_commands"
   | "get_available_models"
   | "set_model"
   | "set_thinking_level"
+  | "set_session_name"
   | "set_steering_mode"
   | "set_follow_up_mode";
 

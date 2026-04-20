@@ -1,15 +1,45 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { AuthStorage } from "../../node_modules/@mariozechner/pi-coding-agent/dist/core/auth-storage.js";
+
 import type { RepoMapSessionState } from "../repo-map-contracts.js";
 import { rankRepoMapEntries, renderRepoMapBlock } from "../repo-map-rank.js";
 import { readRepoMapState } from "../repo-map-store.js";
 import { createStandaloneShellState } from "./app-shell.js";
+import {
+  findStandaloneSlashCommand,
+  renderStandaloneHelp,
+} from "./commands.js";
+import { readTasks } from "../tasks.js";
+import {
+  copyTextToClipboard,
+  listSessionOptions,
+  openExternalUrl,
+  readOmniChangelog,
+  type StandaloneDialogOption,
+} from "./bridges.js";
 import type {
   OmniStandaloneAppState,
   OmniStandaloneConversationItem,
+  OmniStandaloneDialogState,
   OmniStandaloneToolCall,
 } from "./contracts.js";
+
+interface OAuthProviderLike {
+  id: string;
+  name: string;
+}
+
+interface OAuthAuthPrompt {
+  message: string;
+  placeholder?: string;
+}
+
+interface OAuthAuthInfo {
+  url: string;
+  instructions?: string;
+}
 import type { OmniRpcClient } from "./rpc/client.js";
 import type {
   OmniRpcEvent,
@@ -22,7 +52,12 @@ export interface OmniStandaloneController {
   stop(): Promise<void>;
   submitPrompt(message: string): Promise<void>;
   abort(): Promise<void>;
+  updateDialogInput(value: string): void;
+  moveDialogSelection(delta: number): void;
+  submitDialog(): Promise<void>;
+  cancelDialog(): Promise<void>;
   onChange(listener: (state: OmniStandaloneAppState) => void): () => void;
+  onQuit(listener: () => void): () => void;
 }
 
 export interface OmniStandaloneControllerOptions {
@@ -35,6 +70,7 @@ export function createStandaloneController(
 ): OmniStandaloneController {
   const state = createStandaloneShellState();
   const listeners = new Set<(state: OmniStandaloneAppState) => void>();
+  const quitListeners = new Set<() => void>();
   const rpcClient = options.rpcClient;
   const cwd = options.cwd ?? process.cwd();
 
@@ -42,6 +78,9 @@ export function createStandaloneController(
   let unsubscribeUi: (() => void) | undefined;
   let streamingAssistantId: string | undefined;
   let itemCounter = 0;
+  let pendingDialogResolve:
+    | ((result: string | boolean | undefined) => void)
+    | undefined;
 
   const emptyRepoSession: RepoMapSessionState = {
     signals: [],
@@ -65,6 +104,94 @@ export function createStandaloneController(
 
   const findConversationItem = (id: string | undefined) =>
     id ? state.conversation.find((item) => item.id === id) : undefined;
+
+  const getFilteredDialogOptions = (
+    dialog: OmniStandaloneDialogState,
+  ): StandaloneDialogOption[] => {
+    const options = dialog.options ?? [];
+    const query = (dialog.query ?? "").trim().toLowerCase();
+    if (!query) return options;
+    return options.filter((option) => {
+      const haystack = `${option.label} ${option.searchText ?? ""} ${option.detail ?? ""}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  };
+
+  const openDialog = async (
+    dialog: OmniStandaloneDialogState,
+  ): Promise<string | boolean | undefined> => {
+    state.dialog = dialog;
+    emitChange();
+    return await new Promise<string | boolean | undefined>((resolve) => {
+      pendingDialogResolve = resolve;
+    });
+  };
+
+  const closeDialog = (result: string | boolean | undefined) => {
+    state.dialog = undefined;
+    const resolve = pendingDialogResolve;
+    pendingDialogResolve = undefined;
+    resolve?.(result);
+    emitChange();
+  };
+
+  const requestSelect = async (
+    title: string,
+    options: StandaloneDialogOption[],
+    message?: string,
+  ): Promise<string | undefined> => {
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: "select",
+      title,
+      message,
+      placeholder: "Type to search…",
+      options,
+      query: "",
+      selectedIndex: 0,
+    });
+    return typeof result === "string" ? result : undefined;
+  };
+
+  const requestConfirm = async (
+    title: string,
+    message?: string,
+  ): Promise<boolean> => {
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: "confirm",
+      title,
+      message,
+      options: [
+        { label: "Yes", value: "yes" },
+        { label: "No", value: "no" },
+      ],
+      selectedIndex: 0,
+    });
+    return result === true;
+  };
+
+  const requestInput = async (
+    title: string,
+    placeholder?: string,
+    value = "",
+    multiline = false,
+  ): Promise<string | undefined> => {
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: multiline ? "editor" : "input",
+      title,
+      placeholder,
+      value,
+    });
+    return typeof result === "string" ? result : undefined;
+  };
+
+  const emitQuit = () => {
+    for (const listener of quitListeners) {
+      listener();
+    }
+  };
 
   const ensureAssistantItem = () => {
     const existing = findConversationItem(streamingAssistantId);
@@ -153,6 +280,38 @@ export function createStandaloneController(
     return fields;
   };
 
+  const refreshSessionState = async () => {
+    const stateResponse = await rpcClient.send<{
+      type: "response";
+      success: true;
+      command: "get_state";
+      data?: {
+        sessionId?: string;
+        sessionFile?: string;
+        sessionName?: string;
+        thinkingLevel?: string;
+        isStreaming?: boolean;
+        model?: { provider?: string; id?: string } | null;
+      };
+    }>({ type: "get_state" });
+
+    if (!stateResponse.success) {
+      return;
+    }
+
+    const data = stateResponse.data;
+    state.session.sessionId = data?.sessionId;
+    state.session.sessionFile = data?.sessionFile;
+    state.session.sessionName = data?.sessionName;
+    state.session.thinkingLevel = data?.thinkingLevel;
+    state.session.isStreaming = data?.isStreaming ?? false;
+    state.session.modelLabel =
+      data?.model?.provider && data.model.id
+        ? `${data.model.provider}/${data.model.id}`
+        : undefined;
+    emitChange();
+  };
+
   const refreshWorkflowContext = async () => {
     const statePath = path.join(cwd, ".omni", "STATE.md");
     const tasksPath = path.join(cwd, ".omni", "TASKS.md");
@@ -176,6 +335,15 @@ export function createStandaloneController(
         .slice(0, 10)
         .join("\n");
 
+      const tasks = tasksContent ? await readTasks(tasksPath).catch(() => []) : [];
+      state.todos = tasks
+        .filter((task) => task.status !== "done")
+        .map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+        }));
+
       state.repoMapPreview = renderRepoMapBlock(
         rankRepoMapEntries(repoState, emptyRepoSession, ""),
         120,
@@ -188,6 +356,67 @@ export function createStandaloneController(
 
   const handleUiRequest = (request: OmniRpcExtensionUiRequest) => {
     switch (request.method) {
+      case "select": {
+        const title =
+          typeof request.title === "string" ? request.title : "Select an option";
+        const options = Array.isArray(request.options)
+          ? request.options
+              .filter((value): value is string => typeof value === "string")
+              .map((value) => ({ label: value, value, searchText: value }))
+          : [];
+        void requestSelect(title, options).then((value) =>
+          rpcClient.sendExtensionUiResponse({
+            type: "extension_ui_response",
+            id: request.id,
+            ...(value !== undefined ? { value } : { cancelled: true }),
+          }),
+        );
+        break;
+      }
+      case "confirm": {
+        const title =
+          typeof request.title === "string" ? request.title : "Confirm";
+        const message =
+          typeof request.message === "string" ? request.message : undefined;
+        void requestConfirm(title, message).then((confirmed) =>
+          rpcClient.sendExtensionUiResponse({
+            type: "extension_ui_response",
+            id: request.id,
+            confirmed,
+          }),
+        );
+        break;
+      }
+      case "input": {
+        const title =
+          typeof request.title === "string" ? request.title : "Enter a value";
+        const placeholder =
+          typeof request.placeholder === "string"
+            ? request.placeholder
+            : undefined;
+        void requestInput(title, placeholder).then((value) =>
+          rpcClient.sendExtensionUiResponse({
+            type: "extension_ui_response",
+            id: request.id,
+            ...(value !== undefined ? { value } : { cancelled: true }),
+          }),
+        );
+        break;
+      }
+      case "editor": {
+        const title =
+          typeof request.title === "string" ? request.title : "Edit text";
+        const prefill =
+          typeof request.prefill === "string" ? request.prefill : "";
+        void requestInput(title, undefined, prefill, true).then((value) =>
+          rpcClient.sendExtensionUiResponse({
+            type: "extension_ui_response",
+            id: request.id,
+            ...(value !== undefined ? { value } : { cancelled: true }),
+          }),
+        );
+        break;
+      }
       case "notify": {
         const message =
           typeof request.message === "string" ? request.message : "";
@@ -323,34 +552,7 @@ export function createStandaloneController(
     await rpcClient.start();
     unsubscribeEvent = rpcClient.onEvent(handleEvent);
     unsubscribeUi = rpcClient.onExtensionUiRequest(handleUiRequest);
-
-    const stateResponse = await rpcClient.send<{
-      type: "response";
-      success: true;
-      command: "get_state";
-      data?: {
-        sessionId?: string;
-        sessionFile?: string;
-        sessionName?: string;
-        thinkingLevel?: string;
-        isStreaming?: boolean;
-        model?: { provider?: string; id?: string } | null;
-      };
-    }>({ type: "get_state" });
-
-    if (stateResponse.success) {
-      const data = stateResponse.data;
-      state.session.sessionId = data?.sessionId;
-      state.session.sessionFile = data?.sessionFile;
-      state.session.sessionName = data?.sessionName;
-      state.session.thinkingLevel = data?.thinkingLevel;
-      state.session.isStreaming = data?.isStreaming ?? false;
-      if (data?.model?.provider && data.model.id) {
-        state.session.modelLabel = `${data.model.provider}/${data.model.id}`;
-      }
-      emitChange();
-    }
-
+    await refreshSessionState();
     await refreshWorkflowContext();
   };
 
@@ -360,6 +562,189 @@ export function createStandaloneController(
     unsubscribeEvent = undefined;
     unsubscribeUi = undefined;
     await rpcClient.stop();
+  };
+
+  const restartRuntime = async () => {
+    const previousSession = state.session.sessionFile;
+    await rpcClient.restart();
+    unsubscribeEvent?.();
+    unsubscribeUi?.();
+    unsubscribeEvent = rpcClient.onEvent(handleEvent);
+    unsubscribeUi = rpcClient.onExtensionUiRequest(handleUiRequest);
+    if (previousSession) {
+      await rpcClient.switchSession(previousSession);
+    }
+    await refreshSessionState();
+    await refreshWorkflowContext();
+  };
+
+  const handleSessionsCommand = async () => {
+    const options = await listSessionOptions(cwd);
+    if (options.length === 0) {
+      pushConversation({ role: "system", text: "No saved sessions found." });
+      return;
+    }
+
+    const selected = await requestSelect("Sessions", options, "Search and switch to another session.");
+    if (!selected) {
+      return;
+    }
+
+    await rpcClient.switchSession(selected);
+    streamingAssistantId = undefined;
+    state.conversation = [];
+    await refreshSessionState();
+    await refreshWorkflowContext();
+    pushConversation({ role: "system", text: `Switched session to ${selected}.` });
+  };
+
+  const handleLoginCommand = async (providerOverride?: string) => {
+    const authStorage = AuthStorage.create();
+    const providers = authStorage.getOAuthProviders() as OAuthProviderLike[];
+    if (providers.length === 0) {
+      pushConversation({ role: "system", text: "No OAuth providers are available." });
+      return;
+    }
+
+    const selectedProvider = providerOverride?.trim()
+      ? providerOverride.trim()
+      : await requestSelect(
+          "Login",
+          providers.map((provider: OAuthProviderLike) => ({
+            label: provider.name,
+            value: provider.id,
+            searchText: `${provider.id} ${provider.name}`,
+          })),
+          "Choose a provider to authenticate.",
+        );
+    if (!selectedProvider) {
+      return;
+    }
+
+    const providerInfo = providers.find(
+      (provider: OAuthProviderLike) => provider.id === selectedProvider,
+    );
+    pushConversation({
+      role: "system",
+      text: `Starting login for ${providerInfo?.name ?? selectedProvider}…`,
+    });
+
+    try {
+      try {
+        await authStorage.login(selectedProvider as never, {
+          onAuth: async (info: OAuthAuthInfo) => {
+            pushConversation({
+              role: "system",
+              text: `${providerInfo?.name ?? selectedProvider}: ${info.instructions ?? "Open the browser to continue."}\n${info.url}`,
+            });
+            await openExternalUrl(info.url).catch(() => undefined);
+          },
+          onPrompt: async (prompt: OAuthAuthPrompt) => {
+            const value = await requestInput(
+              prompt.message,
+              prompt.placeholder,
+            );
+            if (value === undefined) {
+              throw new Error("Login cancelled");
+            }
+            return value;
+          },
+          onProgress: (progress: string) => {
+            state.statuses = state.statuses.filter((item) => item.key !== "login");
+            state.statuses.push({ key: "login", text: progress });
+            emitChange();
+          },
+          onManualCodeInput: async () => {
+            const value = await requestInput(
+              `Complete ${providerInfo?.name ?? selectedProvider} login`,
+              "Paste the redirect URL or code here",
+            );
+            if (value === undefined) {
+              throw new Error("Login cancelled");
+            }
+            return value;
+          },
+          signal: new AbortController().signal,
+        });
+      } finally {
+        state.statuses = state.statuses.filter((item) => item.key !== "login");
+        emitChange();
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage === "Login cancelled") {
+        pushConversation({ role: "system", text: "Login cancelled." });
+        return;
+      }
+      throw error;
+    }
+
+    await restartRuntime();
+    pushConversation({
+      role: "system",
+      text: `Logged in to ${providerInfo?.name ?? selectedProvider}.`,
+    });
+  };
+
+  const handleLogoutCommand = async (providerOverride?: string) => {
+    const authStorage = AuthStorage.create();
+    const providers = (authStorage.getOAuthProviders() as OAuthProviderLike[])
+      .filter(
+        (provider: OAuthProviderLike) =>
+          authStorage.get(provider.id)?.type === "oauth",
+      );
+    if (providers.length === 0) {
+      pushConversation({ role: "system", text: "No OAuth providers are currently logged in." });
+      return;
+    }
+
+    const selectedProvider = providerOverride?.trim()
+      ? providerOverride.trim()
+      : await requestSelect(
+          "Logout",
+          providers.map((provider: OAuthProviderLike) => ({
+            label: provider.name,
+            value: provider.id,
+            searchText: `${provider.id} ${provider.name}`,
+          })),
+          "Choose a provider to log out from.",
+        );
+    if (!selectedProvider) {
+      return;
+    }
+
+    const providerInfo = providers.find(
+      (provider: OAuthProviderLike) => provider.id === selectedProvider,
+    );
+    const confirmed = await requestConfirm(
+      "Log out?",
+      `Remove stored OAuth credentials for ${providerInfo?.name ?? selectedProvider}?`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    authStorage.logout(selectedProvider);
+    await restartRuntime();
+    pushConversation({
+      role: "system",
+      text: `Logged out of ${providerInfo?.name ?? selectedProvider}.`,
+    });
+  };
+
+  const handleHotkeysCommand = () => {
+    pushConversation({
+      role: "system",
+      text: [
+        "Standalone hotkeys",
+        "",
+        "• Enter — send message / confirm dialog",
+        "• Esc — abort streaming or cancel active dialog",
+        "• / — open slash command autocomplete",
+        "• ↑ / ↓ — move through slash suggestions or dialog selections",
+        "• Tab — complete the highlighted slash command",
+      ].join("\n"),
+    });
   };
 
   const submitPrompt = async (message: string) => {
@@ -375,15 +760,16 @@ export function createStandaloneController(
         case "help":
           pushConversation({
             role: "system",
-            text: "Commands: /help, /new, /steer <msg>, /followup <msg>, /model <provider>/<id>, /thinking <level>, /switch <session-path>, /fork <entry-id>",
+            text: renderStandaloneHelp(),
           });
           return;
         case "new":
           await rpcClient.newSession();
           streamingAssistantId = undefined;
           state.conversation = [];
-          pushConversation({ role: "system", text: "Started a new session." });
+          await refreshSessionState();
           await refreshWorkflowContext();
+          pushConversation({ role: "system", text: "Started a new session." });
           return;
         case "steer":
           await rpcClient.steer(rest);
@@ -426,29 +812,138 @@ export function createStandaloneController(
           });
           emitChange();
           return;
+        case "compact": {
+          const result = await rpcClient.compact(rest || undefined);
+          pushConversation({
+            role: "system",
+            text: result?.summary
+              ? `Compacted context (${result.tokensBefore ?? "?"} tokens before).\n\n${result.summary}`
+              : "Compacted context.",
+          });
+          return;
+        }
+        case "session": {
+          const stats = await rpcClient.getSessionStats();
+          const lines = Object.entries(stats ?? {}).map(([key, value]) => {
+            const rendered =
+              typeof value === "string"
+                ? value
+                : typeof value === "number" || typeof value === "boolean"
+                  ? String(value)
+                  : JSON.stringify(value);
+            return `${key}: ${rendered}`;
+          });
+          pushConversation({
+            role: "system",
+            text: lines.length > 0 ? lines.join("\n") : "No session stats available.",
+          });
+          return;
+        }
+        case "name":
+          if (!rest.trim()) {
+            pushConversation({
+              role: "system",
+              text: "Usage: /name <display-name>",
+            });
+            return;
+          }
+          await rpcClient.setSessionName(rest.trim());
+          state.session.sessionName = rest.trim();
+          pushConversation({
+            role: "system",
+            text: `Session name set to ${rest.trim()}.`,
+          });
+          emitChange();
+          return;
         case "switch":
           await rpcClient.switchSession(rest);
           streamingAssistantId = undefined;
           state.conversation = [];
+          await refreshSessionState();
+          await refreshWorkflowContext();
           pushConversation({
             role: "system",
             text: `Switched session to ${rest}.`,
           });
+          return;
+        case "resume":
+          if (!rest.trim()) {
+            await handleSessionsCommand();
+            return;
+          }
+          await rpcClient.switchSession(rest);
+          streamingAssistantId = undefined;
+          state.conversation = [];
+          await refreshSessionState();
           await refreshWorkflowContext();
+          pushConversation({
+            role: "system",
+            text: `Switched session to ${rest}.`,
+          });
           return;
         case "fork":
           await rpcClient.fork(rest);
+          await refreshSessionState();
           pushConversation({
             role: "system",
             text: `Forked from entry ${rest}.`,
           });
           return;
-        default:
+        case "sessions":
+          await handleSessionsCommand();
+          return;
+        case "changelog": {
+          const changelog = await readOmniChangelog();
+          pushConversation({ role: "system", text: changelog });
+          return;
+        }
+        case "login":
+          await handleLoginCommand(rest);
+          return;
+        case "logout":
+          await handleLogoutCommand(rest);
+          return;
+        case "hotkeys":
+          handleHotkeysCommand();
+          return;
+        case "reload":
+          await restartRuntime();
+          pushConversation({ role: "system", text: "Reloaded keybindings, extensions, skills, prompts, and themes." });
+          return;
+        case "copy": {
+          const lastAssistant = [...state.conversation]
+            .reverse()
+            .find((item) => item.role === "assistant" && item.text.trim());
+          if (!lastAssistant) {
+            pushConversation({ role: "system", text: "No assistant message is available to copy." });
+            return;
+          }
+          await copyTextToClipboard(lastAssistant.text);
+          pushConversation({ role: "system", text: "Copied the last assistant message to the clipboard." });
+          return;
+        }
+        case "quit":
+          emitQuit();
+          return;
+        default: {
+          const knownCommand = findStandaloneSlashCommand(commandName);
+          if (knownCommand?.kind === "omni-extension") {
+            await rpcClient.prompt(trimmed);
+            return;
+          }
+          if (knownCommand && !knownCommand.supported) {
+            pushConversation({
+              role: "system",
+              text: `/${commandName} is a known ${knownCommand.kind === "pi-builtin" ? "Pi" : "Omni"} user command, but its standalone UI bridge is not wired yet.`,
+            });
+            return;
+          }
           pushConversation({
             role: "system",
             text: `Unknown command: /${commandName}`,
           });
           return;
+        }
       }
     }
 
@@ -463,16 +958,69 @@ export function createStandaloneController(
     await rpcClient.abort();
   };
 
+  const updateDialogInput = (value: string) => {
+    if (!state.dialog) return;
+    if (state.dialog.kind === "select") {
+      state.dialog.query = value;
+      state.dialog.selectedIndex = 0;
+    } else {
+      state.dialog.value = value;
+    }
+    emitChange();
+  };
+
+  const moveDialogSelection = (delta: number) => {
+    if (!state.dialog) return;
+    const options =
+      state.dialog.kind === "confirm"
+        ? state.dialog.options ?? []
+        : getFilteredDialogOptions(state.dialog);
+    if (options.length === 0) return;
+    const current = state.dialog.selectedIndex ?? 0;
+    state.dialog.selectedIndex = (current + delta + options.length) % options.length;
+    emitChange();
+  };
+
+  const submitDialog = async () => {
+    if (!state.dialog) return;
+    const dialog = state.dialog;
+    if (dialog.kind === "select") {
+      const selected = getFilteredDialogOptions(dialog)[dialog.selectedIndex ?? 0];
+      closeDialog(selected?.value);
+      return;
+    }
+    if (dialog.kind === "confirm") {
+      closeDialog((dialog.selectedIndex ?? 0) === 0);
+      return;
+    }
+    closeDialog(dialog.value ?? "");
+  };
+
+  const cancelDialog = async () => {
+    if (!state.dialog) return;
+    closeDialog(undefined);
+  };
+
   return {
     state,
     start,
     stop,
     submitPrompt,
     abort,
+    updateDialogInput,
+    moveDialogSelection,
+    submitDialog,
+    cancelDialog,
     onChange(listener) {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+    onQuit(listener) {
+      quitListeners.add(listener);
+      return () => {
+        quitListeners.delete(listener);
       };
     },
   };

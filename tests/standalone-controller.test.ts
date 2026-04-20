@@ -47,8 +47,12 @@ function createRpcClientStub(): OmniRpcClient & {
     newSession: vi.fn(async () => {}),
     switchSession: vi.fn(async () => {}),
     fork: vi.fn(async () => {}),
+    compact: vi.fn(async () => ({ summary: "Compacted summary", tokensBefore: 12345 })),
+    getSessionStats: vi.fn(async () => ({ messageCount: 2, tokenCount: 3456 })),
+    getCommands: vi.fn(async () => []),
     setModel: vi.fn(async () => {}),
     setThinkingLevel: vi.fn(async () => {}),
+    setSessionName: vi.fn(async () => {}),
     abort: vi.fn(async () => {}),
     sendExtensionUiResponse: vi.fn(async () => {}),
     onEvent(listener) {
@@ -190,13 +194,20 @@ describe("standalone controller", () => {
     await controller.submitPrompt("/thinking high");
     await controller.submitPrompt("/followup summarize later");
     await controller.submitPrompt("/steer focus on tests");
+    await controller.submitPrompt("/name feature-branch");
+    await controller.submitPrompt("/compact focus on code changes");
+    await controller.submitPrompt("/session");
 
     expect(rpcClient.setModel).toHaveBeenCalledWith("anthropic", "claude-opus");
     expect(rpcClient.setThinkingLevel).toHaveBeenCalledWith("high");
     expect(rpcClient.followUp).toHaveBeenCalledWith("summarize later");
     expect(rpcClient.steer).toHaveBeenCalledWith("focus on tests");
+    expect(rpcClient.setSessionName).toHaveBeenCalledWith("feature-branch");
+    expect(rpcClient.compact).toHaveBeenCalledWith("focus on code changes");
+    expect(rpcClient.getSessionStats).toHaveBeenCalled();
     expect(controller.state.session.modelLabel).toBe("anthropic/claude-opus");
     expect(controller.state.session.thinkingLevel).toBe("high");
+    expect(controller.state.session.sessionName).toBe("feature-branch");
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

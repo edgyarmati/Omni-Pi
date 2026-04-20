@@ -200,34 +200,30 @@ function renderStatusLines(statuses: OmniStandaloneStatusItem[]): string[] {
     );
 }
 
-export function renderHeader(state: OmniStandaloneAppState): string {
-  const mode = state.session.isStreaming ? "Working" : "Ready";
-  return `Omni  ${mode}  ${truncateLine(state.session.modelLabel ?? "default model", 28)}`;
-}
+export function renderFooterMeta(state: OmniStandaloneAppState): string {
+  const segments = [
+    `model ${truncateLine(state.session.modelLabel ?? "default", 24)}`,
+    `thinking ${truncateLine(state.session.thinkingLevel ?? "default", 12)}`,
+    `queue ${state.session.steeringQueue.length + state.session.followUpQueue.length}`,
+  ];
 
-export function renderSubheader(state: OmniStandaloneAppState): string {
-  return [
-    `Thinking ${truncateLine(state.session.thinkingLevel ?? "default", 14)}`,
-    `Steer ${state.session.steeringQueue.length}`,
-    `Follow-up ${state.session.followUpQueue.length}`,
-  ].join("  ·  ");
+  const sessionName = state.session.sessionName ?? state.session.sessionId;
+  if (sessionName) {
+    const normalizedSession = sessionName.startsWith("session-")
+      ? sessionName.slice("session-".length)
+      : sessionName;
+    segments.push(truncateLine(normalizedSession, 20));
+  }
+
+  if (state.statuses.length > 0) {
+    segments.push(truncateLine(renderStatusLines(state.statuses).join(" · "), 60));
+  }
+
+  return segments.join("  ·  ");
 }
 
 export function renderSessionPanel(state: OmniStandaloneAppState): string {
-  const session = state.session;
-  const lines = [
-    `state     ${session.isStreaming ? "working" : "idle"}`,
-    `thinking  ${truncateLine(session.thinkingLevel ?? "default", 20)}`,
-    `queue     ${session.steeringQueue.length} steer · ${session.followUpQueue.length} followup`,
-    "",
-    "model",
-    truncateLine(session.modelLabel ?? "default", 60),
-  ];
-  const statusLines = renderStatusLines(state.statuses);
-  if (statusLines.length > 0) {
-    lines.push("", "status", ...statusLines);
-  }
-  return lines.join("\n");
+  return renderFooterMeta(state);
 }
 
 function cleanWorkflowLine(
@@ -282,4 +278,28 @@ export function renderRepoMapPanel(state: OmniStandaloneAppState): string {
     formatMarkdownForTerminal(state.repoMapPreview) ||
     "Repo map cache not available yet."
   );
+}
+
+export function renderTodoPanel(state: OmniStandaloneAppState): string {
+  if (state.todos.length === 0) {
+    return "No active todos.";
+  }
+
+  const active =
+    state.todos.find((todo) => todo.status === "in_progress") ??
+    state.todos.find((todo) => todo.status === "todo") ??
+    state.todos[0];
+  const lines = [`${state.todos.length} active`, `now  ${truncateLine(active?.title ?? "-", 44)}`];
+
+  for (const todo of state.todos.slice(0, 8)) {
+    const glyph =
+      todo.status === "in_progress"
+        ? "◐"
+        : todo.status === "blocked"
+          ? "!"
+          : "○";
+    lines.push(`${glyph} ${truncateLine(todo.title, 48)}`);
+  }
+
+  return lines.join("\n");
 }

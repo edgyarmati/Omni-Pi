@@ -44,8 +44,12 @@ export interface OmniRpcClient {
   newSession(): Promise<void>;
   switchSession(sessionPath: string): Promise<void>;
   fork(entryId: string): Promise<void>;
+  compact(customInstructions?: string): Promise<{ summary?: string; firstKeptEntryId?: string; tokensBefore?: number } | undefined>;
+  getSessionStats(): Promise<Record<string, unknown> | undefined>;
+  getCommands(): Promise<Array<{ name?: string; description?: string; source?: string }> | undefined>;
   setModel(provider: string, modelId: string): Promise<void>;
   setThinkingLevel(level: string): Promise<void>;
+  setSessionName(name: string): Promise<void>;
   abort(): Promise<void>;
   sendExtensionUiResponse(response: OmniRpcExtensionUiResponse): Promise<void>;
   onEvent(listener: (event: OmniRpcEvent) => void): () => void;
@@ -319,6 +323,40 @@ export function createOmniRpcClient(
     }
   };
 
+  const compact = async (
+    customInstructions?: string,
+  ): Promise<{ summary?: string; firstKeptEntryId?: string; tokensBefore?: number } | undefined> => {
+    const response = await send<OmniRpcResponse<{ summary?: string; firstKeptEntryId?: string; tokensBefore?: number }>>(
+      customInstructions
+        ? { type: "compact", customInstructions }
+        : { type: "compact" },
+    );
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data;
+  };
+
+  const getSessionStats = async (): Promise<Record<string, unknown> | undefined> => {
+    const response = await send<OmniRpcResponse<Record<string, unknown>>>({
+      type: "get_session_stats",
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data;
+  };
+
+  const getCommands = async (): Promise<Array<{ name?: string; description?: string; source?: string }> | undefined> => {
+    const response = await send<OmniRpcResponse<{ commands?: Array<{ name?: string; description?: string; source?: string }> }>>({
+      type: "get_commands",
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data?.commands;
+  };
+
   const setModel = async (provider: string, modelId: string): Promise<void> => {
     const response = await send({ type: "set_model", provider, modelId });
     if (!response.success) {
@@ -328,6 +366,13 @@ export function createOmniRpcClient(
 
   const setThinkingLevel = async (level: string): Promise<void> => {
     const response = await send({ type: "set_thinking_level", level });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+  };
+
+  const setSessionName = async (name: string): Promise<void> => {
+    const response = await send({ type: "set_session_name", name });
     if (!response.success) {
       throw new Error(response.error);
     }
@@ -374,8 +419,12 @@ export function createOmniRpcClient(
     newSession,
     switchSession,
     fork,
+    compact,
+    getSessionStats,
+    getCommands,
     setModel,
     setThinkingLevel,
+    setSessionName,
     abort,
     sendExtensionUiResponse,
     onEvent,

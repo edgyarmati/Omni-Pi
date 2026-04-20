@@ -10,9 +10,11 @@ import type {
   OmniStandaloneToolCall,
 } from "./contracts.js";
 import type { OmniStandaloneController } from "./controller.js";
+import { filterStandaloneSlashCommands } from "./commands.js";
 import {
-  renderRepoMapPanel,
-  renderSessionPanel,
+  formatMarkdownForTerminal,
+  renderFooterMeta,
+  renderTodoPanel,
   renderWorkflowPanel,
 } from "./presenter.js";
 
@@ -63,46 +65,6 @@ function pickTagline(): string {
   return TAGLINES[index] ?? TAGLINES[0] ?? "";
 }
 
-interface SlashCommand {
-  name: string;
-  args?: string;
-  description: string;
-}
-
-const SLASH_COMMANDS: SlashCommand[] = [
-  { name: "help", description: "list the available commands" },
-  { name: "new", description: "start a fresh session" },
-  {
-    name: "model",
-    args: "<provider>/<id>",
-    description: "switch the active model",
-  },
-  {
-    name: "thinking",
-    args: "<level>",
-    description: "set thinking budget (low/medium/high)",
-  },
-  { name: "steer", args: "<msg>", description: "queue a steering message" },
-  { name: "followup", args: "<msg>", description: "queue a follow-up prompt" },
-  {
-    name: "switch",
-    args: "<session>",
-    description: "switch to another session",
-  },
-  { name: "fork", args: "<entry-id>", description: "fork from a prior entry" },
-];
-
-function filterSlashCommands(value: string): SlashCommand[] {
-  if (!value.startsWith("/")) return [];
-  const rest = value.slice(1);
-  // Stop showing suggestions once the command is fully typed with an argument.
-  if (rest.includes(" ")) return [];
-  const query = rest.toLowerCase();
-  const matches = SLASH_COMMANDS.filter((cmd) =>
-    cmd.name.toLowerCase().startsWith(query),
-  );
-  return matches.length > 0 ? matches : [];
-}
 
 function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
   glyph: string;
@@ -119,39 +81,6 @@ function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
     default:
       return { glyph: "○", color: COLOR.textFaint, label: "queued" };
   }
-}
-
-function shortSessionLabel(value: string | undefined): string {
-  if (!value) return "new session";
-  return value.length > 20 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
-}
-
-function renderTopBar(
-  state: OmniStandaloneAppState,
-  availableWidth: number,
-): string {
-  const mode = state.session.isStreaming ? "working" : "ready";
-  const model = state.session.modelLabel ?? "default model";
-  const thinking = state.session.thinkingLevel ?? "default";
-  const session = shortSessionLabel(
-    state.session.sessionName ?? state.session.sessionId,
-  );
-  const queue =
-    state.session.steeringQueue.length + state.session.followUpQueue.length;
-  const queuePart = queue > 0 ? `  ·  queue ${queue}` : "";
-
-  const segments: string[] = [`omni  ·  ${mode}`, model];
-  if (availableWidth >= 90) {
-    segments.push(`thinking ${thinking}`);
-  }
-  if (availableWidth >= 70) {
-    segments.push(session);
-  }
-  let line = segments.join("  ·  ") + queuePart;
-  if (line.length > availableWidth) {
-    line = `${line.slice(0, Math.max(0, availableWidth - 1))}…`;
-  }
-  return line;
 }
 
 function renderShortcuts(state: OmniStandaloneAppState): string {
@@ -174,9 +103,7 @@ export async function mountOmniShell(
     TextRenderable,
     InputRenderable,
     InputRenderableEvents,
-    MarkdownRenderable,
     ASCIIFontRenderable,
-    SyntaxStyle,
   } = openTui;
 
   renderer.setBackgroundColor(COLOR.canvas);
@@ -194,24 +121,6 @@ export async function mountOmniShell(
     backgroundColor: COLOR.canvas,
   });
 
-  // --- Top status bar ---------------------------------------------------
-  const topBar = new BoxRenderable(renderer, {
-    width: "100%",
-    flexShrink: 0,
-    paddingLeft: 2,
-    paddingRight: 2,
-    paddingTop: 0,
-    paddingBottom: 0,
-    border: ["bottom"],
-    borderColor: COLOR.border,
-    backgroundColor: COLOR.canvas,
-  });
-  const topBarText = new TextRenderable(renderer, {
-    content: renderTopBar(controller.state, terminalWidth - 4),
-    fg: COLOR.textMuted,
-  });
-  topBar.add(topBarText);
-
   // --- Body: conversation + right rail ----------------------------------
   const body = new BoxRenderable(renderer, {
     width: "100%",
@@ -219,8 +128,6 @@ export async function mountOmniShell(
     flexDirection: "row",
     backgroundColor: COLOR.canvas,
   });
-
-  const syntaxStyle = SyntaxStyle.create();
 
   const conversationColumn = new BoxRenderable(renderer, {
     flexGrow: 1,
@@ -271,24 +178,6 @@ export async function mountOmniShell(
     backgroundColor: COLOR.canvas,
   });
 
-  const sessionPanel = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: COLOR.borderSoft,
-    borderStyle: "rounded",
-    title: " session ",
-    titleAlignment: "left",
-    paddingLeft: 1,
-    paddingRight: 1,
-    paddingTop: 0,
-    paddingBottom: 0,
-    backgroundColor: COLOR.canvas,
-  });
-  const sessionText = new TextRenderable(renderer, {
-    content: renderSessionPanel(controller.state),
-    fg: COLOR.textMuted,
-  });
-  sessionPanel.add(sessionText);
-
   const workflowPanel = new BoxRenderable(renderer, {
     border: true,
     borderColor: COLOR.borderSoft,
@@ -307,37 +196,26 @@ export async function mountOmniShell(
   });
   workflowPanel.add(workflowText);
 
-  const repoMapLayout = controller.state.layout.panels.find(
-    (panel) => panel.id === "repoMap",
-  );
-  let repoMapPanel: BoxRenderable | undefined;
-  let repoMapText: TextRenderable | undefined;
-  if (repoMapLayout?.visible) {
-    repoMapPanel = new BoxRenderable(renderer, {
-      border: true,
-      borderColor: COLOR.borderSoft,
-      borderStyle: "rounded",
-      title: " repo map ",
-      titleAlignment: "left",
-      paddingLeft: 1,
-      paddingRight: 1,
-      paddingTop: 0,
-      paddingBottom: 0,
-      flexGrow: 1,
-      backgroundColor: COLOR.canvas,
-    });
-    repoMapText = new TextRenderable(renderer, {
-      content: renderRepoMapPanel(controller.state),
-      fg: COLOR.textMuted,
-    });
-    repoMapPanel.add(repoMapText);
-  }
+  const todoPanel = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: COLOR.borderSoft,
+    borderStyle: "rounded",
+    title: " todos ",
+    titleAlignment: "left",
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: COLOR.canvas,
+  });
+  const todoText = new TextRenderable(renderer, {
+    content: renderTodoPanel(controller.state),
+    fg: COLOR.textMuted,
+  });
+  todoPanel.add(todoText);
 
-  sidebarColumn.add(sessionPanel);
   sidebarColumn.add(workflowPanel);
-  if (repoMapPanel) {
-    sidebarColumn.add(repoMapPanel);
-  }
+  sidebarColumn.add(todoPanel);
 
   body.add(conversationColumn);
   if (sidebarVisible) {
@@ -375,9 +253,26 @@ export async function mountOmniShell(
     visible: false,
   });
 
+  const dialogBox: BoxRenderable = new BoxRenderable(renderer, {
+    id: "standalone-dialog",
+    width: "100%",
+    flexDirection: "column",
+    border: true,
+    borderStyle: "rounded",
+    borderColor: COLOR.border,
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    marginTop: 1,
+    backgroundColor: COLOR.surface,
+    visible: false,
+  });
+
   const SLASH_VISIBLE_MAX = 6;
-  let slashMatches: SlashCommand[] = [];
+  let slashMatches = filterStandaloneSlashCommands("");
   let slashIndex = 0;
+  let dialogWasActive = Boolean(controller.state.dialog);
 
   const renderSlashPopover = () => {
     for (const child of popover.getChildren()) {
@@ -453,8 +348,119 @@ export async function mountOmniShell(
     popover.visible = true;
   };
 
+  const renderDialog = (state: OmniStandaloneAppState) => {
+    for (const child of dialogBox.getChildren()) {
+      dialogBox.remove(child.id);
+    }
+
+    const dialog = state.dialog;
+    if (!dialog) {
+      dialogBox.visible = false;
+      return;
+    }
+
+    const title = new TextRenderable(renderer, {
+      id: "dialog-title",
+      content: dialog.title,
+      fg: COLOR.accent,
+    });
+    dialogBox.add(title);
+
+    if (dialog.message) {
+      dialogBox.add(
+        new TextRenderable(renderer, {
+          id: "dialog-message",
+          content: dialog.message,
+          fg: COLOR.textMuted,
+        }),
+      );
+    }
+
+    if (dialog.kind === "select" || dialog.kind === "confirm") {
+      const options =
+        dialog.kind === "confirm"
+          ? dialog.options ?? []
+          : (dialog.options ?? []).filter((option) => {
+              const query = (dialog.query ?? "").trim().toLowerCase();
+              if (!query) return true;
+              const haystack = `${option.label} ${option.searchText ?? ""} ${option.detail ?? ""}`.toLowerCase();
+              return haystack.includes(query);
+            });
+      const selectedIndex = Math.min(
+        dialog.selectedIndex ?? 0,
+        Math.max(0, options.length - 1),
+      );
+      const windowStart = Math.min(
+        Math.max(0, selectedIndex - SLASH_VISIBLE_MAX + 1),
+        Math.max(0, options.length - SLASH_VISIBLE_MAX),
+      );
+      const windowEnd = Math.min(options.length, windowStart + SLASH_VISIBLE_MAX);
+
+      for (let index = windowStart; index < windowEnd; index += 1) {
+        const option = options[index];
+        const selected = index === selectedIndex;
+        const row = new BoxRenderable(renderer, {
+          id: `dialog-row-${index}`,
+          width: "100%",
+          flexDirection: "column",
+          paddingLeft: 1,
+          paddingRight: 1,
+          backgroundColor: selected ? COLOR.surfaceAlt : COLOR.surface,
+        });
+        row.add(
+          new TextRenderable(renderer, {
+            id: `dialog-label-${index}`,
+            content: `${selected ? "→" : " "} ${option?.label ?? ""}`,
+            fg: selected ? COLOR.accent : COLOR.text,
+          }),
+        );
+        if (option?.detail) {
+          row.add(
+            new TextRenderable(renderer, {
+              id: `dialog-detail-${index}`,
+              content: `  ${option.detail}`,
+              fg: COLOR.textMuted,
+            }),
+          );
+        }
+        dialogBox.add(row);
+      }
+
+      dialogBox.add(
+        new TextRenderable(renderer, {
+          id: "dialog-hint",
+          content:
+            dialog.kind === "confirm"
+              ? " ↑↓ choose  ·  enter confirm  ·  esc cancel"
+              : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
+          fg: COLOR.textFaint,
+        }),
+      );
+    } else {
+      dialogBox.add(
+        new TextRenderable(renderer, {
+          id: "dialog-hint",
+          content:
+            dialog.kind === "editor"
+              ? " edit in the prompt bar below  ·  enter submit  ·  esc cancel"
+              : " type in the prompt bar below  ·  enter submit  ·  esc cancel",
+          fg: COLOR.textFaint,
+        }),
+      );
+    }
+
+    dialogBox.visible = true;
+  };
+
   const refreshSlashPopover = () => {
-    const matches = filterSlashCommands(input.value);
+    if (controller.state.dialog) {
+      slashMatches = [];
+      slashIndex = 0;
+      popover.visible = false;
+      renderer.requestRender();
+      return;
+    }
+    const matches = filterStandaloneSlashCommands(input.value);
     if (matches.length === 0) {
       slashMatches = [];
       slashIndex = 0;
@@ -468,12 +474,24 @@ export async function mountOmniShell(
     renderer.requestRender();
   };
 
-  const completeSelectedCommand = () => {
+  const completeSelectedCommand = (submitIfNoArgs = false) => {
     const selected = slashMatches[slashIndex];
     if (!selected) return;
-    input.value = selected.args ? `/${selected.name} ` : `/${selected.name}`;
+    const commandText = `/${selected.name}`;
     slashMatches = [];
+    slashIndex = 0;
     popover.visible = false;
+    if (submitIfNoArgs && !selected.args) {
+      input.value = "";
+      input.focus();
+      void controller.submitPrompt(commandText).catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+      });
+      renderer.requestRender();
+      return;
+    }
+    input.value = selected.args ? `${commandText} ` : commandText;
+    input.focus();
     renderer.requestRender();
   };
 
@@ -499,6 +517,23 @@ export async function mountOmniShell(
     focusedBackgroundColor: COLOR.canvas,
   });
   input.on(InputRenderableEvents.ENTER, () => {
+    if (controller.state.dialog) {
+      void controller.submitDialog().catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+      });
+      return;
+    }
+
+    if (
+      popover.visible &&
+      slashMatches.length > 0 &&
+      input.value.startsWith("/") &&
+      !input.value.slice(1).includes(" ")
+    ) {
+      completeSelectedCommand(true);
+      return;
+    }
+
     const value = input.value;
     input.value = "";
     slashMatches = [];
@@ -510,9 +545,34 @@ export async function mountOmniShell(
     });
   });
   input.on(InputRenderableEvents.INPUT, () => {
+    if (controller.state.dialog) {
+      controller.updateDialogInput(input.value);
+      renderDialog(controller.state);
+      renderer.requestRender();
+      return;
+    }
     refreshSlashPopover();
   });
   input.onKeyDown = (key) => {
+    if (controller.state.dialog) {
+      if (key.name === "up") {
+        key.preventDefault();
+        controller.moveDialogSelection(-1);
+        return;
+      }
+      if (key.name === "down") {
+        key.preventDefault();
+        controller.moveDialogSelection(1);
+        return;
+      }
+      if (key.name === "escape") {
+        key.preventDefault();
+        void controller.cancelDialog();
+        return;
+      }
+      return;
+    }
+
     if (popover.visible && slashMatches.length > 0) {
       if (key.name === "up") {
         key.preventDefault();
@@ -551,6 +611,18 @@ export async function mountOmniShell(
   inputRow.add(promptCaret);
   inputRow.add(input);
 
+  const footerMetaRow = new BoxRenderable(renderer, {
+    width: "100%",
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: COLOR.canvas,
+  });
+  const footerMetaText = new TextRenderable(renderer, {
+    content: renderFooterMeta(controller.state),
+    fg: COLOR.textMuted,
+  });
+  footerMetaRow.add(footerMetaText);
+
   const shortcutsRow = new BoxRenderable(renderer, {
     width: "100%",
     paddingTop: 0,
@@ -563,11 +635,12 @@ export async function mountOmniShell(
   });
   shortcutsRow.add(shortcutsText);
 
+  inputDock.add(dialogBox);
   inputDock.add(popover);
   inputDock.add(inputRow);
+  inputDock.add(footerMetaRow);
   inputDock.add(shortcutsRow);
 
-  root.add(topBar);
   root.add(body);
   root.add(inputDock);
   renderer.root.add(root);
@@ -619,9 +692,12 @@ export async function mountOmniShell(
     }
 
     if (state.conversation.length === 0) {
+      conversationScroll.verticalScrollBar.visible = false;
       conversationStack.add(buildEmptyState());
       return;
     }
+
+    conversationScroll.verticalScrollBar.resetVisibilityControl();
 
     for (const item of state.conversation) {
       if (item.role === "user") {
@@ -633,13 +709,21 @@ export async function mountOmniShell(
           borderColor: COLOR.userAccent,
           paddingLeft: 2,
           paddingRight: 1,
-          backgroundColor: COLOR.canvas,
+          paddingTop: 0,
+          paddingBottom: 0,
+          backgroundColor: COLOR.surface,
+        });
+        const label = new TextRenderable(renderer, {
+          id: `${item.id}-label`,
+          content: "you",
+          fg: COLOR.userAccent,
         });
         const text = new TextRenderable(renderer, {
           id: `${item.id}-text`,
-          content: item.text,
+          content: formatMarkdownForTerminal(item.text),
           fg: COLOR.text,
         });
+        card.add(label);
         card.add(text);
         conversationStack.add(card);
         continue;
@@ -663,6 +747,8 @@ export async function mountOmniShell(
         borderColor: item.streaming ? COLOR.accent : COLOR.accentSoft,
         paddingLeft: 2,
         paddingRight: 1,
+        paddingTop: 0,
+        paddingBottom: 0,
         backgroundColor: COLOR.canvas,
       });
       const column = new BoxRenderable(renderer, {
@@ -673,11 +759,19 @@ export async function mountOmniShell(
         backgroundColor: COLOR.canvas,
       });
 
+      const title = new TextRenderable(renderer, {
+        id: `${item.id}-title`,
+        content: item.statusText ? `omni  ·  ${item.statusText}` : "omni",
+        fg: item.streaming ? COLOR.accent : COLOR.textMuted,
+      });
+      column.add(title);
+
       if (item.toolCalls && item.toolCalls.length > 0) {
         const toolsBox = new BoxRenderable(renderer, {
           id: `${item.id}-tools`,
           flexDirection: "column",
           gap: 0,
+          marginTop: 0,
           marginBottom: item.text.trim() ? 1 : 0,
           backgroundColor: COLOR.canvas,
         });
@@ -707,23 +801,13 @@ export async function mountOmniShell(
       }
 
       if (item.text.trim()) {
-        const markdown = new MarkdownRenderable(renderer, {
-          id: `${item.id}-markdown`,
-          content: item.text.trim(),
-          streaming: item.streaming ?? false,
-          syntaxStyle,
+        const body = new TextRenderable(renderer, {
+          id: `${item.id}-body`,
+          content: formatMarkdownForTerminal(item.text.trim()),
           fg: COLOR.text,
-          bg: COLOR.canvas,
-          conceal: true,
-          tableOptions: {
-            borders: true,
-            borderStyle: "rounded",
-            borderColor: COLOR.border,
-            cellPadding: 0,
-          },
         });
-        column.add(markdown);
-      } else if (item.streaming) {
+        column.add(body);
+      } else if (item.streaming && (!item.toolCalls || item.toolCalls.length === 0)) {
         const thinking = new TextRenderable(renderer, {
           id: `${item.id}-thinking`,
           content: item.statusText ? item.statusText : "thinking…",
@@ -737,26 +821,57 @@ export async function mountOmniShell(
     }
   };
 
+  const unsubscribeQuit =
+    "onQuit" in controller
+      ? controller.onQuit(() => {
+          renderer.destroy();
+        })
+      : () => {};
+
   const unsubscribe = controller.onChange((state) => {
-    const currentWidth = renderer.terminalWidth ?? terminalWidth;
-    topBarText.content = renderTopBar(state, currentWidth - 4);
     shortcutsText.content = renderShortcuts(state);
+    footerMetaText.content = renderFooterMeta(state);
     renderConversation(state);
-    sessionText.content = renderSessionPanel(state);
     workflowText.content = renderWorkflowPanel(state.workflow);
-    if (repoMapText) {
-      repoMapText.content = renderRepoMapPanel(state);
+    todoText.content = renderTodoPanel(state);
+    renderDialog(state);
+
+    if (state.dialog) {
+      input.placeholder =
+        state.dialog.placeholder ??
+        (state.dialog.kind === "select"
+          ? "Type to search…"
+          : state.dialog.kind === "editor"
+            ? "Edit text…"
+            : "Enter a value…");
+      const desiredValue =
+        state.dialog.kind === "select"
+          ? (state.dialog.query ?? "")
+          : (state.dialog.value ?? "");
+      if (input.value !== desiredValue) {
+        input.value = desiredValue;
+      }
+      popover.visible = false;
+    } else {
+      input.placeholder = "Ask Omni…  (type / for commands)";
+      if (dialogWasActive) {
+        input.value = "";
+      }
     }
+
+    dialogWasActive = Boolean(state.dialog);
     conversationScroll.scrollTo({ y: conversationScroll.scrollHeight, x: 0 });
     renderer.requestRender();
   });
 
   // Seed the initial empty state once so the wordmark shows before RPC loads.
   renderConversation(controller.state);
+  renderDialog(controller.state);
 
   return {
     teardown: () => {
       unsubscribe();
+      unsubscribeQuit();
     },
   };
 }

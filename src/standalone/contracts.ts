@@ -33,6 +33,12 @@ export interface OmniStandaloneWorkflowSnapshot {
   tasksPreview?: string;
 }
 
+export interface OmniStandaloneTodoItem {
+  id: string;
+  title: string;
+  status: "todo" | "in_progress" | "blocked" | "done";
+}
+
 export interface OmniStandaloneSessionSnapshot {
   sessionId?: string;
   sessionFile?: string;
@@ -59,13 +65,34 @@ export interface OmniStandaloneConversationItem {
   toolCalls?: OmniStandaloneToolCall[];
 }
 
+export interface OmniStandaloneDialogOption {
+  label: string;
+  value: string;
+  searchText?: string;
+  detail?: string;
+}
+
+export interface OmniStandaloneDialogState {
+  id: string;
+  kind: "select" | "confirm" | "input" | "editor";
+  title: string;
+  message?: string;
+  placeholder?: string;
+  options?: OmniStandaloneDialogOption[];
+  query?: string;
+  value?: string;
+  selectedIndex?: number;
+}
+
 export interface OmniStandaloneAppState {
   layout: OmniStandaloneLayoutSpec;
   statuses: OmniStandaloneStatusItem[];
   workflow: OmniStandaloneWorkflowSnapshot;
   repoMapPreview: string;
   session: OmniStandaloneSessionSnapshot;
+  todos: OmniStandaloneTodoItem[];
   conversation: OmniStandaloneConversationItem[];
+  dialog?: OmniStandaloneDialogState;
 }
 
 export const DEFAULT_STANDALONE_LAYOUT: OmniStandaloneLayoutSpec = {
@@ -74,7 +101,7 @@ export const DEFAULT_STANDALONE_LAYOUT: OmniStandaloneLayoutSpec = {
     { id: "conversation", title: "Conversation", visible: true },
     { id: "workflow", title: "Workflow", visible: true, width: 30 },
     { id: "repoMap", title: "Repo Map", visible: false, width: 34 },
-    { id: "session", title: "Session", visible: true, width: 30 },
+    { id: "session", title: "Session", visible: false, width: 30 },
     { id: "notifications", title: "Notifications", visible: false },
   ],
 };
