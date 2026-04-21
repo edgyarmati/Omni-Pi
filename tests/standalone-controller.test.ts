@@ -288,15 +288,41 @@ describe("standalone controller", () => {
     expect(lastItem?.text).toContain("Usage");
   });
 
-  test("shows error for /import with missing file", async () => {
+  test("opens model picker when /model has no args", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
     await controller.start();
 
-    await controller.submitPrompt("/import /nonexistent/path/session.jsonl");
+    const pending = controller.submitPrompt("/model");
+    for (let i = 0; i < 20 && controller.state.dialog?.kind !== "select"; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(controller.state.dialog?.kind).toBe("select");
+    expect(controller.state.dialog?.title).toBe("Switch model");
+    const options = controller.state.dialog?.options ?? [];
+    expect(options.length).toBeGreaterThanOrEqual(2);
 
-    const lastItem = controller.state.conversation[controller.state.conversation.length - 1];
-    expect(lastItem?.text).toContain("not found");
+    // Select the first model
+    await controller.submitDialog();
+    await pending;
+    expect(rpcClient.setModel).toHaveBeenCalledWith("anthropic", "claude-sonnet");
+    expect(controller.state.session.modelLabel).toBe("anthropic/claude-sonnet");
+  });
+
+  test("opens model picker via controller method", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    const pending = controller.openModelPicker();
+    for (let i = 0; i < 20 && controller.state.dialog?.kind !== "select"; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(controller.state.dialog?.kind).toBe("select");
+    expect(controller.state.dialog?.title).toBe("Switch model");
+    await controller.submitDialog();
+    await pending;
+    expect(rpcClient.setModel).toHaveBeenCalled();
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

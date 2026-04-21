@@ -85,7 +85,7 @@ function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
 
 function renderShortcuts(state: OmniStandaloneAppState): string {
   const abort = state.session.isStreaming ? "esc abort  ·  " : "";
-  return `${abort}enter send  ·  /help controls`;
+  return `${abort}enter send  ·  ctrl+p model  ·  /help controls`;
 }
 
 export interface MountShellResult {
@@ -615,6 +615,18 @@ export async function mountOmniShell(
     if (key.name === "escape") {
       key.preventDefault();
       void controller.abort();
+    }
+    if (key.ctrl && key.name === "k") {
+      key.preventDefault();
+      void controller.openModelPicker().catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+      });
+    }
+    if (key.ctrl && key.name === "p") {
+      key.preventDefault();
+      void controller.openModelPicker().catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+      });
     }
   };
   inputRow.add(promptCaret);

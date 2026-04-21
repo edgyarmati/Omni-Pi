@@ -67,6 +67,7 @@ export interface OmniStandaloneController {
   stop(): Promise<void>;
   submitPrompt(message: string): Promise<void>;
   abort(): Promise<void>;
+  openModelPicker(): Promise<void>;
   updateDialogInput(value: string): void;
   moveDialogSelection(delta: number): void;
   toggleDialogSelection(): void;
@@ -774,6 +775,7 @@ export function createStandaloneController(
         "",
         "• Enter — send message / confirm dialog",
         "• Esc — abort streaming or cancel active dialog",
+        "• Ctrl+P / Ctrl+K — open model picker",
         "• / — open slash command autocomplete",
         "• ↑ / ↓ — move through slash suggestions or dialog selections",
         "• Tab — complete the highlighted slash command",
@@ -991,6 +993,43 @@ export function createStandaloneController(
     }
   };
 
+  const openModelPicker = async () => {
+    const availableModels = (await rpcClient.getAvailableModels()) ?? [];
+    if (availableModels.length === 0) {
+      pushConversation({ role: "system", text: "No available models were reported by the RPC engine." });
+      return;
+    }
+
+    const currentLabel = state.session.modelLabel;
+    const options: StandaloneDialogOption[] = availableModels
+      .filter((model) => model.provider && model.id)
+      .map((model) => {
+        const value = `${model.provider}/${model.id}`;
+        return {
+          label: `${value}${currentLabel === value ? "  ·  active" : ""}`,
+          value,
+          searchText: `${model.provider} ${model.id} ${model.name ?? ""}`,
+          detail: model.name ?? undefined,
+        };
+      });
+
+    if (options.length === 0) {
+      pushConversation({ role: "system", text: "No models available." });
+      return;
+    }
+
+    const selected = await requestSelect("Switch model", options, "Search models. Enter to switch.");
+    if (!selected) return;
+
+    const [provider, modelId] = selected.split("/");
+    if (!provider || !modelId) return;
+
+    await rpcClient.setModel(provider, modelId);
+    state.session.modelLabel = selected;
+    emitChange();
+    pushConversation({ role: "system", text: `Model set to ${selected}.` });
+  };
+
   const submitPrompt = async (message: string) => {
     const trimmed = message.trim();
     if (!trimmed) {
@@ -1032,10 +1071,7 @@ export function createStandaloneController(
         case "model": {
           const [provider, modelId] = rest.split("/");
           if (!provider || !modelId) {
-            pushConversation({
-              role: "system",
-              text: "Usage: /model <provider>/<model-id>",
-            });
+            await openModelPicker();
             return;
           }
           await rpcClient.setModel(provider, modelId);
@@ -1285,6 +1321,7 @@ export function createStandaloneController(
     stop,
     submitPrompt,
     abort,
+    openModelPicker,
     updateDialogInput,
     moveDialogSelection,
     toggleDialogSelection,
