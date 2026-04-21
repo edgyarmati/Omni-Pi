@@ -22,6 +22,7 @@ export const STANDALONE_SLASH_COMMANDS: StandaloneSlashCommand[] = [
   { name: "sessions", description: "search and switch to another session", kind: "standalone", supported: true },
   { name: "providers", description: "connect providers and manage model availability", kind: "standalone", supported: true },
   { name: "omni-mode", description: "toggle Omni mode for this project", kind: "omni-extension", supported: true },
+  { name: "omni-rtk", args: "<status|install|on|off>", description: "control global RTK bash routing", kind: "omni-extension", supported: true },
   { name: "theme", description: "pick an Omni theme", kind: "omni-extension", supported: true },
   { name: "model-setup", description: "add, refresh, or remove custom model entries", kind: "omni-extension", supported: true },
   { name: "manage-providers", description: "remove stored bundled-provider auth", kind: "omni-extension", supported: true },

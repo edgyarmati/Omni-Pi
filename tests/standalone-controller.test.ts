@@ -213,6 +213,9 @@ describe("standalone controller", () => {
     expect(controller.state.session.modelLabel).toBe("anthropic/claude-opus");
     expect(controller.state.session.thinkingLevel).toBe("high");
     expect(controller.state.session.sessionName).toBe("feature-branch");
+
+    await controller.submitPrompt("/omni-rtk status");
+    expect(rpcClient.prompt).toHaveBeenCalledWith("/omni-rtk status");
   });
 
   test("opens scoped-models selector and persists enabled models", async () => {
