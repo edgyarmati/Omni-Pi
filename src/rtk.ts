@@ -139,15 +139,17 @@ export async function rewriteCommandWithRtk(
     cwd,
     timeout: RTK_REWRITE_TIMEOUT_MS,
   });
+
+  const rewritten = result.stdout.trim();
+  if (rewritten.length > 0 && rewritten !== command.trim()) {
+    return rewritten;
+  }
+
   if (result.code !== 0) {
     return null;
   }
 
-  const rewritten = result.stdout.trim();
-  if (rewritten.length === 0 || rewritten === command.trim()) {
-    return null;
-  }
-  return rewritten;
+  return null;
 }
 
 async function commandExists(

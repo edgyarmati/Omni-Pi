@@ -9,6 +9,7 @@ import {
   detectRtk,
   executeRtkCommand,
   registerRtkBashRouting,
+  rewriteCommandWithRtk,
 } from "../src/rtk.js";
 import { readRtkMode } from "../src/theme.js";
 
@@ -86,6 +87,22 @@ describe("RTK integration", () => {
         process.env.PI_CODING_AGENT_DIR = previousAgentDir;
       }
     }
+  });
+
+  test("rewriteCommandWithRtk accepts rewritten stdout even when rtk exits nonzero", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-nonzero-"));
+
+    await expect(
+      rewriteCommandWithRtk(
+        "git status --short --branch",
+        cwd,
+        async () => ({
+          stdout: "rtk git status --short --branch\n",
+          stderr: "",
+          code: 3,
+        }),
+      ),
+    ).resolves.toBe("rtk git status --short --branch");
   });
 
   test("registerRtkBashRouting rewrites bash commands only in auto mode", async () => {
