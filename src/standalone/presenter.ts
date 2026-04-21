@@ -143,7 +143,14 @@ function renderToolCall(toolCall: OmniStandaloneToolCall): string {
         : toolCall.status === "failed"
           ? "failed"
           : "queued";
-  return `↳ ${toolCall.name} · ${suffix}`;
+  const lines = [`↳ ${toolCall.name} · ${suffix}`];
+  if (toolCall.inputText) {
+    lines.push(`   input  ${truncateLine(formatMarkdownForTerminal(toolCall.inputText), 120)}`);
+  }
+  if (toolCall.outputText) {
+    lines.push(`   output ${truncateLine(formatMarkdownForTerminal(toolCall.outputText), 120)}`);
+  }
+  return lines.join("\n");
 }
 
 function renderConversationItem(item: OmniStandaloneConversationItem): string {

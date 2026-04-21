@@ -101,6 +101,7 @@ describe("standalone controller", () => {
     rpcClient.emitEvent({
       type: "tool_execution_start",
       toolName: "web_search",
+      input: { query: "omni" },
     });
     rpcClient.emitEvent({
       type: "message_update",
@@ -114,6 +115,7 @@ describe("standalone controller", () => {
       type: "tool_execution_end",
       toolName: "web_search",
       isError: false,
+      output: { text: "search complete" },
     });
     rpcClient.emitEvent({ type: "message_end" });
     rpcClient.emitEvent({ type: "agent_end", messages: [] });
@@ -122,13 +124,21 @@ describe("standalone controller", () => {
     expect(controller.state.conversation).toHaveLength(2);
     expect(controller.state.conversation[1]?.text).toBe("Hi there");
     expect(controller.state.conversation[1]?.toolCalls).toEqual([
-      { id: expect.any(String), name: "web_search", status: "done" },
+      {
+        id: expect.any(String),
+        name: "web_search",
+        status: "done",
+        inputText: '{"query":"omni"}',
+        outputText: 'search complete',
+      },
     ]);
     expect(controller.state.session.isStreaming).toBe(false);
 
     const rendered = renderConversationLines(controller.state);
     expect(rendered).toContain("Omni");
     expect(rendered).toContain("↳ web_search · done");
+    expect(rendered).toContain("input");
+    expect(rendered).toContain("search complete");
     expect(rendered).not.toContain("Tool:");
   });
 
@@ -383,6 +393,40 @@ describe("standalone controller", () => {
     const rendered = renderConversationLines(controller.state);
     expect(rendered.toLowerCase()).toContain("no models are currently available");
     expect(rendered).toContain("/providers");
+  });
+
+  test("shows explicit bash tool input and output when provided by RPC events", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+
+    await controller.start();
+    await controller.submitPrompt("Run git status");
+
+    rpcClient.emitEvent({ type: "agent_start" });
+    rpcClient.emitEvent({
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "toolcall_end",
+        toolCall: { name: "bash", command: "rtk git status --short --branch" },
+      },
+    });
+    rpcClient.emitEvent({
+      type: "tool_execution_start",
+      toolName: "bash",
+      input: { command: "rtk git status --short --branch" },
+    });
+    rpcClient.emitEvent({
+      type: "tool_execution_end",
+      toolName: "bash",
+      isError: false,
+      stdout: "## feat/opentui-standalone-omni...origin/feat/opentui-standalone-omni",
+    });
+    rpcClient.emitEvent({ type: "message_end" });
+    rpcClient.emitEvent({ type: "agent_end", messages: [] });
+
+    const rendered = renderConversationLines(controller.state);
+    expect(rendered).toContain("rtk git status --short --branch");
+    expect(rendered).toContain("feat/opentui-standalone-omni");
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

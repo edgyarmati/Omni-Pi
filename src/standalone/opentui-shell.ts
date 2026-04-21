@@ -849,6 +849,24 @@ export async function mountOmniShell(
           toolRow.add(glyphText);
           toolRow.add(nameText);
           toolsBox.add(toolRow);
+          if (toolCall.inputText) {
+            toolsBox.add(
+              new TextRenderable(renderer, {
+                id: `${toolCall.id}-input`,
+                content: `  input  ${formatMarkdownForTerminal(toolCall.inputText)}`,
+                fg: COLOR.textFaint,
+              }),
+            );
+          }
+          if (toolCall.outputText) {
+            toolsBox.add(
+              new TextRenderable(renderer, {
+                id: `${toolCall.id}-output`,
+                content: `  output ${formatMarkdownForTerminal(toolCall.outputText)}`,
+                fg: COLOR.textFaint,
+              }),
+            );
+          }
         }
         column.add(toolsBox);
       }

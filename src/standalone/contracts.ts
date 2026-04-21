@@ -74,6 +74,8 @@ export interface OmniStandaloneToolCall {
   id: string;
   name: string;
   status: "pending" | "running" | "done" | "failed";
+  inputText?: string;
+  outputText?: string;
 }
 
 export interface OmniStandaloneConversationItem {

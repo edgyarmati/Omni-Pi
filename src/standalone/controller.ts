@@ -294,6 +294,60 @@ export function createStandaloneController(
     return toolCall;
   };
 
+  const summarizeUnknown = (value: unknown): string | undefined => {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      const rendered = value
+        .map((entry) => summarizeUnknown(entry))
+        .filter((entry): entry is string => Boolean(entry))
+        .join(" | ");
+      return rendered.length > 0 ? rendered : undefined;
+    }
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (typeof record.command === "string") return record.command;
+      if (typeof record.text === "string") return record.text;
+      if (typeof record.stdout === "string" && record.stdout.trim()) return record.stdout.trim();
+      if (typeof record.stderr === "string" && record.stderr.trim()) return record.stderr.trim();
+      try {
+        const json = JSON.stringify(record);
+        return json === "{}" ? undefined : json;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  };
+
+  const extractToolInputText = (event: OmniRpcEvent): string | undefined => {
+    const record = event as Record<string, unknown>;
+    return (
+      summarizeUnknown(record.input) ??
+      summarizeUnknown(record.arguments) ??
+      summarizeUnknown(record.args) ??
+      summarizeUnknown(record.toolInput) ??
+      summarizeUnknown(record.command)
+    );
+  };
+
+  const extractToolOutputText = (event: OmniRpcEvent): string | undefined => {
+    const record = event as Record<string, unknown>;
+    return (
+      summarizeUnknown(record.output) ??
+      summarizeUnknown(record.result) ??
+      summarizeUnknown(record.details) ??
+      summarizeUnknown(record.stdout) ??
+      summarizeUnknown(record.stderr) ??
+      summarizeUnknown(record.message)
+    );
+  };
+
   const refreshAssistantStatus = (item: OmniStandaloneConversationItem) => {
     if (item.role !== "assistant") {
       return;
@@ -552,7 +606,16 @@ export function createStandaloneController(
       }
       case "message_update": {
         const update = event.assistantMessageEvent as
-          | { type?: unknown; delta?: unknown; toolCall?: { name?: unknown } }
+          | {
+              type?: unknown;
+              delta?: unknown;
+              toolCall?: {
+                name?: unknown;
+                arguments?: unknown;
+                input?: unknown;
+                command?: unknown;
+              };
+            }
           | undefined;
         if (update?.type === "text_delta") {
           const assistant = ensureAssistantItem();
@@ -569,7 +632,12 @@ export function createStandaloneController(
               ? update.toolCall.name
               : "tool";
           const assistant = ensureAssistantItem();
-          ensureToolCall(assistant, toolName);
+          const toolCall = ensureToolCall(assistant, toolName);
+          toolCall.inputText =
+            summarizeUnknown(update.toolCall?.input) ??
+            summarizeUnknown(update.toolCall?.arguments) ??
+            summarizeUnknown(update.toolCall?.command) ??
+            toolCall.inputText;
           refreshAssistantStatus(assistant);
           emitChange();
           return;
@@ -591,6 +659,7 @@ export function createStandaloneController(
         const assistant = ensureAssistantItem();
         const toolCall = ensureToolCall(assistant, toolName);
         toolCall.status = "running";
+        toolCall.inputText = extractToolInputText(event) ?? toolCall.inputText;
         assistant.streaming = true;
         refreshAssistantStatus(assistant);
         emitChange();
@@ -602,6 +671,7 @@ export function createStandaloneController(
         const assistant = ensureAssistantItem();
         const toolCall = ensureToolCall(assistant, toolName);
         toolCall.status = event.isError === true ? "failed" : "done";
+        toolCall.outputText = extractToolOutputText(event) ?? toolCall.outputText;
         refreshAssistantStatus(assistant);
         emitChange();
         return;
