@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-import { Theme } from "@mariozechner/pi-coding-agent";
+import { getAgentDir, Theme } from "@mariozechner/pi-coding-agent";
 
 // ── Curated presets ──────────────────────────────────────────────
 
@@ -114,25 +114,41 @@ function settingsPath(cwd: string): string {
   return path.join(cwd, ".pi", "settings.json");
 }
 
-function readSettings(cwd: string): PiSettings {
+function globalSettingsPath(): string {
+  return path.join(getAgentDir(), "settings.json");
+}
+
+function readSettingsFile(filePath: string): PiSettings {
   try {
-    return JSON.parse(readFileSync(settingsPath(cwd), "utf8")) as PiSettings;
+    return JSON.parse(readFileSync(filePath, "utf8")) as PiSettings;
   } catch {
     return {};
   }
+}
+
+function readSettings(cwd: string): PiSettings {
+  return readSettingsFile(settingsPath(cwd));
+}
+
+function readGlobalSettings(): PiSettings {
+  return readSettingsFile(globalSettingsPath());
 }
 
 export function readPiSettings(cwd: string): PiSettings {
   return readSettings(cwd);
 }
 
+function writeSettingsFile(filePath: string, settings: PiSettings): void {
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+}
+
 function writeSettings(cwd: string, settings: PiSettings): void {
-  mkdirSync(path.join(cwd, ".pi"), { recursive: true });
-  writeFileSync(
-    settingsPath(cwd),
-    `${JSON.stringify(settings, null, 2)}\n`,
-    "utf8",
-  );
+  writeSettingsFile(settingsPath(cwd), settings);
+}
+
+function writeGlobalSettings(settings: PiSettings): void {
+  writeSettingsFile(globalSettingsPath(), settings);
 }
 
 export async function ensurePiSettings(cwd: string): Promise<void> {
@@ -155,12 +171,17 @@ export function saveOmniMode(cwd: string, enabled: boolean): void {
 }
 
 export function readRtkMode(cwd: string): RtkMode {
-  return readSettings(cwd).rtkMode === "auto" ? "auto" : "off";
+  const globalMode = readGlobalSettings().rtkMode;
+  if (globalMode === "auto") {
+    return "auto";
+  }
+  const localMode = readSettings(cwd).rtkMode;
+  return localMode === "auto" ? "auto" : "off";
 }
 
-export function saveRtkMode(cwd: string, mode: RtkMode): void {
-  const settings = readSettings(cwd);
-  writeSettings(cwd, { ...settings, rtkMode: mode });
+export function saveRtkMode(_cwd: string, mode: RtkMode): void {
+  const settings = readGlobalSettings();
+  writeGlobalSettings({ ...settings, rtkMode: mode });
 }
 
 /** Load the saved theme from .pi/settings.json, or fall back to default. */

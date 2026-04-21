@@ -49,82 +49,106 @@ describe("RTK integration", () => {
     });
   });
 
-  test("executeRtkCommand enables auto mode when RTK is installed", async () => {
+  test("executeRtkCommand enables auto mode globally when RTK is installed", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-on-"));
+    const otherCwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-other-"));
+    const agentDir = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-agent-"));
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = agentDir;
 
-    const message = await executeRtkCommand(
-      ["on"],
-      {
-        cwd,
-        hasUI: true,
-        ui: {
-          confirm: async () => true,
-          notify() {},
-          setStatus() {},
+    try {
+      const message = await executeRtkCommand(
+        ["on"],
+        {
+          cwd,
+          hasUI: true,
+          ui: {
+            confirm: async () => true,
+            notify() {},
+            setStatus() {},
+          },
+        } as never,
+        async (command) => {
+          if (command === "rtk") {
+            return { stdout: "rtk 0.28.2\n", stderr: "", code: 0 };
+          }
+          return { stdout: "/usr/local/bin/rtk\n", stderr: "", code: 0 };
         },
-      } as never,
-      async (command) => {
-        if (command === "rtk") {
-          return { stdout: "rtk 0.28.2\n", stderr: "", code: 0 };
-        }
-        return { stdout: "/usr/local/bin/rtk\n", stderr: "", code: 0 };
-      },
-    );
+      );
 
-    expect(message).toContain("RTK routing is now ON");
-    expect(readRtkMode(cwd)).toBe("auto");
+      expect(message).toContain("RTK routing is now ON globally");
+      expect(readRtkMode(cwd)).toBe("auto");
+      expect(readRtkMode(otherCwd)).toBe("auto");
+    } finally {
+      if (previousAgentDir === undefined) {
+        delete process.env.PI_CODING_AGENT_DIR;
+      } else {
+        process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+      }
+    }
   });
 
   test("registerRtkBashRouting rewrites bash commands only in auto mode", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-rewrite-"));
+    const agentDir = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-agent-"));
+    const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = agentDir;
     const handlers = new Map<
       string,
       (event: unknown, ctx: { cwd: string }) => Promise<void>
     >();
 
-    registerRtkBashRouting(
-      {
-        on(
-          event: string,
-          handler: (event: unknown, ctx: { cwd: string }) => Promise<void>,
-        ) {
-          handlers.set(event, handler);
+    try {
+      registerRtkBashRouting(
+        {
+          on(
+            event: string,
+            handler: (event: unknown, ctx: { cwd: string }) => Promise<void>,
+          ) {
+            handlers.set(event, handler);
+          },
+        } as never,
+        async () => ({ stdout: "rtk git status\n", stderr: "", code: 0 }),
+      );
+
+      const handler = handlers.get("tool_call");
+      expect(handler).toBeTypeOf("function");
+
+      const bashEvent = {
+        toolName: "bash",
+        input: { command: "git status" },
+      };
+
+      await handler?.(bashEvent, { cwd });
+      expect(bashEvent.input.command).toBe("git status");
+
+      await executeRtkCommand(
+        ["on"],
+        {
+          cwd,
+          hasUI: true,
+          ui: {
+            confirm: async () => true,
+            notify() {},
+            setStatus() {},
+          },
+        } as never,
+        async (command) => {
+          if (command === "rtk") {
+            return { stdout: "rtk 0.28.2\n", stderr: "", code: 0 };
+          }
+          return { stdout: "/usr/local/bin/rtk\n", stderr: "", code: 0 };
         },
-      } as never,
-      async () => ({ stdout: "rtk git status\n", stderr: "", code: 0 }),
-    );
+      );
 
-    const handler = handlers.get("tool_call");
-    expect(handler).toBeTypeOf("function");
-
-    const bashEvent = {
-      toolName: "bash",
-      input: { command: "git status" },
-    };
-
-    await handler?.(bashEvent, { cwd });
-    expect(bashEvent.input.command).toBe("git status");
-
-    await executeRtkCommand(
-      ["on"],
-      {
-        cwd,
-        hasUI: true,
-        ui: {
-          confirm: async () => true,
-          notify() {},
-          setStatus() {},
-        },
-      } as never,
-      async (command) => {
-        if (command === "rtk") {
-          return { stdout: "rtk 0.28.2\n", stderr: "", code: 0 };
-        }
-        return { stdout: "/usr/local/bin/rtk\n", stderr: "", code: 0 };
-      },
-    );
-
-    await handler?.(bashEvent, { cwd });
-    expect(bashEvent.input.command).toBe("rtk git status");
+      await handler?.(bashEvent, { cwd });
+      expect(bashEvent.input.command).toBe("rtk git status");
+    } finally {
+      if (previousAgentDir === undefined) {
+        delete process.env.PI_CODING_AGENT_DIR;
+      } else {
+        process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+      }
+    }
   });
 });

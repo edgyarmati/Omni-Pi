@@ -312,7 +312,7 @@ export async function executeRtkCommand(
   if (subcommand === "off" || subcommand === "disable") {
     saveRtkMode(cwd, "off");
     await refreshRtkStatusIndicator(ctx, exec);
-    return "RTK routing is now OFF. Omni will stop rewriting bash tool calls through RTK.";
+    return "RTK routing is now OFF globally. Omni will stop rewriting bash tool calls through RTK in new and existing projects.";
   }
 
   if (subcommand === "on" || subcommand === "enable") {
@@ -324,7 +324,7 @@ export async function executeRtkCommand(
     }
     saveRtkMode(cwd, "auto");
     await refreshRtkStatusIndicator(ctx, exec);
-    return `RTK routing is now ON for bash tool calls.${installed.version ? ` Detected RTK ${installed.version}.` : ""}`;
+    return `RTK routing is now ON globally for bash tool calls.${installed.version ? ` Detected RTK ${installed.version}.` : ""}`;
   }
 
   if (subcommand === "install") {
