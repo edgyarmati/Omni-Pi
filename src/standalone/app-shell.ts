@@ -18,6 +18,14 @@ export function createStandaloneShellState(): OmniStandaloneAppState {
       steeringQueue: [],
       followUpQueue: [],
     },
+    providers: {
+      items: [],
+      connectedProviderCount: 0,
+      configuredProviderCount: 0,
+      availableModelCount: 0,
+      enabledModelCount: 0,
+      hasAnyOAuthProvider: false,
+    },
     todos: [],
     conversation: [],
   };

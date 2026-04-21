@@ -9,7 +9,7 @@ export interface StandaloneSlashCommand {
 export const STANDALONE_SLASH_COMMANDS: StandaloneSlashCommand[] = [
   { name: "help", description: "show available commands", kind: "standalone", supported: true },
   { name: "new", description: "start a fresh session", kind: "standalone", supported: true },
-  { name: "model", args: "<provider>/<id>", description: "switch the active model", kind: "standalone", supported: true },
+  { name: "model", args: "<provider>/<id>", description: "switch the active model or open the picker", kind: "standalone", supported: true },
   { name: "thinking", args: "<level>", description: "set thinking budget", kind: "standalone", supported: true },
   { name: "steer", args: "<msg>", description: "queue a steering message", kind: "standalone", supported: true },
   { name: "followup", args: "<msg>", description: "queue a follow-up prompt", kind: "standalone", supported: true },
@@ -20,6 +20,7 @@ export const STANDALONE_SLASH_COMMANDS: StandaloneSlashCommand[] = [
   { name: "name", args: "<name>", description: "set session display name", kind: "pi-builtin", supported: true },
   { name: "resume", args: "<session>", description: "resume a different session by path", kind: "pi-builtin", supported: true },
   { name: "sessions", description: "search and switch to another session", kind: "standalone", supported: true },
+  { name: "providers", description: "connect providers and manage model availability", kind: "standalone", supported: true },
   { name: "omni-mode", description: "toggle Omni mode for this project", kind: "omni-extension", supported: true },
   { name: "theme", description: "pick an Omni theme", kind: "omni-extension", supported: true },
   { name: "model-setup", description: "add, refresh, or remove custom model entries", kind: "omni-extension", supported: true },

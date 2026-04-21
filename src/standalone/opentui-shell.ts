@@ -85,7 +85,7 @@ function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
 
 function renderShortcuts(state: OmniStandaloneAppState): string {
   const abort = state.session.isStreaming ? "esc abort  ·  " : "";
-  return `${abort}enter send  ·  ctrl+p model  ·  /help controls`;
+  return `${abort}enter send  ·  ctrl+p model  ·  /providers setup  ·  /help controls`;
 }
 
 export interface MountShellResult {

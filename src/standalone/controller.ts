@@ -18,6 +18,7 @@ import {
   copyTextToClipboard,
   createSecretGist,
   getGhAuthStatus,
+  getProviderOverview,
   getShareViewerUrl,
   listSessionOptions,
   openExternalUrl,
@@ -347,6 +348,22 @@ export function createStandaloneController(
     emitChange();
   };
 
+  const refreshProviderOverview = async () => {
+    try {
+      const [availableModels, enabledModels] = await Promise.all([
+        rpcClient.getAvailableModels().catch(() => []),
+        readEnabledModels(cwd).catch(() => []),
+      ]);
+      state.providers = await getProviderOverview({
+        availableModels,
+        enabledModels,
+      });
+      emitChange();
+    } catch {
+      // Ignore provider refresh failures for now.
+    }
+  };
+
   const refreshWorkflowContext = async () => {
     const statePath = path.join(cwd, ".omni", "STATE.md");
     const tasksPath = path.join(cwd, ".omni", "TASKS.md");
@@ -588,6 +605,7 @@ export function createStandaloneController(
     unsubscribeEvent = rpcClient.onEvent(handleEvent);
     unsubscribeUi = rpcClient.onExtensionUiRequest(handleUiRequest);
     await refreshSessionState();
+    await refreshProviderOverview();
     await refreshWorkflowContext();
   };
 
@@ -610,6 +628,7 @@ export function createStandaloneController(
       await rpcClient.switchSession(previousSession);
     }
     await refreshSessionState();
+    await refreshProviderOverview();
     await refreshWorkflowContext();
   };
 
@@ -629,6 +648,7 @@ export function createStandaloneController(
     streamingAssistantId = undefined;
     state.conversation = [];
     await refreshSessionState();
+    await refreshProviderOverview();
     await refreshWorkflowContext();
     pushConversation({ role: "system", text: `Switched session to ${selected}.` });
   };
@@ -776,6 +796,7 @@ export function createStandaloneController(
         "• Enter — send message / confirm dialog",
         "• Esc — abort streaming or cancel active dialog",
         "• Ctrl+P / Ctrl+K — open model picker",
+        "• /providers — open provider setup and recovery hub",
         "• / — open slash command autocomplete",
         "• ↑ / ↓ — move through slash suggestions or dialog selections",
         "• Tab — complete the highlighted slash command",
@@ -783,8 +804,85 @@ export function createStandaloneController(
     });
   };
 
+  const handleProvidersCommand = async () => {
+    await refreshProviderOverview();
+    const overview = state.providers;
+    const message = [
+      overview.summary ?? "Provider setup status",
+      overview.recommendedAction
+        ? `Recommended next step: ${overview.recommendedAction}`
+        : "You already have usable models. Open the model picker or tune scoped models.",
+    ].join("\n\n");
+
+    const choice = await requestSelect(
+      "Providers",
+      [
+        {
+          label: "Connect provider",
+          value: "/login",
+          searchText: "providers connect login oauth auth",
+          detail: overview.hasAnyOAuthProvider
+            ? "Sign in to an OAuth-backed provider."
+            : "No bundled OAuth providers detected; use custom provider setup instead.",
+        },
+        {
+          label: "Add custom/API-key provider",
+          value: "/model-setup add",
+          searchText: "providers add custom api key model setup",
+          detail: "Configure a provider or model in models.json.",
+        },
+        {
+          label: "Refresh configured provider models",
+          value: "/model-setup refresh",
+          searchText: "providers refresh rediscover models",
+          detail: "Re-discover models for already configured providers.",
+        },
+        {
+          label: "Manage stored provider auth",
+          value: "/manage-providers",
+          searchText: "providers manage remove auth",
+          detail: "Remove stored API-key or OAuth credentials.",
+        },
+        {
+          label: "Log out OAuth provider",
+          value: "/logout",
+          searchText: "providers logout oauth",
+          detail: "Disconnect an OAuth-backed provider.",
+        },
+        {
+          label: "Open model picker",
+          value: "/model",
+          searchText: "providers model picker switch model",
+          detail: "Choose the active model for this session.",
+        },
+        {
+          label: "Scoped models",
+          value: "/scoped-models",
+          searchText: "providers scoped models cycling ctrl+p",
+          detail: "Control which models appear in cycling shortcuts.",
+        },
+      ],
+      message,
+    );
+
+    if (!choice) return;
+    await submitPrompt(choice);
+  };
+
   const handleSettingsCommand = async () => {
     const choice = await requestSelect("Settings", [
+      {
+        label: "Providers & models",
+        value: "/providers",
+        searchText: "providers models connect onboarding",
+        detail: state.providers.summary ?? "Connect providers, refresh models, or manage auth.",
+      },
+      {
+        label: "Model picker",
+        value: "/model",
+        searchText: "model picker switch active model",
+        detail: "Search and switch the active model.",
+      },
       {
         label: "Scoped models",
         value: "/scoped-models",
@@ -796,18 +894,6 @@ export function createStandaloneController(
         value: "/theme",
         searchText: "theme colors preset",
         detail: "Open the Omni theme picker.",
-      },
-      {
-        label: "Model setup",
-        value: "/model-setup",
-        searchText: "model setup custom providers",
-        detail: "Add or refresh custom providers/models.",
-      },
-      {
-        label: "Manage providers",
-        value: "/manage-providers",
-        searchText: "manage providers oauth login logout",
-        detail: "Remove stored OAuth credentials for bundled providers.",
       },
       {
         label: "Update",
@@ -830,7 +916,7 @@ export function createStandaloneController(
   const handleScopedModelsCommand = async () => {
     const availableModels = (await rpcClient.getAvailableModels()) ?? [];
     if (availableModels.length === 0) {
-      pushConversation({ role: "system", text: "No available models were reported by the RPC engine." });
+      pushConversation({ role: "system", text: "No available models were reported by the RPC engine. Open /providers to connect or refresh providers first." });
       return;
     }
 
@@ -936,6 +1022,7 @@ export function createStandaloneController(
       streamingAssistantId = undefined;
       state.conversation = [];
       await refreshSessionState();
+      await refreshProviderOverview();
       await refreshWorkflowContext();
       pushConversation({ role: "system", text: `Session imported from: ${resolvedPath}` });
     } catch (error) {
@@ -996,7 +1083,7 @@ export function createStandaloneController(
   const openModelPicker = async () => {
     const availableModels = (await rpcClient.getAvailableModels()) ?? [];
     if (availableModels.length === 0) {
-      pushConversation({ role: "system", text: "No available models were reported by the RPC engine." });
+      pushConversation({ role: "system", text: "No available models were reported by the RPC engine. Open /providers to connect or refresh providers first." });
       return;
     }
 
@@ -1051,6 +1138,7 @@ export function createStandaloneController(
           streamingAssistantId = undefined;
           state.conversation = [];
           await refreshSessionState();
+          await refreshProviderOverview();
           await refreshWorkflowContext();
           pushConversation({ role: "system", text: "Started a new session." });
           return;
@@ -1140,6 +1228,7 @@ export function createStandaloneController(
           streamingAssistantId = undefined;
           state.conversation = [];
           await refreshSessionState();
+          await refreshProviderOverview();
           await refreshWorkflowContext();
           pushConversation({
             role: "system",
@@ -1155,6 +1244,7 @@ export function createStandaloneController(
           streamingAssistantId = undefined;
           state.conversation = [];
           await refreshSessionState();
+          await refreshProviderOverview();
           await refreshWorkflowContext();
           pushConversation({
             role: "system",
@@ -1164,6 +1254,7 @@ export function createStandaloneController(
         case "fork":
           await rpcClient.fork(rest);
           await refreshSessionState();
+          await refreshProviderOverview();
           pushConversation({
             role: "system",
             text: `Forked from entry ${rest}.`,
@@ -1171,6 +1262,9 @@ export function createStandaloneController(
           return;
         case "sessions":
           await handleSessionsCommand();
+          return;
+        case "providers":
+          await handleProvidersCommand();
           return;
         case "changelog": {
           const changelog = await readOmniChangelog();
@@ -1224,6 +1318,8 @@ export function createStandaloneController(
           const knownCommand = findStandaloneSlashCommand(commandName);
           if (knownCommand?.kind === "omni-extension") {
             await rpcClient.prompt(trimmed);
+            await refreshSessionState();
+            await refreshProviderOverview();
             return;
           }
           if (knownCommand && !knownCommand.supported) {

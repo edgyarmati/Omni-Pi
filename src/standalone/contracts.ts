@@ -39,6 +39,26 @@ export interface OmniStandaloneTodoItem {
   status: "todo" | "in_progress" | "blocked" | "done";
 }
 
+export interface OmniStandaloneProviderStatus {
+  id: string;
+  label: string;
+  auth: "api-key" | "oauth";
+  connected: boolean;
+  configured: boolean;
+  availableModelCount: number;
+}
+
+export interface OmniStandaloneProviderOverview {
+  items: OmniStandaloneProviderStatus[];
+  connectedProviderCount: number;
+  configuredProviderCount: number;
+  availableModelCount: number;
+  enabledModelCount: number;
+  hasAnyOAuthProvider: boolean;
+  recommendedAction?: string;
+  summary?: string;
+}
+
 export interface OmniStandaloneSessionSnapshot {
   sessionId?: string;
   sessionFile?: string;
@@ -91,6 +111,7 @@ export interface OmniStandaloneAppState {
   workflow: OmniStandaloneWorkflowSnapshot;
   repoMapPreview: string;
   session: OmniStandaloneSessionSnapshot;
+  providers: OmniStandaloneProviderOverview;
   todos: OmniStandaloneTodoItem[];
   conversation: OmniStandaloneConversationItem[];
   dialog?: OmniStandaloneDialogState;

@@ -325,6 +325,34 @@ describe("standalone controller", () => {
     expect(rpcClient.setModel).toHaveBeenCalled();
   });
 
+  test("opens providers hub with setup actions", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    const pending = controller.submitPrompt("/providers");
+    for (let i = 0; i < 20 && controller.state.dialog?.kind !== "select"; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(controller.state.dialog?.kind).toBe("select");
+    expect(controller.state.dialog?.title).toBe("Providers");
+    expect(controller.state.dialog?.options?.some((option) => option.value === "/login")).toBe(true);
+    expect(controller.state.dialog?.options?.some((option) => option.value === "/model-setup add")).toBe(true);
+    await controller.cancelDialog();
+    await pending;
+  });
+
+  test("guides the empty state toward provider setup when no models are available", async () => {
+    const rpcClient = createRpcClientStub();
+    rpcClient.getAvailableModels = vi.fn(async () => []);
+    const controller = createStandaloneController({ rpcClient });
+    await controller.start();
+
+    const rendered = renderConversationLines(controller.state);
+    expect(rendered.toLowerCase()).toContain("no models are currently available");
+    expect(rendered).toContain("/providers");
+  });
+
   test("tracks queue state and status notifications from RPC traffic", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });

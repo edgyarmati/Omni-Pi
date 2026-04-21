@@ -179,11 +179,25 @@ function renderConversationItem(item: OmniStandaloneConversationItem): string {
 
 export function renderConversationLines(state: OmniStandaloneAppState): string {
   if (state.conversation.length === 0) {
-    return [
+    const lines = [
       "Omni",
       "  Welcome to Omni standalone.",
-      "  Type a prompt below. Use /help for session, model, and queue controls.",
-    ].join("\n");
+    ];
+
+    if (state.providers.availableModelCount === 0) {
+      lines.push(
+        `  ${state.providers.summary ?? "No models are available yet."}`,
+        `  ${state.providers.recommendedAction ?? "Open /providers to connect or refresh providers."}`,
+      );
+    } else {
+      lines.push(
+        `  ${state.providers.summary ?? `Ready with ${state.providers.availableModelCount} available models.`}`,
+        "  Type a prompt below. Use Ctrl+P or /model to switch models.",
+      );
+    }
+
+    lines.push("  Use /help for session, provider, and queue controls.");
+    return lines.join("\n");
   }
 
   return state.conversation
@@ -204,6 +218,8 @@ export function renderFooterMeta(state: OmniStandaloneAppState): string {
   const segments = [
     `model ${truncateLine(state.session.modelLabel ?? "default", 24)}`,
     `thinking ${truncateLine(state.session.thinkingLevel ?? "default", 12)}`,
+    `models ${state.providers.availableModelCount}`,
+    `providers ${state.providers.connectedProviderCount}/${Math.max(state.providers.configuredProviderCount, state.providers.connectedProviderCount)}`,
     `queue ${state.session.steeringQueue.length + state.session.followUpQueue.length}`,
   ];
 

@@ -3,10 +3,14 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { getAgentDir } from "@mariozechner/pi-coding-agent";
+
+import { AuthStorage } from "../../node_modules/@mariozechner/pi-coding-agent/dist/core/auth-storage.js";
 import {
   SessionManager,
   type SessionInfo,
 } from "../../node_modules/@mariozechner/pi-coding-agent/dist/core/session-manager.js";
+import { getKnownProviderSetups } from "../model-setup.js";
 
 export interface StandaloneDialogOption {
   label: string;
@@ -23,6 +27,40 @@ export interface StandaloneScopedModelOption extends StandaloneDialogOption {
 interface PiSettingsFile {
   enabledModels?: string[];
   [key: string]: unknown;
+}
+
+interface ModelsJsonProviderConfig {
+  apiKey?: string;
+  models?: Array<{ id: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+interface ModelsJsonConfig {
+  providers?: Record<string, ModelsJsonProviderConfig>;
+}
+
+interface AuthCredential {
+  type: "api_key" | "oauth";
+}
+
+export interface StandaloneProviderStatus {
+  id: string;
+  label: string;
+  auth: "api-key" | "oauth";
+  connected: boolean;
+  configured: boolean;
+  availableModelCount: number;
+}
+
+export interface StandaloneProviderOverview {
+  items: StandaloneProviderStatus[];
+  connectedProviderCount: number;
+  configuredProviderCount: number;
+  availableModelCount: number;
+  enabledModelCount: number;
+  hasAnyOAuthProvider: boolean;
+  recommendedAction?: string;
+  summary?: string;
 }
 
 export function getOmniPackageDir(): string {
@@ -74,6 +112,109 @@ export async function writeEnabledModels(
     settings.enabledModels = [...enabledModels];
   }
   await writeProjectSettings(cwd, settings);
+}
+
+function getModelsPath(): string {
+  return path.join(getAgentDir(), "models.json");
+}
+
+async function readModelsJson(): Promise<ModelsJsonConfig> {
+  try {
+    const content = await readFile(getModelsPath(), "utf8");
+    const parsed = JSON.parse(content) as ModelsJsonConfig;
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function getProviderOverview(options?: {
+  availableModels?: Array<{ provider?: string; id?: string; name?: string }>;
+  enabledModels?: string[];
+}): Promise<StandaloneProviderOverview> {
+  const [config, enabledModels] = await Promise.all([
+    readModelsJson(),
+    options?.enabledModels ? Promise.resolve(options.enabledModels) : Promise.resolve([]),
+  ]);
+  const authStorage = AuthStorage.create() as {
+    list(): string[];
+    get(provider: string): AuthCredential | undefined;
+    getOAuthProviders(): Array<{ id: string; name?: string }>;
+  };
+  const connectedProviders = new Set(authStorage.list());
+  const configuredProviders = new Set(Object.keys(config.providers ?? {}));
+  const availableByProvider = new Map<string, number>();
+  for (const model of options?.availableModels ?? []) {
+    if (!model.provider) continue;
+    availableByProvider.set(
+      model.provider,
+      (availableByProvider.get(model.provider) ?? 0) + 1,
+    );
+  }
+
+  const known = getKnownProviderSetups();
+  const knownIds = new Set(known.map((entry) => entry.id));
+  const customConfigured = [...configuredProviders].filter((id) => !knownIds.has(id));
+
+  const items: StandaloneProviderStatus[] = [
+    ...known.map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      auth: provider.auth,
+      connected:
+        connectedProviders.has(provider.id) ||
+        Boolean(config.providers?.[provider.id]?.apiKey?.trim()),
+      configured: configuredProviders.has(provider.id),
+      availableModelCount: availableByProvider.get(provider.id) ?? 0,
+    })),
+    ...customConfigured.map((providerId) => ({
+      id: providerId,
+      label: providerId,
+      auth: "api-key" as const,
+      connected:
+        connectedProviders.has(providerId) ||
+        Boolean(config.providers?.[providerId]?.apiKey?.trim()),
+      configured: true,
+      availableModelCount: availableByProvider.get(providerId) ?? 0,
+    })),
+  ].sort((left, right) => {
+    const rightScore = Number(right.availableModelCount > 0) * 4 + Number(right.connected) * 2 + Number(right.configured);
+    const leftScore = Number(left.availableModelCount > 0) * 4 + Number(left.connected) * 2 + Number(left.configured);
+    return rightScore - leftScore || left.label.localeCompare(right.label);
+  });
+
+  const connectedProviderCount = items.filter((item) => item.connected).length;
+  const configuredProviderCount = items.filter((item) => item.configured).length;
+  const availableModelCount = [...availableByProvider.values()].reduce((sum, count) => sum + count, 0);
+  const enabledModelCount = enabledModels.length;
+  const hasAnyOAuthProvider = authStorage.getOAuthProviders().length > 0;
+
+  const recommendedAction =
+    availableModelCount > 0
+      ? undefined
+      : connectedProviderCount > 0 || configuredProviderCount > 0
+        ? "/providers → refresh models"
+        : hasAnyOAuthProvider
+          ? "/providers → connect provider"
+          : "/providers → add custom provider";
+
+  const summary =
+    availableModelCount > 0
+      ? `${availableModelCount} available model${availableModelCount === 1 ? "" : "s"} across ${Math.max(1, items.filter((item) => item.availableModelCount > 0).length)} provider${items.filter((item) => item.availableModelCount > 0).length === 1 ? "" : "s"}`
+      : connectedProviderCount > 0 || configuredProviderCount > 0
+        ? "Providers are configured, but no models are currently available."
+        : "No providers are connected yet.";
+
+  return {
+    items,
+    connectedProviderCount,
+    configuredProviderCount,
+    availableModelCount,
+    enabledModelCount,
+    hasAnyOAuthProvider,
+    recommendedAction,
+    summary,
+  };
 }
 
 function formatRelativeTime(date: Date): string {
