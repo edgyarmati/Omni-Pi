@@ -31,6 +31,18 @@ cd your-project
 omni
 ```
 
+To try the standalone OpenTUI shell without replacing the main `omni` command yet:
+
+```bash
+cd your-project
+omni-standalone
+```
+
+Notes:
+- `omni` still launches the package-first Pi-based experience
+- `omni-standalone` launches the standalone Omni shell backed by Pi RPC
+- the standalone shell currently requires Bun at runtime in this repo because of an OpenTUI asset-loading issue under plain Node
+
 Custom provider setup, refresh behavior, and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).
 
 ## Features
