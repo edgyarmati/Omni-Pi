@@ -63,6 +63,11 @@ export const PRESETS: Record<string, OmniPreset> = {
     brand: "#8fa3b8",
     welcome: "#6b8299",
   },
+  amethyst: {
+    label: "Amethyst",
+    brand: "#a855f7",
+    welcome: "#7e22ce",
+  },
 };
 
 export const DEFAULT_PRESET = "lavender";
