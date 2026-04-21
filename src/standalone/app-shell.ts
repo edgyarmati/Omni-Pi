@@ -2,6 +2,7 @@ import {
   DEFAULT_STANDALONE_LAYOUT,
   type OmniStandaloneAppState,
 } from "./contracts.js";
+import { DEFAULT_PRESET, PRESETS } from "../theme.js";
 
 export interface OmniStandaloneShell {
   readonly state: OmniStandaloneAppState;
@@ -17,6 +18,11 @@ export function createStandaloneShellState(): OmniStandaloneAppState {
       isStreaming: false,
       steeringQueue: [],
       followUpQueue: [],
+    },
+    theme: {
+      presetName: DEFAULT_PRESET,
+      brand: PRESETS[DEFAULT_PRESET]?.brand ?? "#c5bceb",
+      welcome: PRESETS[DEFAULT_PRESET]?.welcome ?? "#4969c9",
     },
     providers: {
       items: [],

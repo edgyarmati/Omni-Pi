@@ -208,10 +208,7 @@ export function renderConversationLines(state: OmniStandaloneAppState): string {
 function renderStatusLines(statuses: OmniStandaloneStatusItem[]): string[] {
   return statuses
     .slice(0, 4)
-    .map(
-      (item) =>
-        `${item.key}  ${truncateLine(formatMarkdownForTerminal(item.text), 80)}`,
-    );
+    .map((item) => truncateLine(formatMarkdownForTerminal(item.text), 80));
 }
 
 export function renderFooterMeta(state: OmniStandaloneAppState): string {
@@ -223,12 +220,8 @@ export function renderFooterMeta(state: OmniStandaloneAppState): string {
     `queue ${state.session.steeringQueue.length + state.session.followUpQueue.length}`,
   ];
 
-  const sessionName = state.session.sessionName ?? state.session.sessionId;
-  if (sessionName) {
-    const normalizedSession = sessionName.startsWith("session-")
-      ? sessionName.slice("session-".length)
-      : sessionName;
-    segments.push(truncateLine(normalizedSession, 20));
+  if (state.session.sessionName) {
+    segments.push(truncateLine(state.session.sessionName, 20));
   }
 
   if (state.statuses.length > 0) {

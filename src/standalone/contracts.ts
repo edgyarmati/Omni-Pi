@@ -92,9 +92,15 @@ export interface OmniStandaloneDialogOption {
   detail?: string;
 }
 
+export interface OmniStandaloneThemeSnapshot {
+  presetName: string;
+  brand: string;
+  welcome: string;
+}
+
 export interface OmniStandaloneDialogState {
   id: string;
-  kind: "select" | "confirm" | "input" | "editor" | "scoped-models";
+  kind: "select" | "confirm" | "input" | "editor" | "scoped-models" | "theme";
   title: string;
   message?: string;
   placeholder?: string;
@@ -111,6 +117,7 @@ export interface OmniStandaloneAppState {
   workflow: OmniStandaloneWorkflowSnapshot;
   repoMapPreview: string;
   session: OmniStandaloneSessionSnapshot;
+  theme: OmniStandaloneThemeSnapshot;
   providers: OmniStandaloneProviderOverview;
   todos: OmniStandaloneTodoItem[];
   conversation: OmniStandaloneConversationItem[];

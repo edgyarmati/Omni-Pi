@@ -18,7 +18,7 @@ import {
   renderWorkflowPanel,
 } from "./presenter.js";
 
-const COLOR = {
+const BASE_COLOR = {
   canvas: "#0b0b0f",
   surface: "#101014",
   surfaceAlt: "#16161d",
@@ -28,14 +28,38 @@ const COLOR = {
   text: "#e6e6ea",
   textMuted: "#8a8a94",
   textFaint: "#5c5c66",
-  accent: "#a78bfa",
-  accentSoft: "#6d5cc3",
   userAccent: "#7dd3fc",
   info: "#60a5fa",
   success: "#86efac",
   warn: "#fcd34d",
   danger: "#fca5a5",
 };
+
+type ShellPalette = typeof BASE_COLOR & { accent: string; accentSoft: string };
+
+function mixHex(hex: string, target: string, ratio: number): string {
+  const toRgb = (value: string) => ({
+    r: Number.parseInt(value.slice(1, 3), 16),
+    g: Number.parseInt(value.slice(3, 5), 16),
+    b: Number.parseInt(value.slice(5, 7), 16),
+  });
+  const from = toRgb(hex);
+  const into = toRgb(target);
+  const mix = (left: number, right: number) =>
+    Math.round(left + (right - left) * ratio)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${mix(from.r, into.r)}${mix(from.g, into.g)}${mix(from.b, into.b)}`;
+}
+
+function buildPalette(state: OmniStandaloneAppState): ShellPalette {
+  const accent = state.theme.brand;
+  return {
+    ...BASE_COLOR,
+    accent,
+    accentSoft: mixHex(accent, BASE_COLOR.canvas, 0.45),
+  };
+}
 
 const TAGLINES = [
   "barely sentient, mostly caffeinated",
@@ -65,6 +89,11 @@ function pickTagline(): string {
   return TAGLINES[index] ?? TAGLINES[0] ?? "";
 }
 
+let COLOR: ShellPalette = {
+  ...BASE_COLOR,
+  accent: "#a78bfa",
+  accentSoft: mixHex("#a78bfa", BASE_COLOR.canvas, 0.45),
+};
 
 function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
   glyph: string;
@@ -106,6 +135,7 @@ export async function mountOmniShell(
     ASCIIFontRenderable,
   } = openTui;
 
+  COLOR = buildPalette(controller.state);
   renderer.setBackgroundColor(COLOR.canvas);
 
   const terminalWidth = renderer.terminalWidth ?? renderer.root.width ?? 100;
@@ -376,7 +406,7 @@ export async function mountOmniShell(
       );
     }
 
-    if (dialog.kind === "select" || dialog.kind === "confirm" || dialog.kind === "scoped-models") {
+    if (dialog.kind === "select" || dialog.kind === "confirm" || dialog.kind === "scoped-models" || dialog.kind === "theme") {
       const options =
         dialog.kind === "confirm"
           ? dialog.options ?? []
@@ -436,7 +466,9 @@ export async function mountOmniShell(
               ? " ↑↓ choose  ·  enter confirm  ·  esc cancel"
               : dialog.kind === "scoped-models"
                 ? " type to search  ·  space toggle  ·  ↑↓ choose  ·  enter save  ·  esc cancel"
-                : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
+                : dialog.kind === "theme"
+                  ? " type to search  ·  ↑↓ preview  ·  enter save  ·  esc cancel"
+                  : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
           fg: COLOR.textFaint,
         }),
       );
@@ -850,23 +882,47 @@ export async function mountOmniShell(
       : () => {};
 
   const unsubscribe = controller.onChange((state) => {
+    COLOR = buildPalette(state);
+    renderer.setBackgroundColor(COLOR.canvas);
+    root.backgroundColor = COLOR.canvas;
+    body.backgroundColor = COLOR.canvas;
+    conversationColumn.backgroundColor = COLOR.canvas;
+    conversationStack.backgroundColor = COLOR.canvas;
+    sidebarColumn.backgroundColor = COLOR.canvas;
+    sidebarColumn.borderColor = COLOR.border;
+    workflowPanel.borderColor = COLOR.borderSoft;
+    todoPanel.borderColor = COLOR.borderSoft;
+    inputDock.backgroundColor = COLOR.canvas;
+    inputDock.borderColor = COLOR.border;
+    popover.borderColor = COLOR.border;
+    popover.backgroundColor = COLOR.surface;
+    dialogBox.borderColor = COLOR.border;
+    dialogBox.backgroundColor = COLOR.surface;
+    inputRow.backgroundColor = COLOR.canvas;
+    promptCaret.fg = COLOR.accent;
+    footerMetaRow.backgroundColor = COLOR.canvas;
+    footerMetaText.fg = COLOR.textMuted;
+    shortcutsRow.backgroundColor = COLOR.canvas;
+    shortcutsText.fg = COLOR.textFaint;
     shortcutsText.content = renderShortcuts(state);
     footerMetaText.content = renderFooterMeta(state);
     renderConversation(state);
+    workflowText.fg = COLOR.textMuted;
     workflowText.content = renderWorkflowPanel(state.workflow);
+    todoText.fg = COLOR.textMuted;
     todoText.content = renderTodoPanel(state);
     renderDialog(state);
 
     if (state.dialog) {
       input.placeholder =
         state.dialog.placeholder ??
-        (state.dialog.kind === "select" || state.dialog.kind === "scoped-models"
+        (state.dialog.kind === "select" || state.dialog.kind === "scoped-models" || state.dialog.kind === "theme"
           ? "Type to search…"
           : state.dialog.kind === "editor"
             ? "Edit text…"
             : "Enter a value…");
       const desiredValue =
-        state.dialog.kind === "select" || state.dialog.kind === "scoped-models"
+        state.dialog.kind === "select" || state.dialog.kind === "scoped-models" || state.dialog.kind === "theme"
           ? (state.dialog.query ?? "")
           : (state.dialog.value ?? "");
       if (input.value !== desiredValue) {

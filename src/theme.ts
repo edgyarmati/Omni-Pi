@@ -192,8 +192,8 @@ export function ansiColor(hex: string, text: string): string {
 export function formatOmniModeStatus(enabled: boolean): string {
   const label = enabled ? "Omni mode ON" : "Omni mode OFF";
   return enabled
-    ? `${ansiColor(activeBrand, label)}  \x1b[2mctrl+shift+t tasks\x1b[0m`
-    : `\x1b[2m${label}  ctrl+shift+t tasks\x1b[0m`;
+    ? `${ansiColor(activeBrand, label)}`
+    : `\x1b[2m${label}\x1b[0m`;
 }
 
 /** Wrap text in true-color ANSI foreground using the active brand color. */

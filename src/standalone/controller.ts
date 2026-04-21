@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { AuthStorage } from "../../node_modules/@mariozechner/pi-coding-agent/dist/core/auth-storage.js";
+import { applyPreset, getActivePresetName, PRESETS, saveThemeChoice, loadSavedTheme } from "../theme.js";
 
 import type { RepoMapSessionState } from "../repo-map-contracts.js";
 import { rankRepoMapEntries, renderRepoMapBlock } from "../repo-map-rank.js";
@@ -91,6 +92,7 @@ export function createStandaloneController(
   const quitListeners = new Set<() => void>();
   const rpcClient = options.rpcClient;
   const cwd = options.cwd ?? process.cwd();
+  loadSavedTheme(cwd);
 
   let unsubscribeEvent: (() => void) | undefined;
   let unsubscribeUi: (() => void) | undefined;
@@ -104,6 +106,18 @@ export function createStandaloneController(
     signals: [],
     dirtyPaths: new Set<string>(),
   };
+
+  const setThemeState = (presetName: string) => {
+    const preset = PRESETS[presetName] ?? PRESETS.lavender;
+    applyPreset(presetName in PRESETS ? presetName : "lavender");
+    state.theme = {
+      presetName: presetName in PRESETS ? presetName : "lavender",
+      brand: preset?.brand ?? PRESETS.lavender.brand,
+      welcome: preset?.welcome ?? PRESETS.lavender.welcome,
+    };
+  };
+
+  setThemeState(getActivePresetName() ?? "lavender");
 
   const emitChange = () => {
     for (const listener of listeners) {
@@ -787,6 +801,44 @@ export function createStandaloneController(
     });
   };
 
+  const handleThemeCommand = async () => {
+    const currentKey = state.theme.presetName || getActivePresetName() || "lavender";
+    const options: StandaloneDialogOption[] = Object.entries(PRESETS).map(
+      ([key, preset]) => ({
+        label: `${preset.label}${key === currentKey ? "  ·  active" : ""}`,
+        value: key,
+        searchText: `${key} ${preset.label}`,
+        detail: `${preset.brand}  ·  ${preset.welcome}`,
+      }),
+    );
+
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: "theme",
+      title: "Theme",
+      message: "Preview updates live as you move. Enter saves, Esc cancels.",
+      placeholder: "Type to search themes…",
+      options,
+      query: "",
+      selectedIndex: Math.max(0, options.findIndex((option) => option.value === currentKey)),
+      value: currentKey,
+    });
+
+    if (typeof result !== "string" || !(result in PRESETS)) {
+      setThemeState(currentKey);
+      emitChange();
+      return;
+    }
+
+    setThemeState(result);
+    saveThemeChoice(cwd, result);
+    emitChange();
+    pushConversation({
+      role: "system",
+      text: `Theme set to ${PRESETS[result]?.label ?? result}.`,
+    });
+  };
+
   const handleHotkeysCommand = () => {
     pushConversation({
       role: "system",
@@ -1280,6 +1332,9 @@ export function createStandaloneController(
         case "hotkeys":
           handleHotkeysCommand();
           return;
+        case "theme":
+          await handleThemeCommand();
+          return;
         case "settings":
           await handleSettingsCommand();
           return;
@@ -1351,9 +1406,16 @@ export function createStandaloneController(
 
   const updateDialogInput = (value: string) => {
     if (!state.dialog) return;
-    if (state.dialog.kind === "select" || state.dialog.kind === "scoped-models") {
+    if (state.dialog.kind === "select" || state.dialog.kind === "scoped-models" || state.dialog.kind === "theme") {
       state.dialog.query = value;
       state.dialog.selectedIndex = 0;
+      if (state.dialog.kind === "theme") {
+        const filtered = getFilteredDialogOptions(state.dialog);
+        const selected = filtered[0]?.value;
+        if (selected && selected in PRESETS) {
+          setThemeState(selected);
+        }
+      }
     } else {
       state.dialog.value = value;
     }
@@ -1369,6 +1431,12 @@ export function createStandaloneController(
     if (options.length === 0) return;
     const current = state.dialog.selectedIndex ?? 0;
     state.dialog.selectedIndex = (current + delta + options.length) % options.length;
+    if (state.dialog.kind === "theme") {
+      const selected = options[state.dialog.selectedIndex]?.value;
+      if (selected && selected in PRESETS) {
+        setThemeState(selected);
+      }
+    }
     emitChange();
   };
 
@@ -1390,7 +1458,7 @@ export function createStandaloneController(
   const submitDialog = async () => {
     if (!state.dialog) return;
     const dialog = state.dialog;
-    if (dialog.kind === "select") {
+    if (dialog.kind === "select" || dialog.kind === "theme") {
       const selected = getFilteredDialogOptions(dialog)[dialog.selectedIndex ?? 0];
       closeDialog(selected?.value);
       return;
@@ -1408,6 +1476,12 @@ export function createStandaloneController(
 
   const cancelDialog = async () => {
     if (!state.dialog) return;
+    if (state.dialog.kind === "theme") {
+      const original = state.dialog.value;
+      if (typeof original === "string" && original in PRESETS) {
+        setThemeState(original);
+      }
+    }
     closeDialog(undefined);
   };
 

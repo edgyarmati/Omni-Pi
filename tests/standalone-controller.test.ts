@@ -325,6 +325,35 @@ describe("standalone controller", () => {
     expect(rpcClient.setModel).toHaveBeenCalled();
   });
 
+  test("opens theme picker and persists the selected preset", async () => {
+    const rpcClient = createRpcClientStub();
+    const projectDir = await mkdtemp(
+      path.join(os.tmpdir(), "omni-standalone-theme-"),
+    );
+    await mkdir(path.join(projectDir, ".pi"), { recursive: true });
+
+    const controller = createStandaloneController({ rpcClient, cwd: projectDir });
+    await controller.start();
+
+    const pending = controller.submitPrompt("/theme");
+    for (let i = 0; i < 20 && controller.state.dialog?.kind !== "select"; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    expect(controller.state.dialog?.kind).toBe("theme");
+    expect(controller.state.dialog?.title).toBe("Theme");
+    const originalPreset = controller.state.theme.presetName;
+    controller.moveDialogSelection(1);
+    expect(controller.state.theme.presetName).not.toBe(originalPreset);
+    await controller.submitDialog();
+    await pending;
+
+    const settings = JSON.parse(
+      await readFile(path.join(projectDir, ".pi", "settings.json"), "utf8"),
+    ) as { omniTheme?: string };
+    expect(settings.omniTheme).toBeDefined();
+    expect(settings.omniTheme).not.toBe("lavender");
+  });
+
   test("opens providers hub with setup actions", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
@@ -397,7 +426,7 @@ describe("standalone controller", () => {
       id: "ui-3",
       method: "setStatus",
       statusKey: "omni",
-      statusText: "\u001b[38;2;97;188;235mOmni mode ON\u001b[0m ctrl+shift+t",
+      statusText: "\u001b[38;2;97;188;235mOmni mode ON\u001b[0m",
     });
 
     const sessionPanel = renderSessionPanel(controller.state);
