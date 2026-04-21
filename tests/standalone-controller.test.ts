@@ -419,7 +419,14 @@ describe("standalone controller", () => {
       type: "tool_execution_end",
       toolName: "bash",
       isError: false,
-      stdout: "## feat/opentui-standalone-omni...origin/feat/opentui-standalone-omni",
+      output: {
+        content: [
+          {
+            type: "text",
+            text: "## feat/opentui-standalone-omni...origin/feat/opentui-standalone-omni",
+          },
+        ],
+      },
     });
     rpcClient.emitEvent({ type: "message_end" });
     rpcClient.emitEvent({ type: "agent_end", messages: [] });
@@ -427,6 +434,7 @@ describe("standalone controller", () => {
     const rendered = renderConversationLines(controller.state);
     expect(rendered).toContain("rtk git status --short --branch");
     expect(rendered).toContain("feat/opentui-standalone-omni");
+    expect(rendered).not.toContain('{"content"');
   });
 
   test("tracks queue state and status notifications from RPC traffic", async () => {

@@ -315,6 +315,10 @@ export function createStandaloneController(
       if (typeof record.text === "string") return record.text;
       if (typeof record.stdout === "string" && record.stdout.trim()) return record.stdout.trim();
       if (typeof record.stderr === "string" && record.stderr.trim()) return record.stderr.trim();
+      if (Array.isArray(record.content)) {
+        const contentSummary = summarizeUnknown(record.content);
+        if (contentSummary) return contentSummary;
+      }
       try {
         const json = JSON.stringify(record);
         return json === "{}" ? undefined : json;
