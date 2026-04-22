@@ -265,28 +265,28 @@ function isMeaningfulBlocker(value: string): boolean {
 export function renderWorkflowPanel(
   workflow: OmniStandaloneWorkflowSnapshot,
 ): string {
-  const phase = cleanWorkflowLine(workflow.phase, "—", 20);
-  const task = cleanWorkflowLine(workflow.activeTask, "", 160);
+  const phase = cleanWorkflowLine(workflow.phase, "idle", 12);
+  const task = cleanWorkflowLine(workflow.activeTask, "", 36);
+  const summary = cleanWorkflowLine(workflow.statusSummary, "", 52);
+  const next = cleanWorkflowLine(workflow.nextStep, "", 52);
+  const blockers = cleanWorkflowLine(workflow.blockers, "", 52);
 
   const lines: string[] = [];
-  lines.push(task ? `${phase}  ·  ${task}` : phase);
+  lines.push(task ? `${phase} · ${task}` : phase);
 
-  const summary = cleanWorkflowLine(workflow.statusSummary, "", 260);
   if (summary) {
-    lines.push("", summary);
+    lines.push(summary);
+  } else if (task) {
+    lines.push(`working on ${task.toLowerCase()}`);
   }
 
-  const next = cleanWorkflowLine(workflow.nextStep, "", 240);
-  if (next) {
-    lines.push("", `→  ${next}`);
-  }
-
-  const blockers = cleanWorkflowLine(workflow.blockers, "", 240);
   if (blockers && isMeaningfulBlocker(blockers)) {
-    lines.push("", `!  ${blockers}`);
+    lines.push(`blocked: ${blockers}`);
+  } else if (next) {
+    lines.push(`next: ${next}`);
   }
 
-  return lines.join("\n");
+  return lines.slice(0, 3).join("\n");
 }
 
 export function renderRepoMapPanel(state: OmniStandaloneAppState): string {

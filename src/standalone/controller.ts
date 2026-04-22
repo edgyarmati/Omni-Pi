@@ -70,6 +70,9 @@ export interface OmniStandaloneController {
   submitPrompt(message: string): Promise<void>;
   abort(): Promise<void>;
   openModelPicker(): Promise<void>;
+  getPreviousPromptHistory(currentDraft: string): string | undefined;
+  getNextPromptHistory(currentDraft: string): string | undefined;
+  resetPromptHistoryNavigation(): void;
   updateDialogInput(value: string): void;
   moveDialogSelection(delta: number): void;
   toggleDialogSelection(): void;
@@ -101,6 +104,9 @@ export function createStandaloneController(
   let pendingDialogResolve:
     | ((result: string | boolean | string[] | undefined) => void)
     | undefined;
+  let promptHistory: string[] = [];
+  let promptHistoryIndex: number | undefined;
+  let promptHistoryDraft = "";
 
   const emptyRepoSession: RepoMapSessionState = {
     signals: [],
@@ -123,6 +129,108 @@ export function createStandaloneController(
     for (const listener of listeners) {
       listener(state);
     }
+  };
+
+  const normalizePromptHistory = (items: string[]): string[] => {
+    const normalized: string[] = [];
+    for (const item of items) {
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      if (normalized.at(-1) === trimmed) continue;
+      normalized.push(trimmed);
+    }
+    return normalized;
+  };
+
+  const extractMessageText = (message: unknown): string | undefined => {
+    if (!message || typeof message !== "object") return undefined;
+    const record = message as Record<string, unknown>;
+    const content = record.content;
+    if (typeof content === "string") {
+      const trimmed = content.trim();
+      return trimmed || undefined;
+    }
+    if (!Array.isArray(content)) return undefined;
+    const text = content
+      .filter(
+        (block): block is { type?: unknown; text?: unknown } =>
+          !!block && typeof block === "object",
+      )
+      .flatMap((block) =>
+        block.type === "text" && typeof block.text === "string"
+          ? [block.text.trim()]
+          : [],
+      )
+      .filter(Boolean)
+      .join(" ");
+    return text || undefined;
+  };
+
+  const loadPromptHistoryFromSessionFile = async (sessionFile: string | undefined) => {
+    promptHistoryIndex = undefined;
+    promptHistoryDraft = "";
+    if (!sessionFile || !existsSync(sessionFile)) {
+      promptHistory = [];
+      return;
+    }
+
+    try {
+      const content = await readFile(sessionFile, "utf8");
+      const lines = content.split("\n");
+      const prompts: string[] = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const entry = JSON.parse(trimmed) as Record<string, unknown>;
+          if (entry.type !== "message") continue;
+          const message = entry.message as Record<string, unknown> | undefined;
+          if (message?.role !== "user") continue;
+          const text = extractMessageText(message);
+          if (text) prompts.push(text);
+        } catch {
+          // Ignore malformed session lines.
+        }
+      }
+      promptHistory = normalizePromptHistory(prompts);
+    } catch {
+      promptHistory = [];
+    }
+  };
+
+  const rememberPrompt = (message: string) => {
+    promptHistory = normalizePromptHistory([...promptHistory, message]);
+    promptHistoryIndex = undefined;
+    promptHistoryDraft = "";
+  };
+
+  const getPreviousPromptHistory = (currentDraft: string): string | undefined => {
+    if (promptHistory.length === 0) return undefined;
+    if (promptHistoryIndex === undefined) {
+      promptHistoryDraft = currentDraft;
+      promptHistoryIndex = promptHistory.length - 1;
+      return promptHistory[promptHistoryIndex];
+    }
+    promptHistoryIndex = Math.max(0, promptHistoryIndex - 1);
+    return promptHistory[promptHistoryIndex];
+  };
+
+  const getNextPromptHistory = (currentDraft: string): string | undefined => {
+    if (promptHistory.length === 0) return undefined;
+    if (promptHistoryIndex === undefined) return undefined;
+    if (promptHistoryIndex >= promptHistory.length - 1) {
+      promptHistoryIndex = undefined;
+      const draft = promptHistoryDraft;
+      promptHistoryDraft = "";
+      return draft;
+    }
+    promptHistoryIndex += 1;
+    return promptHistory[promptHistoryIndex];
+  };
+
+  const resetPromptHistoryNavigation = () => {
+    promptHistoryIndex = undefined;
+    promptHistoryDraft = "";
   };
 
   const nextId = (prefix: string) => `${prefix}-${++itemCounter}`;
@@ -413,6 +521,7 @@ export function createStandaloneController(
     state.session.sessionName = data?.sessionName;
     state.session.thinkingLevel = data?.thinkingLevel;
     state.session.isStreaming = data?.isStreaming ?? false;
+    await loadPromptHistoryFromSessionFile(data?.sessionFile);
     state.session.modelLabel =
       data?.model?.provider && data.model.id
         ? `${data.model.provider}/${data.model.id}`
@@ -1468,6 +1577,7 @@ export function createStandaloneController(
     }
 
     pushConversation({ role: "user", text: trimmed });
+    rememberPrompt(trimmed);
     await rpcClient.prompt(
       trimmed,
       state.session.isStreaming ? { streamingBehavior: "steer" } : undefined,
@@ -1566,6 +1676,9 @@ export function createStandaloneController(
     submitPrompt,
     abort,
     openModelPicker,
+    getPreviousPromptHistory,
+    getNextPromptHistory,
+    resetPromptHistoryNavigation,
     updateDialogInput,
     moveDialogSelection,
     toggleDialogSelection,

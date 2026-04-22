@@ -25,9 +25,9 @@ const BASE_COLOR = {
   border: "#26262e",
   borderSoft: "#1d1d24",
   divider: "#2a2a33",
-  text: "#e6e6ea",
-  textMuted: "#8a8a94",
-  textFaint: "#5c5c66",
+  text: "#f5f5f7",
+  textMuted: "#ededf2",
+  textFaint: "#d6d6df",
   userAccent: "#7dd3fc",
   info: "#60a5fa",
   success: "#86efac",
@@ -303,6 +303,13 @@ export async function mountOmniShell(
   let slashMatches = filterStandaloneSlashCommands("");
   let slashIndex = 0;
   let dialogWasActive = Boolean(controller.state.dialog);
+  let suppressHistoryReset = false;
+
+  const setInputValue = (value: string) => {
+    suppressHistoryReset = true;
+    input.value = value;
+    suppressHistoryReset = false;
+  };
 
   const renderSlashPopover = () => {
     for (const child of popover.getChildren()) {
@@ -518,7 +525,8 @@ export async function mountOmniShell(
     slashIndex = 0;
     popover.visible = false;
     if (submitIfNoArgs && !selected.args) {
-      input.value = "";
+      setInputValue("");
+      controller.resetPromptHistoryNavigation();
       input.focus();
       void controller.submitPrompt(commandText).catch((error: unknown) => {
         console.error(error instanceof Error ? error.message : String(error));
@@ -526,7 +534,8 @@ export async function mountOmniShell(
       renderer.requestRender();
       return;
     }
-    input.value = selected.args ? `${commandText} ` : commandText;
+    setInputValue(selected.args ? `${commandText} ` : commandText);
+    controller.resetPromptHistoryNavigation();
     input.focus();
     renderer.requestRender();
   };
@@ -571,7 +580,8 @@ export async function mountOmniShell(
     }
 
     const value = input.value;
-    input.value = "";
+    setInputValue("");
+    controller.resetPromptHistoryNavigation();
     slashMatches = [];
     slashIndex = 0;
     popover.visible = false;
@@ -586,6 +596,9 @@ export async function mountOmniShell(
       renderDialog(controller.state);
       renderer.requestRender();
       return;
+    }
+    if (!suppressHistoryReset) {
+      controller.resetPromptHistoryNavigation();
     }
     refreshSlashPopover();
   });
@@ -643,6 +656,30 @@ export async function mountOmniShell(
         renderer.requestRender();
         return;
       }
+    }
+    if (key.name === "up") {
+      key.preventDefault();
+      const previous = controller.getPreviousPromptHistory(input.value);
+      if (previous !== undefined) {
+        setInputValue(previous);
+        popover.visible = false;
+        slashMatches = [];
+        slashIndex = 0;
+        input.focus();
+        renderer.requestRender();
+      }
+      return;
+    }
+    if (key.name === "down") {
+      key.preventDefault();
+      const next = controller.getNextPromptHistory(input.value);
+      if (next !== undefined) {
+        setInputValue(next);
+        refreshSlashPopover();
+        input.focus();
+        renderer.requestRender();
+      }
+      return;
     }
     if (key.name === "escape") {
       key.preventDefault();
@@ -925,9 +962,9 @@ export async function mountOmniShell(
     shortcutsText.content = renderShortcuts(state);
     footerMetaText.content = renderFooterMeta(state);
     renderConversation(state);
-    workflowText.fg = COLOR.textMuted;
+    workflowText.fg = COLOR.text;
     workflowText.content = renderWorkflowPanel(state.workflow);
-    todoText.fg = COLOR.textMuted;
+    todoText.fg = COLOR.text;
     todoText.content = renderTodoPanel(state);
     renderDialog(state);
 
@@ -944,13 +981,13 @@ export async function mountOmniShell(
           ? (state.dialog.query ?? "")
           : (state.dialog.value ?? "");
       if (input.value !== desiredValue) {
-        input.value = desiredValue;
+        setInputValue(desiredValue);
       }
       popover.visible = false;
     } else {
       input.placeholder = "Ask Omni…  (type / for commands)";
       if (dialogWasActive) {
-        input.value = "";
+        setInputValue("");
       }
     }
 

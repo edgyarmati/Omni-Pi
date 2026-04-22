@@ -471,6 +471,57 @@ describe("standalone controller", () => {
     expect(controller.state.conversation.at(-1)?.text).toContain("Heads up");
   });
 
+  test("loads session prompt history from jsonl and navigates it like a terminal", async () => {
+    const rpcClient = createRpcClientStub();
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "omni-history-"));
+    const sessionFile = path.join(projectDir, ".pi", "sessions", "history.jsonl");
+
+    await mkdir(path.dirname(sessionFile), { recursive: true });
+    await writeFile(
+      sessionFile,
+      [
+        JSON.stringify({ type: "session", id: "session-1", timestamp: new Date().toISOString() }),
+        JSON.stringify({
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "first prompt" }] },
+        }),
+        JSON.stringify({
+          type: "message",
+          message: { role: "assistant", content: [{ type: "text", text: "reply" }] },
+        }),
+        JSON.stringify({
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "second prompt" }] },
+        }),
+      ].join("\n"),
+      "utf8",
+    );
+
+    rpcClient.send = vi.fn(async () => ({
+      type: "response",
+      command: "get_state",
+      success: true as const,
+      data: {
+        sessionId: "session-1",
+        sessionFile,
+        thinkingLevel: "medium",
+        isStreaming: false,
+        model: { provider: "anthropic", id: "claude-sonnet" },
+      },
+    }));
+
+    const controller = createStandaloneController({ rpcClient, cwd: projectDir });
+    await controller.start();
+
+    expect(controller.getPreviousPromptHistory("")).toBe("second prompt");
+    expect(controller.getPreviousPromptHistory("second prompt")).toBe("first prompt");
+    expect(controller.getNextPromptHistory("first prompt")).toBe("second prompt");
+    expect(controller.getNextPromptHistory("second prompt")).toBe("");
+
+    await controller.submitPrompt("third prompt");
+    expect(controller.getPreviousPromptHistory("")).toBe("third prompt");
+  });
+
   test("sanitizes and compacts sidebar summaries", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
@@ -498,9 +549,10 @@ describe("standalone controller", () => {
     expect(sessionPanel).not.toContain("\u001b");
     expect(sessionPanel).not.toMatch(/\bsession\b/);
     expect(workflowPanel).toContain("Check");
-    expect(workflowPanel).toContain("Standalone UX hardening pass complete");
-    expect(workflowPanel).toContain("→");
-    expect(workflowPanel.length).toBeLessThan(640);
+    expect(workflowPanel).toContain("Standalone UX hardening pass");
+    expect(workflowPanel).toContain("next:");
+    expect(workflowPanel.split("\n")).toHaveLength(3);
+    expect(workflowPanel.length).toBeLessThan(220);
   });
 
   test("renders common markdown output into readable terminal text", () => {
