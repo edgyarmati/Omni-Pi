@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -337,6 +338,30 @@ export async function openExternalUrl(url: string): Promise<void> {
     return;
   }
   await execFileAsync("xdg-open", [url]);
+}
+
+function extensionForImageMimeType(mimeType: string | undefined): string {
+  switch (mimeType) {
+    case "image/jpeg":
+      return ".jpg";
+    case "image/gif":
+      return ".gif";
+    case "image/webp":
+      return ".webp";
+    case "image/png":
+    default:
+      return ".png";
+  }
+}
+
+export async function writeClipboardImageTemp(
+  bytes: Uint8Array,
+  mimeType?: string,
+): Promise<string> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "omni-paste-"));
+  const filePath = path.join(dir, `pasted-image${extensionForImageMimeType(mimeType)}`);
+  await writeFile(filePath, Buffer.from(bytes));
+  return filePath;
 }
 
 export async function copyTextToClipboard(text: string): Promise<void> {

@@ -301,7 +301,7 @@ describe("standalone controller", () => {
     expect(lastItem?.text).toContain("Usage");
   });
 
-  test("opens model picker when /model has no args", async () => {
+  test("opens provider-first model picker when /model has no args", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
     await controller.start();
@@ -312,17 +312,20 @@ describe("standalone controller", () => {
     }
     expect(controller.state.dialog?.kind).toBe("select");
     expect(controller.state.dialog?.title).toBe("Switch model");
-    const options = controller.state.dialog?.options ?? [];
-    expect(options.length).toBeGreaterThanOrEqual(2);
+    expect(controller.state.dialog?.pickerMode).toBe("provider");
+    expect(controller.state.dialog?.options?.[0]?.label).toBe("Any provider");
 
-    // Select the first model
+    await controller.submitDialog();
+    expect(controller.state.dialog?.pickerMode).toBe("model");
+    expect(controller.state.dialog?.options?.[0]?.label).toBe("← Back");
+
     await controller.submitDialog();
     await pending;
     expect(rpcClient.setModel).toHaveBeenCalledWith("anthropic", "claude-sonnet");
     expect(controller.state.session.modelLabel).toBe("anthropic/claude-sonnet");
   });
 
-  test("opens model picker via controller method", async () => {
+  test("supports any-provider model picker flow via controller method", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
     await controller.start();
@@ -332,7 +335,14 @@ describe("standalone controller", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     }
     expect(controller.state.dialog?.kind).toBe("select");
-    expect(controller.state.dialog?.title).toBe("Switch model");
+    expect(controller.state.dialog?.pickerMode).toBe("provider");
+    if (controller.state.dialog) controller.state.dialog.selectedIndex = 0;
+
+    await controller.submitDialog();
+    expect(controller.state.dialog?.pickerMode).toBe("model");
+    expect(controller.state.dialog?.options?.some((option) => option.value === "anthropic/claude-sonnet")).toBe(true);
+
+    controller.moveDialogSelection(1);
     await controller.submitDialog();
     await pending;
     expect(rpcClient.setModel).toHaveBeenCalled();

@@ -57,6 +57,31 @@ interface AvailableRpcModel {
   name?: string;
 }
 
+const ANY_PROVIDER_VALUE = "__any_provider__";
+const MODEL_PICKER_BACK_VALUE = "__model_picker_back__";
+
+function formatProviderDisplayName(provider: string): string {
+  const known: Record<string, string> = {
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    openrouter: "OpenRouter",
+    google: "Google Gemini",
+    "github-copilot": "GitHub Copilot",
+    "openai-codex": "OpenAI Codex",
+    xai: "xAI",
+    zai: "Z.ai",
+    "azure-openai-responses": "Azure OpenAI",
+    nvidia: "NVIDIA NIM",
+    together: "Together AI",
+  };
+  if (known[provider]) return known[provider];
+  return provider
+    .split(/[-_\s]+/u)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 import type { OmniRpcClient } from "./rpc/client.js";
 import type {
   OmniRpcEvent,
@@ -67,7 +92,7 @@ export interface OmniStandaloneController {
   readonly state: OmniStandaloneAppState;
   start(): Promise<void>;
   stop(): Promise<void>;
-  submitPrompt(message: string): Promise<void>;
+  submitPrompt(message: string, displayMessage?: string): Promise<void>;
   abort(): Promise<void>;
   openModelPicker(): Promise<void>;
   getPreviousPromptHistory(currentDraft: string): string | undefined;
@@ -309,6 +334,78 @@ export function createStandaloneController(
       selectedIndex: 0,
     });
     return typeof result === "string" ? result : undefined;
+  };
+
+  const buildModelPickerProviderOptions = (
+    availableModels: AvailableRpcModel[],
+    currentLabel: string | undefined,
+  ): StandaloneDialogOption[] => {
+    const activeProvider = currentLabel?.split("/")[0];
+    const providerMap = new Map<string, number>();
+    for (const model of availableModels) {
+      if (!model.provider || !model.id) continue;
+      providerMap.set(model.provider, (providerMap.get(model.provider) ?? 0) + 1);
+    }
+    const providerOptions = [...providerMap.entries()]
+      .sort((a, b) => formatProviderDisplayName(a[0]).localeCompare(formatProviderDisplayName(b[0])))
+      .map(([provider, count]) => ({
+        label: formatProviderDisplayName(provider),
+        value: provider,
+        searchText: `${provider} ${formatProviderDisplayName(provider)}`,
+        detail: `${count} model${count === 1 ? "" : "s"}${activeProvider === provider ? "  ·  active" : ""}`,
+      }));
+
+    return [
+      {
+        label: "Any provider",
+        value: ANY_PROVIDER_VALUE,
+        searchText: "any provider all models",
+        detail: `${availableModels.length} total model${availableModels.length === 1 ? "" : "s"}`,
+      },
+      ...providerOptions,
+    ];
+  };
+
+  const buildModelPickerModelOptions = (
+    availableModels: AvailableRpcModel[],
+    currentLabel: string | undefined,
+    provider: string | undefined,
+  ): StandaloneDialogOption[] => {
+    const filtered = availableModels.filter((model) => {
+      if (!model.provider || !model.id) return false;
+      if (!provider) return true;
+      return model.provider === provider;
+    });
+
+    const sorted = filtered.sort((left, right) => {
+      const byProvider = formatProviderDisplayName(left.provider ?? "").localeCompare(formatProviderDisplayName(right.provider ?? ""));
+      if (byProvider !== 0) return byProvider;
+      return (left.name ?? left.id ?? "").localeCompare(right.name ?? right.id ?? "");
+    });
+
+    const options = sorted.map((model) => {
+      const value = `${model.provider}/${model.id}`;
+      const providerLabel = formatProviderDisplayName(model.provider!);
+      const modelLine = model.name && model.name !== model.id
+        ? `${model.name}  ·  ${model.id}`
+        : (model.name ?? model.id ?? "");
+      return {
+        label: modelLine,
+        value,
+        searchText: `${providerLabel} ${model.provider} ${model.id} ${model.name ?? ""}`,
+        detail: `${provider ? providerLabel : `${providerLabel}  ·  ${model.provider}`}${currentLabel === value ? "  ·  active" : ""}`,
+      };
+    });
+
+    return [
+      {
+        label: "← Back",
+        value: MODEL_PICKER_BACK_VALUE,
+        searchText: "back providers",
+        detail: provider ? `Return to ${formatProviderDisplayName(provider)} and other providers` : "Return to provider list",
+      },
+      ...options,
+    ];
   };
 
   const requestConfirm = async (
@@ -1316,44 +1413,47 @@ export function createStandaloneController(
   };
 
   const openModelPicker = async () => {
-    const availableModels = (await rpcClient.getAvailableModels()) ?? [];
+    const availableModels = ((await rpcClient.getAvailableModels()) ?? []).filter(
+      (model) => model.provider && model.id,
+    );
     if (availableModels.length === 0) {
       pushConversation({ role: "system", text: "No available models were reported by the RPC engine. Open /providers to connect or refresh providers first." });
       return;
     }
 
     const currentLabel = state.session.modelLabel;
-    const options: StandaloneDialogOption[] = availableModels
-      .filter((model) => model.provider && model.id)
-      .map((model) => {
-        const value = `${model.provider}/${model.id}`;
-        return {
-          label: `${value}${currentLabel === value ? "  ·  active" : ""}`,
-          value,
-          searchText: `${model.provider} ${model.id} ${model.name ?? ""}`,
-          detail: model.name ?? undefined,
-        };
-      });
+    const providerOptions = buildModelPickerProviderOptions(availableModels, currentLabel);
+    const activeProvider = currentLabel?.split("/")[0];
 
-    if (options.length === 0) {
-      pushConversation({ role: "system", text: "No models available." });
-      return;
-    }
+    const result = await openDialog({
+      id: nextId("dialog"),
+      kind: "select",
+      title: "Switch model",
+      message: "Choose a provider first.",
+      placeholder: "Type to filter providers…",
+      options: providerOptions,
+      query: "",
+      selectedIndex: Math.max(
+        0,
+        providerOptions.findIndex((option) => option.value === activeProvider),
+      ),
+      pickerMode: "provider",
+    });
 
-    const selected = await requestSelect("Switch model", options, "Search models. Enter to switch.");
-    if (!selected) return;
+    if (typeof result !== "string") return;
 
-    const [provider, modelId] = selected.split("/");
+    const [provider, modelId] = result.split("/");
     if (!provider || !modelId) return;
 
     await rpcClient.setModel(provider, modelId);
-    state.session.modelLabel = selected;
+    state.session.modelLabel = result;
     emitChange();
-    pushConversation({ role: "system", text: `Model set to ${selected}.` });
+    pushConversation({ role: "system", text: `Model set to ${result}.` });
   };
 
-  const submitPrompt = async (message: string) => {
+  const submitPrompt = async (message: string, displayMessage?: string) => {
     const trimmed = message.trim();
+    const visibleText = displayMessage?.trim() || trimmed;
     if (!trimmed) {
       return;
     }
@@ -1576,8 +1676,8 @@ export function createStandaloneController(
       }
     }
 
-    pushConversation({ role: "user", text: trimmed });
-    rememberPrompt(trimmed);
+    pushConversation({ role: "user", text: visibleText });
+    rememberPrompt(visibleText);
     await rpcClient.prompt(
       trimmed,
       state.session.isStreaming ? { streamingBehavior: "steer" } : undefined,
@@ -1642,7 +1742,66 @@ export function createStandaloneController(
   const submitDialog = async () => {
     if (!state.dialog) return;
     const dialog = state.dialog;
-    if (dialog.kind === "select" || dialog.kind === "theme") {
+    if (dialog.kind === "select") {
+      const selected = getFilteredDialogOptions(dialog)[dialog.selectedIndex ?? 0];
+      if (dialog.title === "Switch model" && dialog.pickerMode === "provider") {
+        const provider = selected?.value;
+        if (!provider) {
+          closeDialog(undefined);
+          return;
+        }
+        const availableModels = ((await rpcClient.getAvailableModels()) ?? []).filter(
+          (model) => model.provider && model.id,
+        );
+        const nextProvider = provider === ANY_PROVIDER_VALUE ? undefined : provider;
+        const options = buildModelPickerModelOptions(
+          availableModels,
+          state.session.modelLabel,
+          nextProvider,
+        );
+        const activeModel = state.session.modelLabel;
+        state.dialog = {
+          ...dialog,
+          message: nextProvider
+            ? `Models from ${formatProviderDisplayName(nextProvider)}.`
+            : "All available models.",
+          placeholder: "Type to filter models…",
+          options,
+          query: "",
+          selectedIndex: Math.max(0, options.findIndex((option) => option.value === activeModel)),
+          pickerMode: "model",
+          pickerProvider: nextProvider,
+        };
+        emitChange();
+        return;
+      }
+      if (dialog.title === "Switch model" && dialog.pickerMode === "model") {
+        if (selected?.value === MODEL_PICKER_BACK_VALUE) {
+          const availableModels = ((await rpcClient.getAvailableModels()) ?? []).filter(
+            (model) => model.provider && model.id,
+          );
+          const options = buildModelPickerProviderOptions(availableModels, state.session.modelLabel);
+          const activeProvider = state.session.modelLabel?.split("/")[0];
+          state.dialog = {
+            ...dialog,
+            message: "Choose a provider first.",
+            placeholder: "Type to filter providers…",
+            options,
+            query: "",
+            selectedIndex: Math.max(0, options.findIndex((option) => option.value === activeProvider)),
+            pickerMode: "provider",
+            pickerProvider: undefined,
+          };
+          emitChange();
+          return;
+        }
+        closeDialog(selected?.value);
+        return;
+      }
+      closeDialog(selected?.value);
+      return;
+    }
+    if (dialog.kind === "theme") {
       const selected = getFilteredDialogOptions(dialog)[dialog.selectedIndex ?? 0];
       closeDialog(selected?.value);
       return;

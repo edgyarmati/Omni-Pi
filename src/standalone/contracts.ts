@@ -111,6 +111,8 @@ export interface OmniStandaloneDialogState {
   value?: string;
   selectedIndex?: number;
   selectedValues?: string[];
+  pickerMode?: "provider" | "model";
+  pickerProvider?: string;
 }
 
 export interface OmniStandaloneAppState {

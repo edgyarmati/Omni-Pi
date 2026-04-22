@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+
 import type {
   BoxRenderable,
   CliRenderer,
@@ -10,7 +12,15 @@ import type {
   OmniStandaloneToolCall,
 } from "./contracts.js";
 import type { OmniStandaloneController } from "./controller.js";
+import {
+  appendAttachmentToken,
+  createImageAttachmentToken,
+  expandComposerAttachments,
+  pruneComposerAttachments,
+  type ComposerAttachment,
+} from "./composer.js";
 import { filterStandaloneSlashCommands } from "./commands.js";
+import { writeClipboardImageTemp } from "./bridges.js";
 import {
   formatMarkdownForTerminal,
   renderFooterMeta,
@@ -283,32 +293,72 @@ export async function mountOmniShell(
     visible: false,
   });
 
+  const dialogOverlay: BoxRenderable = new BoxRenderable(renderer, {
+    id: "standalone-dialog-overlay",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    zIndex: 100,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLOR.canvas,
+    opacity: 0.96,
+    visible: false,
+  });
+
   const dialogBox: BoxRenderable = new BoxRenderable(renderer, {
     id: "standalone-dialog",
-    width: "100%",
+    width: Math.max(56, Math.min(terminalWidth - 8, 96)),
+    maxWidth: "92%",
+    maxHeight: "85%",
     flexDirection: "column",
     border: true,
     borderStyle: "rounded",
     borderColor: COLOR.border,
-    paddingLeft: 1,
-    paddingRight: 1,
-    paddingTop: 0,
-    paddingBottom: 0,
-    marginTop: 1,
+    paddingLeft: 2,
+    paddingRight: 2,
+    paddingTop: 1,
+    paddingBottom: 1,
     backgroundColor: COLOR.surface,
-    visible: false,
+    shouldFill: true,
   });
+  dialogOverlay.add(dialogBox);
 
   const SLASH_VISIBLE_MAX = 6;
   let slashMatches = filterStandaloneSlashCommands("");
   let slashIndex = 0;
   let dialogWasActive = Boolean(controller.state.dialog);
   let suppressHistoryReset = false;
+  let composerAttachments: ComposerAttachment[] = [];
+
+  const syncComposerAttachments = () => {
+    composerAttachments = pruneComposerAttachments(input.value, composerAttachments);
+  };
 
   const setInputValue = (value: string) => {
     suppressHistoryReset = true;
     input.value = value;
     suppressHistoryReset = false;
+  };
+
+  const insertImageAttachment = (imagePath: string) => {
+    syncComposerAttachments();
+    const token = createImageAttachmentToken(composerAttachments.length + 1);
+    composerAttachments = [...composerAttachments, { token, path: imagePath, kind: "image" }];
+    setInputValue(appendAttachmentToken(input.value, token));
+    input.focus();
+    refreshSlashPopover();
+    renderer.requestRender();
+  };
+
+  const maybeHandleImagePathPaste = (text: string): boolean => {
+    const candidate = text.trim();
+    if (!candidate || !existsSync(candidate)) return false;
+    if (!/\.(png|jpe?g|gif|webp)$/iu.test(candidate)) return false;
+    insertImageAttachment(candidate);
+    return true;
   };
 
   const renderSlashPopover = () => {
@@ -392,9 +442,15 @@ export async function mountOmniShell(
 
     const dialog = state.dialog;
     if (!dialog) {
-      dialogBox.visible = false;
+      dialogOverlay.visible = false;
       return;
     }
+
+    const isModelPicker = dialog.kind === "select" && dialog.title === "Switch model";
+    const isProviderPicker = isModelPicker && dialog.pickerMode === "provider";
+    dialogBox.title = isModelPicker ? " model picker " : ` ${dialog.title.toLowerCase()} `;
+    dialogBox.titleAlignment = "center";
+    dialogOverlay.visible = true;
 
     const title = new TextRenderable(renderer, {
       id: "dialog-title",
@@ -427,11 +483,12 @@ export async function mountOmniShell(
         dialog.selectedIndex ?? 0,
         Math.max(0, options.length - 1),
       );
+      const visibleMax = isModelPicker ? SLASH_VISIBLE_MAX : SLASH_VISIBLE_MAX;
       const windowStart = Math.min(
-        Math.max(0, selectedIndex - SLASH_VISIBLE_MAX + 1),
-        Math.max(0, options.length - SLASH_VISIBLE_MAX),
+        Math.max(0, selectedIndex - visibleMax + 1),
+        Math.max(0, options.length - visibleMax),
       );
-      const windowEnd = Math.min(options.length, windowStart + SLASH_VISIBLE_MAX);
+      const windowEnd = Math.min(options.length, windowStart + visibleMax);
 
       for (let index = windowStart; index < windowEnd; index += 1) {
         const option = options[index];
@@ -442,25 +499,51 @@ export async function mountOmniShell(
           id: `dialog-row-${index}`,
           width: "100%",
           flexDirection: "column",
-          paddingLeft: 1,
-          paddingRight: 1,
+          border: isModelPicker,
+          borderStyle: isModelPicker ? "rounded" : "single",
+          borderColor: selected ? COLOR.accent : COLOR.borderSoft,
+          paddingLeft: isModelPicker ? 1 : 1,
+          paddingRight: isModelPicker ? 1 : 1,
+          paddingTop: isModelPicker ? 0 : 0,
+          paddingBottom: isModelPicker ? 0 : 0,
+          marginTop: 1,
           backgroundColor: selected ? COLOR.surfaceAlt : COLOR.surface,
         });
-        row.add(
-          new TextRenderable(renderer, {
-            id: `dialog-label-${index}`,
-            content: `${isScoped ? (scopedSelected ? "☑" : "☐") : selected ? "→" : " "} ${option?.label ?? ""}`,
-            fg: selected ? COLOR.accent : COLOR.text,
-          }),
-        );
-        if (option?.detail) {
+
+        if (isModelPicker) {
           row.add(
             new TextRenderable(renderer, {
-              id: `dialog-detail-${index}`,
-              content: `  ${option.detail}`,
-              fg: COLOR.textMuted,
+              id: `dialog-label-${index}`,
+              content: `${selected ? "→" : " "} ${option?.label ?? ""}`,
+              fg: selected ? COLOR.accent : COLOR.text,
             }),
           );
+          if (option?.detail) {
+            row.add(
+              new TextRenderable(renderer, {
+                id: `dialog-detail-${index}`,
+                content: `  ${option.detail}`,
+                fg: isProviderPicker ? COLOR.textMuted : (selected ? COLOR.textMuted : COLOR.textFaint),
+              }),
+            );
+          }
+        } else {
+          row.add(
+            new TextRenderable(renderer, {
+              id: `dialog-label-${index}`,
+              content: `${isScoped ? (scopedSelected ? "☑" : "☐") : selected ? "→" : " "} ${option?.label ?? ""}`,
+              fg: selected ? COLOR.accent : COLOR.text,
+            }),
+          );
+          if (option?.detail) {
+            row.add(
+              new TextRenderable(renderer, {
+                id: `dialog-detail-${index}`,
+                content: `  ${option.detail}`,
+                fg: COLOR.textMuted,
+              }),
+            );
+          }
         }
         dialogBox.add(row);
       }
@@ -475,7 +558,11 @@ export async function mountOmniShell(
                 ? " type to search  ·  space toggle  ·  ↑↓ choose  ·  enter save  ·  esc cancel"
                 : dialog.kind === "theme"
                   ? " type to search  ·  ↑↓ preview  ·  enter save  ·  esc cancel"
-                  : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
+                  : isModelPicker
+                    ? isProviderPicker
+                      ? " type to search  ·  ↑↓ choose  ·  enter continue  ·  esc cancel"
+                      : " type to search  ·  ↑↓ choose  ·  enter switch  ·  esc cancel"
+                    : " type to search  ·  ↑↓ choose  ·  enter select  ·  esc cancel",
           fg: COLOR.textFaint,
         }),
       );
@@ -491,8 +578,6 @@ export async function mountOmniShell(
         }),
       );
     }
-
-    dialogBox.visible = true;
   };
 
   const refreshSlashPopover = () => {
@@ -540,6 +625,23 @@ export async function mountOmniShell(
     renderer.requestRender();
   };
 
+  const focusComposerFromMouse = () => {
+    if (controller.state.dialog) {
+      return;
+    }
+    input.focus();
+    renderer.requestRender();
+  };
+
+  root.onMouseDown = focusComposerFromMouse;
+  body.onMouseDown = focusComposerFromMouse;
+  conversationColumn.onMouseDown = focusComposerFromMouse;
+  conversationScroll.onMouseDown = focusComposerFromMouse;
+  conversationStack.onMouseDown = focusComposerFromMouse;
+  sidebarColumn.onMouseDown = focusComposerFromMouse;
+  inputDock.onMouseDown = focusComposerFromMouse;
+  popover.onMouseDown = focusComposerFromMouse;
+
   const inputRow = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "row",
@@ -579,14 +681,17 @@ export async function mountOmniShell(
       return;
     }
 
-    const value = input.value;
+    const displayValue = input.value;
+    syncComposerAttachments();
+    const submittedValue = expandComposerAttachments(displayValue, composerAttachments);
     setInputValue("");
+    composerAttachments = [];
     controller.resetPromptHistoryNavigation();
     slashMatches = [];
     slashIndex = 0;
     popover.visible = false;
     input.focus();
-    void controller.submitPrompt(value).catch((error: unknown) => {
+    void controller.submitPrompt(submittedValue, displayValue).catch((error: unknown) => {
       console.error(error instanceof Error ? error.message : String(error));
     });
   });
@@ -600,8 +705,37 @@ export async function mountOmniShell(
     if (!suppressHistoryReset) {
       controller.resetPromptHistoryNavigation();
     }
+    syncComposerAttachments();
     refreshSlashPopover();
   });
+  const defaultHandlePaste = input.handlePaste.bind(input);
+  input.handlePaste = (event) => {
+    if (controller.state.dialog) {
+      defaultHandlePaste(event);
+      return;
+    }
+
+    const mimeType = event.metadata?.mimeType;
+    if (mimeType?.startsWith("image/")) {
+      event.preventDefault();
+      void writeClipboardImageTemp(event.bytes, mimeType)
+        .then((imagePath) => {
+          insertImageAttachment(imagePath);
+        })
+        .catch((error: unknown) => {
+          console.error(error instanceof Error ? error.message : String(error));
+        });
+      return;
+    }
+
+    const pastedText = new TextDecoder().decode(event.bytes);
+    if (maybeHandleImagePathPaste(pastedText)) {
+      event.preventDefault();
+      return;
+    }
+
+    defaultHandlePaste(event);
+  };
   input.onKeyDown = (key) => {
     if (controller.state.dialog) {
       if (key.name === "up") {
@@ -725,7 +859,6 @@ export async function mountOmniShell(
   });
   shortcutsRow.add(shortcutsText);
 
-  inputDock.add(dialogBox);
   inputDock.add(popover);
   inputDock.add(inputRow);
   inputDock.add(footerMetaRow);
@@ -733,6 +866,7 @@ export async function mountOmniShell(
 
   root.add(body);
   root.add(inputDock);
+  root.add(dialogOverlay);
   renderer.root.add(root);
   input.focus();
 
@@ -951,6 +1085,7 @@ export async function mountOmniShell(
     inputDock.borderColor = COLOR.border;
     popover.borderColor = COLOR.border;
     popover.backgroundColor = COLOR.surface;
+    dialogOverlay.backgroundColor = COLOR.canvas;
     dialogBox.borderColor = COLOR.border;
     dialogBox.backgroundColor = COLOR.surface;
     inputRow.backgroundColor = COLOR.canvas;
