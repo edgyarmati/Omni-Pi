@@ -84,6 +84,7 @@
     "@juanibiapina/pi-powerbar": "^0.9.0",
     "@mariozechner/pi-coding-agent": "^0.69.0",
     "@opentui/core": "^0.1.102",
+    "@sinclair/typebox": "^0.34.49",
     "glimpseui": "^0.8.0",
     "pi-interview": "^0.8.6",
     "pi-web-access": "^0.10.6",
