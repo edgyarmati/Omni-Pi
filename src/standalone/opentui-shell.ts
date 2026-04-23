@@ -26,6 +26,7 @@ import type { OmniUiSnapshot } from "./opencode-adapter/contracts.js";
 import {
   formatMarkdownForTerminal,
   renderOmniUiFooterMeta,
+  renderOmniUiSessionPanel,
   renderOmniUiTodoPanel,
   renderOmniUiWorkflowPanel,
 } from "./presenter.js";
@@ -265,6 +266,24 @@ export async function mountOmniShell(
   });
   workflowPanel.add(workflowText);
 
+  const sessionPanel = new BoxRenderable(renderer, {
+    border: true,
+    borderColor: COLOR.borderSoft,
+    borderStyle: "rounded",
+    title: " session ",
+    titleAlignment: "left",
+    paddingLeft: 1,
+    paddingRight: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
+    backgroundColor: COLOR.canvas,
+  });
+  const sessionText = new TextRenderable(renderer, {
+    content: renderOmniUiSessionPanel(uiSnapshot),
+    fg: COLOR.textMuted,
+  });
+  sessionPanel.add(sessionText);
+
   const todoPanel = new BoxRenderable(renderer, {
     border: true,
     borderColor: COLOR.borderSoft,
@@ -284,6 +303,7 @@ export async function mountOmniShell(
   todoPanel.add(todoText);
 
   sidebarColumn.add(workflowPanel);
+  sidebarColumn.add(sessionPanel);
   sidebarColumn.add(todoPanel);
 
   body.add(conversationColumn);
@@ -1202,6 +1222,7 @@ export async function mountOmniShell(
     sidebarColumn.backgroundColor = COLOR.canvas;
     sidebarColumn.borderColor = COLOR.border;
     workflowPanel.borderColor = COLOR.borderSoft;
+    sessionPanel.borderColor = COLOR.borderSoft;
     todoPanel.borderColor = COLOR.borderSoft;
     inputDock.backgroundColor = COLOR.canvas;
     inputDock.borderColor = COLOR.border;
@@ -1221,6 +1242,8 @@ export async function mountOmniShell(
     renderConversation(uiSnapshot);
     workflowText.fg = COLOR.text;
     workflowText.content = renderOmniUiWorkflowPanel(uiSnapshot.workflow);
+    sessionText.fg = COLOR.text;
+    sessionText.content = renderOmniUiSessionPanel(uiSnapshot);
     todoText.fg = COLOR.text;
     todoText.content = renderOmniUiTodoPanel(uiSnapshot);
     renderDialog(state);

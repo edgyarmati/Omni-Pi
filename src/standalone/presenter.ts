@@ -323,6 +323,35 @@ export function renderOmniUiTodoPanel(snapshot: OmniUiSnapshot): string {
   return renderTodoPanel(stateLike as OmniStandaloneAppState);
 }
 
+export function renderOmniUiSessionPanel(snapshot: OmniUiSnapshot): string {
+  const lines: string[] = [];
+  lines.push(`model  ${truncateLine(snapshot.session.model ?? "default", 42)}`);
+  lines.push(`think  ${truncateLine(snapshot.session.thinking ?? "default", 24)}`);
+  if (snapshot.session.name) {
+    lines.push(`name   ${truncateLine(snapshot.session.name, 42)}`);
+  }
+  if (snapshot.session.id) {
+    lines.push(`id     ${truncateLine(snapshot.session.id, 42)}`);
+  }
+
+  const queueCount =
+    snapshot.session.steeringQueue.length + snapshot.session.followUpQueue.length;
+  lines.push(`queue  ${queueCount}`);
+
+  if (snapshot.session.steeringQueue.length > 0) {
+    lines.push(
+      `steer  ${truncateLine(snapshot.session.steeringQueue[0] ?? "", 36)}`,
+    );
+  }
+  if (snapshot.session.followUpQueue.length > 0) {
+    lines.push(
+      `next   ${truncateLine(snapshot.session.followUpQueue[0] ?? "", 36)}`,
+    );
+  }
+
+  return lines.slice(0, 7).join("\n");
+}
+
 export function renderTodoPanel(state: OmniStandaloneAppState): string {
   if (state.todos.length === 0) {
     return "No active todos.";
