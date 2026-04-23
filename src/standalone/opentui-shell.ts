@@ -32,16 +32,16 @@ import {
 } from "./presenter.js";
 
 const BASE_COLOR = {
-  canvas: "#121318",
-  surface: "#171922",
-  surfaceAlt: "#1d2030",
-  border: "#31354a",
-  borderSoft: "#25293b",
-  divider: "#373d55",
-  text: "#f5f5f7",
-  textMuted: "#e7e8ef",
-  textFaint: "#c8ccda",
-  userAccent: "#7dd3fc",
+  canvas: "#000000",
+  surface: "#111214",
+  surfaceAlt: "#1a1c20",
+  border: "#36383d",
+  borderSoft: "#24262b",
+  divider: "#2d3036",
+  text: "#e7e7e8",
+  textMuted: "#a2a4ab",
+  textFaint: "#7a7e86",
+  userAccent: "#60a5fa",
   info: "#60a5fa",
   success: "#86efac",
   warn: "#fcd34d",
@@ -67,27 +67,10 @@ function mixHex(hex: string, target: string, ratio: number): string {
 
 function buildPalette(state: OmniStandaloneAppState): ShellPalette {
   const accent = state.theme.brand;
-  const welcome = state.theme.welcome;
-  const charcoal = "#14161d";
-  const canvas = mixHex(mixHex(charcoal, accent, 0.12), welcome, 0.06);
-  const surface = mixHex(canvas, accent, 0.09);
-  const surfaceAlt = mixHex(surface, welcome, 0.11);
-  const border = mixHex(surfaceAlt, accent, 0.2);
-  const borderSoft = mixHex(surface, accent, 0.12);
-  const divider = mixHex(border, welcome, 0.14);
-
   return {
     ...BASE_COLOR,
-    canvas,
-    surface,
-    surfaceAlt,
-    border,
-    borderSoft,
-    divider,
-    textMuted: mixHex(BASE_COLOR.textMuted, accent, 0.06),
-    textFaint: mixHex(BASE_COLOR.textFaint, accent, 0.12),
-    accent,
-    accentSoft: mixHex(accent, canvas, 0.58),
+    accent: mixHex(accent, "#aeb4c2", 0.35),
+    accentSoft: mixHex(accent, BASE_COLOR.canvas, 0.72),
   };
 }
 
@@ -247,59 +230,65 @@ export async function mountOmniShell(
   });
 
   const workflowPanel = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: COLOR.borderSoft,
-    borderStyle: "rounded",
-    title: " workflow ",
-    titleAlignment: "left",
     paddingLeft: 1,
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: COLOR.canvas,
+    flexDirection: "column",
+    gap: 0,
   });
   let uiSnapshot = standaloneStateToOmniUiSnapshot(controller.state);
 
+  const workflowTitle = new TextRenderable(renderer, {
+    content: "workflow",
+    fg: COLOR.text,
+  });
   const workflowText = new TextRenderable(renderer, {
     content: renderOmniUiWorkflowPanel(uiSnapshot.workflow),
     fg: COLOR.textMuted,
   });
+  workflowPanel.add(workflowTitle);
   workflowPanel.add(workflowText);
 
   const sessionPanel = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: COLOR.borderSoft,
-    borderStyle: "rounded",
-    title: " session ",
-    titleAlignment: "left",
     paddingLeft: 1,
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: COLOR.canvas,
+    flexDirection: "column",
+    gap: 0,
+  });
+  const sessionTitle = new TextRenderable(renderer, {
+    content: "session",
+    fg: COLOR.text,
   });
   const sessionText = new TextRenderable(renderer, {
     content: renderOmniUiSessionPanel(uiSnapshot),
     fg: COLOR.textMuted,
   });
+  sessionPanel.add(sessionTitle);
   sessionPanel.add(sessionText);
 
   const todoPanel = new BoxRenderable(renderer, {
-    border: true,
-    borderColor: COLOR.borderSoft,
-    borderStyle: "rounded",
-    title: " todos ",
-    titleAlignment: "left",
     paddingLeft: 1,
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
     backgroundColor: COLOR.canvas,
+    flexDirection: "column",
+    gap: 0,
+  });
+  const todoTitle = new TextRenderable(renderer, {
+    content: "todos",
+    fg: COLOR.text,
   });
   const todoText = new TextRenderable(renderer, {
     content: renderOmniUiTodoPanel(uiSnapshot),
     fg: COLOR.textMuted,
   });
+  todoPanel.add(todoTitle);
   todoPanel.add(todoText);
 
   sidebarColumn.add(workflowPanel);
@@ -320,8 +309,8 @@ export async function mountOmniShell(
     paddingRight: 2,
     paddingTop: 0,
     paddingBottom: 0,
-    border: ["top"],
-    borderColor: COLOR.border,
+    border: ["bottom"],
+    borderColor: COLOR.borderSoft,
     backgroundColor: COLOR.canvas,
   });
 
@@ -764,23 +753,27 @@ export async function mountOmniShell(
   const inputRow = new BoxRenderable(renderer, {
     width: "100%",
     flexDirection: "row",
-    paddingTop: 1,
+    paddingTop: 0,
     paddingBottom: 0,
+    paddingLeft: 1,
+    paddingRight: 1,
     gap: 1,
-    backgroundColor: COLOR.canvas,
+    border: ["left"],
+    borderColor: COLOR.info,
+    backgroundColor: COLOR.surface,
   });
   const promptCaret = new TextRenderable(renderer, {
-    content: "❯",
+    content: "",
     fg: COLOR.accent,
   });
   const input: InputRenderable = new InputRenderable(renderer, {
     flexGrow: 1,
-    placeholder: "Ask Omni…  (type / for commands)",
+    placeholder: "Ask anything…",
     textColor: COLOR.text,
     focusedTextColor: COLOR.text,
     placeholderColor: COLOR.textFaint,
-    backgroundColor: COLOR.canvas,
-    focusedBackgroundColor: COLOR.canvas,
+    backgroundColor: COLOR.surface,
+    focusedBackgroundColor: COLOR.surface,
   });
   input.on(InputRenderableEvents.ENTER, () => {
     if (controller.state.dialog) {
@@ -957,6 +950,19 @@ export async function mountOmniShell(
   inputRow.add(promptCaret);
   inputRow.add(input);
 
+  const statusDock = new BoxRenderable(renderer, {
+    width: "100%",
+    flexShrink: 0,
+    flexDirection: "column",
+    paddingLeft: 2,
+    paddingRight: 2,
+    paddingTop: 0,
+    paddingBottom: 1,
+    border: ["top"],
+    borderColor: COLOR.borderSoft,
+    backgroundColor: COLOR.canvas,
+  });
+
   const footerMetaRow = new BoxRenderable(renderer, {
     width: "100%",
     paddingTop: 0,
@@ -972,7 +978,7 @@ export async function mountOmniShell(
   const shortcutsRow = new BoxRenderable(renderer, {
     width: "100%",
     paddingTop: 0,
-    paddingBottom: 1,
+    paddingBottom: 0,
     backgroundColor: COLOR.canvas,
   });
   const shortcutsText = new TextRenderable(renderer, {
@@ -983,11 +989,12 @@ export async function mountOmniShell(
 
   inputDock.add(popover);
   inputDock.add(inputRow);
-  inputDock.add(footerMetaRow);
-  inputDock.add(shortcutsRow);
+  statusDock.add(footerMetaRow);
+  statusDock.add(shortcutsRow);
 
-  root.add(body);
   root.add(inputDock);
+  root.add(body);
+  root.add(statusDock);
   root.add(dialogOverlay);
   renderer.root.add(root);
   input.focus();
@@ -1011,27 +1018,34 @@ export async function mountOmniShell(
       id: "welcome-wordmark",
       text: "omni",
       font: "tiny",
-      color: COLOR.accent,
+      color: "#a8adb6",
       backgroundColor: COLOR.canvas,
       selectable: false,
     });
     const tagline = new TextRenderable(renderer, {
       id: "welcome-tagline",
-      content: sessionTagline,
+      content: "Ask anything… \"Fix a TODO in the codebase\"",
       fg: COLOR.textMuted,
     });
     const hint = new TextRenderable(renderer, {
       id: "welcome-hint",
-      content: "type / for commands  ·  enter sends  ·  esc aborts",
+      content: "tab agents  ·  ctrl+p commands",
       fg: COLOR.textFaint,
+    });
+    const tip = new TextRenderable(renderer, {
+      id: "welcome-tip",
+      content: `• Tip ${sessionTagline}`,
+      fg: COLOR.warn,
     });
     wrapper.onMouseDown = focusComposerFromMouse;
     wordmark.onMouseDown = focusComposerFromMouse;
     tagline.onMouseDown = focusComposerFromMouse;
     hint.onMouseDown = focusComposerFromMouse;
+    tip.onMouseDown = focusComposerFromMouse;
     wrapper.add(wordmark);
     wrapper.add(tagline);
     wrapper.add(hint);
+    wrapper.add(tip);
     return wrapper;
   };
 
@@ -1041,7 +1055,10 @@ export async function mountOmniShell(
       conversationStack.remove(child.id);
     }
 
-    if (snapshot.conversation.length === 0) {
+    const isEmpty = snapshot.conversation.length === 0;
+    sidebarColumn.visible = sidebarVisible && !isEmpty;
+
+    if (isEmpty) {
       conversationScroll.verticalScrollBar.visible = false;
       conversationStack.add(buildEmptyState());
       return;
@@ -1221,18 +1238,20 @@ export async function mountOmniShell(
     conversationStack.backgroundColor = COLOR.canvas;
     sidebarColumn.backgroundColor = COLOR.canvas;
     sidebarColumn.borderColor = COLOR.border;
-    workflowPanel.borderColor = COLOR.borderSoft;
-    sessionPanel.borderColor = COLOR.borderSoft;
-    todoPanel.borderColor = COLOR.borderSoft;
+    workflowTitle.fg = COLOR.text;
+    sessionTitle.fg = COLOR.text;
+    todoTitle.fg = COLOR.text;
     inputDock.backgroundColor = COLOR.canvas;
-    inputDock.borderColor = COLOR.border;
+    inputDock.borderColor = COLOR.borderSoft;
     popover.borderColor = COLOR.border;
     popover.backgroundColor = COLOR.surface;
     dialogOverlay.backgroundColor = COLOR.canvas;
     dialogBox.borderColor = COLOR.border;
     dialogBox.backgroundColor = COLOR.surface;
-    inputRow.backgroundColor = COLOR.canvas;
+    inputRow.backgroundColor = COLOR.surface;
     promptCaret.fg = COLOR.accent;
+    statusDock.backgroundColor = COLOR.canvas;
+    statusDock.borderColor = COLOR.borderSoft;
     footerMetaRow.backgroundColor = COLOR.canvas;
     footerMetaText.fg = COLOR.textMuted;
     shortcutsRow.backgroundColor = COLOR.canvas;
@@ -1269,7 +1288,7 @@ export async function mountOmniShell(
       }
       popover.visible = false;
     } else {
-      input.placeholder = "Ask Omni…  (type / for commands)";
+      input.placeholder = "Ask anything…";
       if (dialogWasActive) {
         setInputValue("");
       }
