@@ -447,6 +447,40 @@ describe("standalone controller", () => {
     expect(rendered).not.toContain('{"content"');
   });
 
+  test("filters streamed tool-telemetry and terminal-control artifacts from assistant text", async () => {
+    const rpcClient = createRpcClientStub();
+    const controller = createStandaloneController({ rpcClient });
+
+    await controller.start();
+    await controller.submitPrompt("check updates");
+
+    rpcClient.emitEvent({ type: "agent_start" });
+    rpcClient.emitEvent({
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "text_delta",
+        delta:
+          "✓ bash done\ninput npm outdated --json\noutput {\"x\":1}\n\u001b[2;6HNow summarizing\n",
+      },
+    });
+    rpcClient.emitEvent({ type: "message_end" });
+    rpcClient.emitEvent({ type: "agent_end", messages: [] });
+
+    const assistant = controller.state.conversation.find((item) => item.role === "assistant");
+    expect(assistant?.text).toContain("Now summarizing");
+    expect(assistant?.text).not.toContain("✓ bash done");
+    expect(assistant?.text).not.toContain("input npm outdated --json");
+    expect(assistant?.text).not.toContain("output {");
+    expect(assistant?.text).not.toContain("\u001b");
+
+    const rendered = renderConversationLines(controller.state);
+    expect(rendered).toContain("Now summarizing");
+    expect(rendered).not.toContain("✓ bash done");
+    expect(rendered).not.toContain("input npm outdated --json");
+    expect(rendered).not.toContain("output {\"x\":1}");
+    expect(rendered).not.toContain(";6H");
+  });
+
   test("tracks queue state and status notifications from RPC traffic", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
