@@ -24,4 +24,9 @@ describe("standalone slash command filtering", () => {
   test("returns no matches when the query characters do not appear in order", () => {
     expect(filterStandaloneSlashCommands("/zqv")).toEqual([]);
   });
+
+  test("matches alias commands from vendor-style slash metadata", () => {
+    const matches = filterStandaloneSlashCommands("/exit");
+    expect(matches[0]?.name).toBe("quit");
+  });
 });
