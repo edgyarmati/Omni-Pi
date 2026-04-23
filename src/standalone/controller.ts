@@ -499,10 +499,84 @@ export function createStandaloneController(
     return toolCall;
   };
 
+  const truncateUiText = (value: string, max = 180): string => {
+    const normalized = value.replace(/\s+/gu, " ").trim();
+    if (normalized.length <= max) {
+      return normalized;
+    }
+    return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+  };
+
+  const formatByteSize = (value: number): string => {
+    if (!Number.isFinite(value) || value <= 0) {
+      return "0 B";
+    }
+    if (value < 1024) {
+      return `${value} B`;
+    }
+    if (value < 1024 * 1024) {
+      return `${(value / 1024).toFixed(1)} KB`;
+    }
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const countTextLines = (value: string): number => {
+    if (!value) {
+      return 0;
+    }
+    return value.split(/\r?\n/gu).length;
+  };
+
+  const asRecord = (value: unknown): Record<string, unknown> | undefined => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return undefined;
+    }
+    return value as Record<string, unknown>;
+  };
+
+  const maybeParseJson = (value: unknown): unknown => {
+    if (typeof value !== "string") {
+      return value;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return value;
+    }
+    if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
+      return value;
+    }
+    try {
+      return JSON.parse(trimmed) as unknown;
+    } catch {
+      return value;
+    }
+  };
+
+  const pickPathField = (record: Record<string, unknown>): string | undefined => {
+    const fields = ["path", "filePath", "file", "target", "destination"];
+    for (const field of fields) {
+      const value = record[field];
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    }
+    return undefined;
+  };
+
+  const pathHintFromInputSummary = (toolName: string, inputSummary?: string): string | undefined => {
+    if (!inputSummary) return undefined;
+    const prefix = `${toolName} `;
+    if (!inputSummary.startsWith(prefix)) return undefined;
+    const remainder = inputSummary.slice(prefix.length);
+    const [pathPart] = remainder.split(" · ");
+    const trimmed = pathPart?.trim();
+    return trimmed ? trimmed : undefined;
+  };
+
   const summarizeUnknown = (value: unknown): string | undefined => {
     if (typeof value === "string") {
       const trimmed = value.trim();
-      return trimmed.length > 0 ? trimmed : undefined;
+      return trimmed.length > 0 ? truncateUiText(trimmed) : undefined;
     }
     if (typeof value === "number" || typeof value === "boolean") {
       return String(value);
@@ -512,21 +586,25 @@ export function createStandaloneController(
         .map((entry) => summarizeUnknown(entry))
         .filter((entry): entry is string => Boolean(entry))
         .join(" | ");
-      return rendered.length > 0 ? rendered : undefined;
+      return rendered.length > 0 ? truncateUiText(rendered) : undefined;
     }
     if (value && typeof value === "object") {
       const record = value as Record<string, unknown>;
-      if (typeof record.command === "string") return record.command;
-      if (typeof record.text === "string") return record.text;
-      if (typeof record.stdout === "string" && record.stdout.trim()) return record.stdout.trim();
-      if (typeof record.stderr === "string" && record.stderr.trim()) return record.stderr.trim();
+      if (typeof record.command === "string") return truncateUiText(record.command);
+      if (typeof record.text === "string") return truncateUiText(record.text);
+      if (typeof record.stdout === "string" && record.stdout.trim()) {
+        return truncateUiText(record.stdout.trim());
+      }
+      if (typeof record.stderr === "string" && record.stderr.trim()) {
+        return truncateUiText(record.stderr.trim());
+      }
       if (Array.isArray(record.content)) {
         const contentSummary = summarizeUnknown(record.content);
         if (contentSummary) return contentSummary;
       }
       try {
         const json = JSON.stringify(record);
-        return json === "{}" ? undefined : json;
+        return json === "{}" ? undefined : truncateUiText(json);
       } catch {
         return undefined;
       }
@@ -534,27 +612,166 @@ export function createStandaloneController(
     return undefined;
   };
 
-  const extractToolInputText = (event: OmniRpcEvent): string | undefined => {
-    const record = event as Record<string, unknown>;
-    return (
-      summarizeUnknown(record.input) ??
-      summarizeUnknown(record.arguments) ??
-      summarizeUnknown(record.args) ??
-      summarizeUnknown(record.toolInput) ??
-      summarizeUnknown(record.command)
-    );
+  const summarizeReadInput = (value: unknown): string | undefined => {
+    const payload = maybeParseJson(value);
+    const record = asRecord(payload);
+    if (record) {
+      const path = pickPathField(record) ?? "(unknown path)";
+      const details: string[] = [];
+      const offset = record.offset;
+      const limit = record.limit;
+      if (typeof offset === "number" || typeof offset === "string") {
+        details.push(`offset ${String(offset).trim()}`);
+      }
+      if (typeof limit === "number" || typeof limit === "string") {
+        details.push(`limit ${String(limit).trim()}`);
+      }
+      return truncateUiText(
+        details.length > 0
+          ? `read ${path} · ${details.join(" · ")}`
+          : `read ${path}`,
+      );
+    }
+    const fallback = summarizeUnknown(payload);
+    return fallback ? `read ${fallback}` : undefined;
   };
 
-  const extractToolOutputText = (event: OmniRpcEvent): string | undefined => {
+  const summarizeWriteInput = (value: unknown): string | undefined => {
+    const payload = maybeParseJson(value);
+    const record = asRecord(payload);
+    if (record) {
+      const path = pickPathField(record) ?? "(unknown path)";
+      const details: string[] = [];
+      if (typeof record.content === "string") {
+        details.push(formatByteSize(Buffer.byteLength(record.content, "utf8")));
+        details.push(`${countTextLines(record.content)} lines`);
+      }
+      return truncateUiText(
+        details.length > 0
+          ? `write ${path} · ${details.join(" · ")}`
+          : `write ${path}`,
+      );
+    }
+    const fallback = summarizeUnknown(payload);
+    return fallback ? `write ${fallback}` : undefined;
+  };
+
+  const summarizeReadOutput = (
+    value: unknown,
+    inputSummary?: string,
+  ): string | undefined => {
+    const payload = maybeParseJson(value);
+    const record = asRecord(payload);
+    const path = record ? pickPathField(record) : undefined;
+    const hintPath = path ?? pathHintFromInputSummary("read", inputSummary);
+    const content =
+      record && typeof record.content === "string"
+        ? record.content
+        : typeof payload === "string"
+          ? payload
+          : undefined;
+
+    if (content !== undefined) {
+      const parts = [
+        hintPath ? `read ${hintPath}` : "read file",
+        `${countTextLines(content)} lines`,
+        formatByteSize(Buffer.byteLength(content, "utf8")),
+      ];
+      if (content.length > 1200) {
+        parts.push("preview hidden");
+      }
+      return truncateUiText(parts.join(" · "));
+    }
+
+    if (record?.ok === true) {
+      return truncateUiText(hintPath ? `read ${hintPath} · done` : "read done");
+    }
+
+    return summarizeUnknown(payload);
+  };
+
+  const summarizeWriteOutput = (
+    value: unknown,
+    inputSummary?: string,
+  ): string | undefined => {
+    const payload = maybeParseJson(value);
+    const record = asRecord(payload);
+    const path =
+      (record ? pickPathField(record) : undefined) ??
+      pathHintFromInputSummary("write", inputSummary);
+
+    if (record?.ok === true || record?.success === true) {
+      return truncateUiText(path ? `write ${path} · saved` : "write saved");
+    }
+
+    if (typeof payload === "string") {
+      const bytes = Buffer.byteLength(payload, "utf8");
+      if (bytes > 600) {
+        return truncateUiText(
+          path
+            ? `write ${path} · ${formatByteSize(bytes)} response · preview hidden`
+            : `write response · ${formatByteSize(bytes)} · preview hidden`,
+        );
+      }
+    }
+
+    return summarizeUnknown(payload) ?? (path ? `write ${path} · done` : undefined);
+  };
+
+  const summarizeToolInput = (toolName: string, value: unknown): string | undefined => {
+    switch (toolName) {
+      case "read":
+        return summarizeReadInput(value);
+      case "write":
+        return summarizeWriteInput(value);
+      default:
+        return summarizeUnknown(maybeParseJson(value));
+    }
+  };
+
+  const summarizeToolOutput = (
+    toolName: string,
+    value: unknown,
+    inputSummary?: string,
+  ): string | undefined => {
+    switch (toolName) {
+      case "read":
+        return summarizeReadOutput(value, inputSummary);
+      case "write":
+        return summarizeWriteOutput(value, inputSummary);
+      default:
+        return summarizeUnknown(maybeParseJson(value));
+    }
+  };
+
+  const extractToolInputText = (
+    toolName: string,
+    event: OmniRpcEvent,
+  ): string | undefined => {
     const record = event as Record<string, unknown>;
-    return (
-      summarizeUnknown(record.output) ??
-      summarizeUnknown(record.result) ??
-      summarizeUnknown(record.details) ??
-      summarizeUnknown(record.stdout) ??
-      summarizeUnknown(record.stderr) ??
-      summarizeUnknown(record.message)
-    );
+    const rawInput =
+      record.input ??
+      record.arguments ??
+      record.args ??
+      record.toolInput ??
+      record.command;
+    return summarizeToolInput(toolName, rawInput);
+  };
+
+  const extractToolOutputText = (
+    toolName: string,
+    event: OmniRpcEvent,
+    inputSummary?: string,
+  ): string | undefined => {
+    const record = event as Record<string, unknown>;
+    const rawOutput =
+      record.output ??
+      record.result ??
+      record.details ??
+      record.stdout ??
+      record.stderr ??
+      record.message;
+    return summarizeToolOutput(toolName, rawOutput, inputSummary);
   };
 
   const refreshAssistantStatus = (item: OmniStandaloneConversationItem) => {
@@ -843,11 +1060,12 @@ export function createStandaloneController(
               : "tool";
           const assistant = ensureAssistantItem();
           const toolCall = ensureToolCall(assistant, toolName);
+          const rawInput =
+            update.toolCall?.input ??
+            update.toolCall?.arguments ??
+            update.toolCall?.command;
           toolCall.inputText =
-            summarizeUnknown(update.toolCall?.input) ??
-            summarizeUnknown(update.toolCall?.arguments) ??
-            summarizeUnknown(update.toolCall?.command) ??
-            toolCall.inputText;
+            summarizeToolInput(toolName, rawInput) ?? toolCall.inputText;
           refreshAssistantStatus(assistant);
           emitChange();
           return;
@@ -869,7 +1087,8 @@ export function createStandaloneController(
         const assistant = ensureAssistantItem();
         const toolCall = ensureToolCall(assistant, toolName);
         toolCall.status = "running";
-        toolCall.inputText = extractToolInputText(event) ?? toolCall.inputText;
+        toolCall.inputText =
+          extractToolInputText(toolName, event) ?? toolCall.inputText;
         assistant.streaming = true;
         refreshAssistantStatus(assistant);
         emitChange();
@@ -881,7 +1100,9 @@ export function createStandaloneController(
         const assistant = ensureAssistantItem();
         const toolCall = ensureToolCall(assistant, toolName);
         toolCall.status = event.isError === true ? "failed" : "done";
-        toolCall.outputText = extractToolOutputText(event) ?? toolCall.outputText;
+        toolCall.outputText =
+          extractToolOutputText(toolName, event, toolCall.inputText) ??
+          toolCall.outputText;
         refreshAssistantStatus(assistant);
         emitChange();
         return;

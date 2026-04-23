@@ -122,6 +122,14 @@ let COLOR: ShellPalette = {
   accentSoft: mixHex("#a78bfa", BASE_COLOR.canvas, 0.45),
 };
 
+function truncateToolDetail(value: string, max = 140): string {
+  const normalized = value.replace(/\s+/gu, " ").trim();
+  if (normalized.length <= max) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
 function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
   glyph: string;
   color: string;
@@ -1041,7 +1049,7 @@ export async function mountOmniShell(
             toolsBox.add(
               new TextRenderable(renderer, {
                 id: `${toolCall.id}-input`,
-                content: `  input  ${formatMarkdownForTerminal(toolCall.inputText)}`,
+                content: `  input  ${truncateToolDetail(formatMarkdownForTerminal(toolCall.inputText))}`,
                 fg: COLOR.textFaint,
               }),
             );
@@ -1050,7 +1058,7 @@ export async function mountOmniShell(
             toolsBox.add(
               new TextRenderable(renderer, {
                 id: `${toolCall.id}-output`,
-                content: `  output ${formatMarkdownForTerminal(toolCall.outputText)}`,
+                content: `  output ${truncateToolDetail(formatMarkdownForTerminal(toolCall.outputText))}`,
                 fg: COLOR.textFaint,
               }),
             );
