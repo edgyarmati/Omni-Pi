@@ -7,20 +7,20 @@ import type {
   ScrollBoxRenderable,
   TextRenderable,
 } from "@opentui/core";
+import { writeClipboardImageTemp } from "./bridges.js";
+import { filterStandaloneSlashCommands } from "./commands.js";
+import {
+  appendAttachmentToken,
+  type ComposerAttachment,
+  createImageAttachmentToken,
+  expandComposerAttachments,
+  pruneComposerAttachments,
+} from "./composer.js";
 import type {
   OmniStandaloneAppState,
   OmniStandaloneToolCall,
 } from "./contracts.js";
 import type { OmniStandaloneController } from "./controller.js";
-import {
-  appendAttachmentToken,
-  createImageAttachmentToken,
-  expandComposerAttachments,
-  pruneComposerAttachments,
-  type ComposerAttachment,
-} from "./composer.js";
-import { filterStandaloneSlashCommands } from "./commands.js";
-import { writeClipboardImageTemp } from "./bridges.js";
 import {
   formatMarkdownForTerminal,
   renderFooterMeta,
@@ -359,7 +359,10 @@ export async function mountOmniShell(
   let composerAttachments: ComposerAttachment[] = [];
 
   const syncComposerAttachments = () => {
-    composerAttachments = pruneComposerAttachments(input.value, composerAttachments);
+    composerAttachments = pruneComposerAttachments(
+      input.value,
+      composerAttachments,
+    );
   };
 
   const setInputValue = (value: string) => {
@@ -371,7 +374,10 @@ export async function mountOmniShell(
   const insertImageAttachment = (imagePath: string) => {
     syncComposerAttachments();
     const token = createImageAttachmentToken(composerAttachments.length + 1);
-    composerAttachments = [...composerAttachments, { token, path: imagePath, kind: "image" }];
+    composerAttachments = [
+      ...composerAttachments,
+      { token, path: imagePath, kind: "image" },
+    ];
     setInputValue(appendAttachmentToken(input.value, token));
     input.focus();
     refreshSlashPopover();
@@ -471,9 +477,12 @@ export async function mountOmniShell(
       return;
     }
 
-    const isModelPicker = dialog.kind === "select" && dialog.title === "Switch model";
+    const isModelPicker =
+      dialog.kind === "select" && dialog.title === "Switch model";
     const isProviderPicker = isModelPicker && dialog.pickerMode === "provider";
-    dialogBox.title = isModelPicker ? " model picker " : ` ${dialog.title.toLowerCase()} `;
+    dialogBox.title = isModelPicker
+      ? " model picker "
+      : ` ${dialog.title.toLowerCase()} `;
     dialogBox.titleAlignment = "center";
     dialogOverlay.visible = true;
 
@@ -494,14 +503,58 @@ export async function mountOmniShell(
       );
     }
 
-    if (dialog.kind === "select" || dialog.kind === "confirm" || dialog.kind === "scoped-models" || dialog.kind === "theme") {
+    if (isModelPicker) {
+      const searchBox = new BoxRenderable(renderer, {
+        id: "dialog-search-box",
+        width: "100%",
+        flexDirection: "column",
+        border: true,
+        borderStyle: "rounded",
+        borderColor: COLOR.borderSoft,
+        paddingLeft: 1,
+        paddingRight: 1,
+        paddingTop: 0,
+        paddingBottom: 0,
+        marginTop: 1,
+        backgroundColor: COLOR.surface,
+      });
+      searchBox.add(
+        new TextRenderable(renderer, {
+          id: "dialog-search-label",
+          content: "search",
+          fg: COLOR.textFaint,
+        }),
+      );
+      searchBox.add(
+        new TextRenderable(renderer, {
+          id: "dialog-search-value",
+          content:
+            (dialog.query ?? "").trim().length > 0
+              ? (dialog.query ?? "")
+              : "Type to filter…",
+          fg:
+            (dialog.query ?? "").trim().length > 0
+              ? COLOR.text
+              : COLOR.textMuted,
+        }),
+      );
+      dialogBox.add(searchBox);
+    }
+
+    if (
+      dialog.kind === "select" ||
+      dialog.kind === "confirm" ||
+      dialog.kind === "scoped-models" ||
+      dialog.kind === "theme"
+    ) {
       const options =
         dialog.kind === "confirm"
-          ? dialog.options ?? []
+          ? (dialog.options ?? [])
           : (dialog.options ?? []).filter((option) => {
               const query = (dialog.query ?? "").trim().toLowerCase();
               if (!query) return true;
-              const haystack = `${option.label} ${option.searchText ?? ""} ${option.detail ?? ""}`.toLowerCase();
+              const haystack =
+                `${option.label} ${option.searchText ?? ""} ${option.detail ?? ""}`.toLowerCase();
               return haystack.includes(query);
             });
       const selectedIndex = Math.min(
@@ -519,7 +572,9 @@ export async function mountOmniShell(
         const option = options[index];
         const selected = index === selectedIndex;
         const isScoped = dialog.kind === "scoped-models";
-        const scopedSelected = isScoped && dialog.selectedValues?.includes(option?.value ?? "") === true;
+        const scopedSelected =
+          isScoped &&
+          dialog.selectedValues?.includes(option?.value ?? "") === true;
         const row = new BoxRenderable(renderer, {
           id: `dialog-row-${index}`,
           width: "100%",
@@ -548,7 +603,11 @@ export async function mountOmniShell(
               new TextRenderable(renderer, {
                 id: `dialog-detail-${index}`,
                 content: `  ${option.detail}`,
-                fg: isProviderPicker ? COLOR.textMuted : (selected ? COLOR.textMuted : COLOR.textFaint),
+                fg: isProviderPicker
+                  ? COLOR.textMuted
+                  : selected
+                    ? COLOR.textMuted
+                    : COLOR.textFaint,
               }),
             );
           }
@@ -708,7 +767,10 @@ export async function mountOmniShell(
 
     const displayValue = input.value;
     syncComposerAttachments();
-    const submittedValue = expandComposerAttachments(displayValue, composerAttachments);
+    const submittedValue = expandComposerAttachments(
+      displayValue,
+      composerAttachments,
+    );
     setInputValue("");
     composerAttachments = [];
     controller.resetPromptHistoryNavigation();
@@ -716,9 +778,11 @@ export async function mountOmniShell(
     slashIndex = 0;
     popover.visible = false;
     input.focus();
-    void controller.submitPrompt(submittedValue, displayValue).catch((error: unknown) => {
-      console.error(error instanceof Error ? error.message : String(error));
-    });
+    void controller
+      .submitPrompt(submittedValue, displayValue)
+      .catch((error: unknown) => {
+        console.error(error instanceof Error ? error.message : String(error));
+      });
   });
   input.on(InputRenderableEvents.INPUT, () => {
     if (controller.state.dialog) {
@@ -928,6 +992,10 @@ export async function mountOmniShell(
       content: "type / for commands  ·  enter sends  ·  esc aborts",
       fg: COLOR.textFaint,
     });
+    wrapper.onMouseDown = focusComposerFromMouse;
+    wordmark.onMouseDown = focusComposerFromMouse;
+    tagline.onMouseDown = focusComposerFromMouse;
+    hint.onMouseDown = focusComposerFromMouse;
     wrapper.add(wordmark);
     wrapper.add(tagline);
     wrapper.add(hint);
@@ -972,6 +1040,9 @@ export async function mountOmniShell(
           content: formatMarkdownForTerminal(item.text),
           fg: COLOR.text,
         });
+        card.onMouseDown = focusComposerFromMouse;
+        label.onMouseDown = focusComposerFromMouse;
+        text.onMouseDown = focusComposerFromMouse;
         card.add(label);
         card.add(text);
         conversationStack.add(card);
@@ -984,6 +1055,7 @@ export async function mountOmniShell(
           content: `  ${item.text}`,
           fg: COLOR.textFaint,
         });
+        notice.onMouseDown = focusComposerFromMouse;
         conversationStack.add(notice);
         continue;
       }
@@ -1013,6 +1085,7 @@ export async function mountOmniShell(
         content: item.statusText ? `omni  ·  ${item.statusText}` : "omni",
         fg: item.streaming ? COLOR.accent : COLOR.textMuted,
       });
+      title.onMouseDown = focusComposerFromMouse;
       column.add(title);
 
       if (item.toolCalls && item.toolCalls.length > 0) {
@@ -1042,26 +1115,29 @@ export async function mountOmniShell(
             content: `${toolCall.name}  ${label}`,
             fg: COLOR.textMuted,
           });
+          toolRow.onMouseDown = focusComposerFromMouse;
+          glyphText.onMouseDown = focusComposerFromMouse;
+          nameText.onMouseDown = focusComposerFromMouse;
           toolRow.add(glyphText);
           toolRow.add(nameText);
           toolsBox.add(toolRow);
           if (toolCall.inputText) {
-            toolsBox.add(
-              new TextRenderable(renderer, {
-                id: `${toolCall.id}-input`,
-                content: `  input  ${truncateToolDetail(formatMarkdownForTerminal(toolCall.inputText))}`,
-                fg: COLOR.textFaint,
-              }),
-            );
+            const inputLine = new TextRenderable(renderer, {
+              id: `${toolCall.id}-input`,
+              content: `  input  ${truncateToolDetail(formatMarkdownForTerminal(toolCall.inputText))}`,
+              fg: COLOR.textFaint,
+            });
+            inputLine.onMouseDown = focusComposerFromMouse;
+            toolsBox.add(inputLine);
           }
           if (toolCall.outputText) {
-            toolsBox.add(
-              new TextRenderable(renderer, {
-                id: `${toolCall.id}-output`,
-                content: `  output ${truncateToolDetail(formatMarkdownForTerminal(toolCall.outputText))}`,
-                fg: COLOR.textFaint,
-              }),
-            );
+            const outputLine = new TextRenderable(renderer, {
+              id: `${toolCall.id}-output`,
+              content: `  output ${truncateToolDetail(formatMarkdownForTerminal(toolCall.outputText))}`,
+              fg: COLOR.textFaint,
+            });
+            outputLine.onMouseDown = focusComposerFromMouse;
+            toolsBox.add(outputLine);
           }
         }
         column.add(toolsBox);
@@ -1073,16 +1149,23 @@ export async function mountOmniShell(
           content: formatMarkdownForTerminal(item.text.trim()),
           fg: COLOR.text,
         });
+        body.onMouseDown = focusComposerFromMouse;
         column.add(body);
-      } else if (item.streaming && (!item.toolCalls || item.toolCalls.length === 0)) {
+      } else if (
+        item.streaming &&
+        (!item.toolCalls || item.toolCalls.length === 0)
+      ) {
         const thinking = new TextRenderable(renderer, {
           id: `${item.id}-thinking`,
           content: item.statusText ? item.statusText : "thinking…",
           fg: COLOR.textMuted,
         });
+        thinking.onMouseDown = focusComposerFromMouse;
         column.add(thinking);
       }
 
+      card.onMouseDown = focusComposerFromMouse;
+      column.onMouseDown = focusComposerFromMouse;
       card.add(column);
       conversationStack.add(card);
     }
@@ -1131,13 +1214,17 @@ export async function mountOmniShell(
     if (state.dialog) {
       input.placeholder =
         state.dialog.placeholder ??
-        (state.dialog.kind === "select" || state.dialog.kind === "scoped-models" || state.dialog.kind === "theme"
+        (state.dialog.kind === "select" ||
+        state.dialog.kind === "scoped-models" ||
+        state.dialog.kind === "theme"
           ? "Type to search…"
           : state.dialog.kind === "editor"
             ? "Edit text…"
             : "Enter a value…");
       const desiredValue =
-        state.dialog.kind === "select" || state.dialog.kind === "scoped-models" || state.dialog.kind === "theme"
+        state.dialog.kind === "select" ||
+        state.dialog.kind === "scoped-models" ||
+        state.dialog.kind === "theme"
           ? (state.dialog.query ?? "")
           : (state.dialog.value ?? "");
       if (input.value !== desiredValue) {
