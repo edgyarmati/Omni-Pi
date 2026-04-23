@@ -38,8 +38,12 @@ Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
 
 ## Standalone app migration note
 
-- No OpenCode source has been copied into Omni-Pi yet.
-- If future migration work copies or substantively adapts MIT-licensed code from OpenCode or other projects, this file and the relevant source locations should be updated with explicit provenance.
+- OpenCode TUI source snapshots are now vendored under `vendor/opencode-tui/` from:
+  - Upstream: https://github.com/anomalyco/opencode
+  - Commit: `9b6db08d2144c33ec34cd88026774f847ec79761`
+  - Path: `packages/opencode/src/cli/cmd/tui/`
+- These files are being adapted incrementally to preserve Omni-Pi's Pi-RPC backend boundary.
+- Any additional copied/adapted upstream files must update `vendor/opencode-tui/UPSTREAM.md` and this credits file.
 
 ## Attribution intent
 
