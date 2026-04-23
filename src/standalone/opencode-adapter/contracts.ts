@@ -33,6 +33,8 @@ export interface OmniUiSessionMeta {
   model?: string;
   thinking?: string;
   streaming: boolean;
+  steeringQueue: string[];
+  followUpQueue: string[];
 }
 
 export interface OmniUiWorkflowMeta {

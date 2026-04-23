@@ -37,6 +37,8 @@ export function toOmniUiSnapshot(input: OmniUiAdapterInput): OmniUiSnapshot {
       model: input.session.modelLabel,
       thinking: input.session.thinkingLevel,
       streaming: input.session.isStreaming,
+      steeringQueue: input.session.steeringQueue,
+      followUpQueue: input.session.followUpQueue,
     },
     workflow: {
       phase: input.workflow.phase,

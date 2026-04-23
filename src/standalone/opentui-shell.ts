@@ -21,11 +21,13 @@ import type {
   OmniStandaloneToolCall,
 } from "./contracts.js";
 import type { OmniStandaloneController } from "./controller.js";
+import { standaloneStateToOmniUiSnapshot } from "./opencode-adapter/mapper.js";
+import type { OmniUiSnapshot } from "./opencode-adapter/contracts.js";
 import {
   formatMarkdownForTerminal,
-  renderFooterMeta,
-  renderTodoPanel,
-  renderWorkflowPanel,
+  renderOmniUiFooterMeta,
+  renderOmniUiTodoPanel,
+  renderOmniUiWorkflowPanel,
 } from "./presenter.js";
 
 const BASE_COLOR = {
@@ -147,9 +149,9 @@ function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
   }
 }
 
-function renderShortcuts(state: OmniStandaloneAppState): string {
-  const abort = state.session.isStreaming ? "esc abort  ·  " : "";
-  return `${abort}enter send  ·  ctrl+p model  ·  /providers setup  ·  /help controls`;
+function renderShortcuts(snapshot: OmniUiSnapshot): string {
+  const abort = snapshot.session.streaming ? "esc abort  ·  " : "";
+  return `${abort}enter send  ·  ctrl+k commands  ·  ctrl+p model  ·  /providers setup`;
 }
 
 export interface MountShellResult {
@@ -255,8 +257,10 @@ export async function mountOmniShell(
     paddingBottom: 0,
     backgroundColor: COLOR.canvas,
   });
+  let uiSnapshot = standaloneStateToOmniUiSnapshot(controller.state);
+
   const workflowText = new TextRenderable(renderer, {
-    content: renderWorkflowPanel(controller.state.workflow),
+    content: renderOmniUiWorkflowPanel(uiSnapshot.workflow),
     fg: COLOR.textMuted,
   });
   workflowPanel.add(workflowText);
@@ -274,7 +278,7 @@ export async function mountOmniShell(
     backgroundColor: COLOR.canvas,
   });
   const todoText = new TextRenderable(renderer, {
-    content: renderTodoPanel(controller.state),
+    content: renderOmniUiTodoPanel(uiSnapshot),
     fg: COLOR.textMuted,
   });
   todoPanel.add(todoText);
@@ -709,6 +713,17 @@ export async function mountOmniShell(
     renderer.requestRender();
   };
 
+  const openCommandPaletteFromComposer = () => {
+    if (controller.state.dialog) {
+      return;
+    }
+    setInputValue("/");
+    controller.resetPromptHistoryNavigation();
+    refreshSlashPopover();
+    input.focus();
+    renderer.requestRender();
+  };
+
   const focusComposerFromMouse = () => {
     if (controller.state.dialog) {
       return;
@@ -910,9 +925,7 @@ export async function mountOmniShell(
     }
     if (key.ctrl && key.name === "k") {
       key.preventDefault();
-      void controller.openModelPicker().catch((error: unknown) => {
-        console.error(error instanceof Error ? error.message : String(error));
-      });
+      openCommandPaletteFromComposer();
     }
     if (key.ctrl && key.name === "p") {
       key.preventDefault();
@@ -931,7 +944,7 @@ export async function mountOmniShell(
     backgroundColor: COLOR.canvas,
   });
   const footerMetaText = new TextRenderable(renderer, {
-    content: renderFooterMeta(controller.state),
+    content: renderOmniUiFooterMeta(uiSnapshot),
     fg: COLOR.textMuted,
   });
   footerMetaRow.add(footerMetaText);
@@ -943,7 +956,7 @@ export async function mountOmniShell(
     backgroundColor: COLOR.canvas,
   });
   const shortcutsText = new TextRenderable(renderer, {
-    content: renderShortcuts(controller.state),
+    content: renderShortcuts(uiSnapshot),
     fg: COLOR.textFaint,
   });
   shortcutsRow.add(shortcutsText);
@@ -1003,12 +1016,12 @@ export async function mountOmniShell(
   };
 
   // --- Conversation renderer -------------------------------------------
-  const renderConversation = (state: OmniStandaloneAppState) => {
+  const renderConversation = (snapshot: OmniUiSnapshot) => {
     for (const child of conversationStack.getChildren()) {
       conversationStack.remove(child.id);
     }
 
-    if (state.conversation.length === 0) {
+    if (snapshot.conversation.length === 0) {
       conversationScroll.verticalScrollBar.visible = false;
       conversationStack.add(buildEmptyState());
       return;
@@ -1016,7 +1029,7 @@ export async function mountOmniShell(
 
     conversationScroll.verticalScrollBar.resetVisibilityControl();
 
-    for (const item of state.conversation) {
+    for (const item of snapshot.conversation) {
       if (item.role === "user") {
         const card = new BoxRenderable(renderer, {
           id: `${item.id}-card`,
@@ -1088,7 +1101,7 @@ export async function mountOmniShell(
       title.onMouseDown = focusComposerFromMouse;
       column.add(title);
 
-      if (item.streaming && item.toolCalls && item.toolCalls.length > 0) {
+      if (item.toolCalls && item.toolCalls.length > 0) {
         const toolsBox = new BoxRenderable(renderer, {
           id: `${item.id}-tools`,
           flexDirection: "column",
@@ -1121,19 +1134,19 @@ export async function mountOmniShell(
           toolRow.add(glyphText);
           toolRow.add(nameText);
           toolsBox.add(toolRow);
-          if (toolCall.inputText) {
+          if (toolCall.input) {
             const inputLine = new TextRenderable(renderer, {
               id: `${toolCall.id}-input`,
-              content: `  input  ${truncateToolDetail(formatMarkdownForTerminal(toolCall.inputText))}`,
+              content: `  input  ${truncateToolDetail(formatMarkdownForTerminal(toolCall.input))}`,
               fg: COLOR.textFaint,
             });
             inputLine.onMouseDown = focusComposerFromMouse;
             toolsBox.add(inputLine);
           }
-          if (toolCall.outputText) {
+          if (toolCall.output) {
             const outputLine = new TextRenderable(renderer, {
               id: `${toolCall.id}-output`,
-              content: `  output ${truncateToolDetail(formatMarkdownForTerminal(toolCall.outputText))}`,
+              content: `  output ${truncateToolDetail(formatMarkdownForTerminal(toolCall.output))}`,
               fg: COLOR.textFaint,
             });
             outputLine.onMouseDown = focusComposerFromMouse;
@@ -1179,6 +1192,7 @@ export async function mountOmniShell(
       : () => {};
 
   const unsubscribe = controller.onChange((state) => {
+    uiSnapshot = standaloneStateToOmniUiSnapshot(state);
     COLOR = buildPalette(state);
     renderer.setBackgroundColor(COLOR.canvas);
     root.backgroundColor = COLOR.canvas;
@@ -1202,13 +1216,13 @@ export async function mountOmniShell(
     footerMetaText.fg = COLOR.textMuted;
     shortcutsRow.backgroundColor = COLOR.canvas;
     shortcutsText.fg = COLOR.textFaint;
-    shortcutsText.content = renderShortcuts(state);
-    footerMetaText.content = renderFooterMeta(state);
-    renderConversation(state);
+    shortcutsText.content = renderShortcuts(uiSnapshot);
+    footerMetaText.content = renderOmniUiFooterMeta(uiSnapshot);
+    renderConversation(uiSnapshot);
     workflowText.fg = COLOR.text;
-    workflowText.content = renderWorkflowPanel(state.workflow);
+    workflowText.content = renderOmniUiWorkflowPanel(uiSnapshot.workflow);
     todoText.fg = COLOR.text;
-    todoText.content = renderTodoPanel(state);
+    todoText.content = renderOmniUiTodoPanel(uiSnapshot);
     renderDialog(state);
 
     if (state.dialog) {
@@ -1244,7 +1258,7 @@ export async function mountOmniShell(
   });
 
   // Seed the initial empty state once so the wordmark shows before RPC loads.
-  renderConversation(controller.state);
+  renderConversation(uiSnapshot);
   renderDialog(controller.state);
 
   return {

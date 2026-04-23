@@ -81,7 +81,23 @@ function createStubController(
     async stop() {},
     async submitPrompt() {},
     async abort() {},
+    async openModelPicker() {},
+    getPreviousPromptHistory() {
+      return undefined;
+    },
+    getNextPromptHistory() {
+      return undefined;
+    },
+    resetPromptHistoryNavigation() {},
+    updateDialogInput() {},
+    moveDialogSelection() {},
+    toggleDialogSelection() {},
+    async submitDialog() {},
+    async cancelDialog() {},
     onChange() {
+      return () => {};
+    },
+    onQuit() {
       return () => {};
     },
   };

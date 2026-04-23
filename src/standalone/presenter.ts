@@ -5,6 +5,7 @@ import type {
   OmniStandaloneToolCall,
   OmniStandaloneWorkflowSnapshot,
 } from "./contracts.js";
+import type { OmniUiSnapshot, OmniUiWorkflowMeta } from "./opencode-adapter/contracts.js";
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — stripping control bytes from untrusted text
 const ANSI_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/gu;
@@ -294,6 +295,32 @@ export function renderRepoMapPanel(state: OmniStandaloneAppState): string {
     formatMarkdownForTerminal(state.repoMapPreview) ||
     "Repo map cache not available yet."
   );
+}
+
+export function renderOmniUiFooterMeta(snapshot: OmniUiSnapshot): string {
+  const stateLike = {
+    session: {
+      modelLabel: snapshot.session.model,
+      thinkingLevel: snapshot.session.thinking,
+      sessionName: snapshot.session.name,
+      steeringQueue: snapshot.session.steeringQueue,
+      followUpQueue: snapshot.session.followUpQueue,
+    },
+    providers: snapshot.providers,
+    statuses: snapshot.statuses,
+  } as Pick<OmniStandaloneAppState, "session" | "providers" | "statuses">;
+  return renderFooterMeta(stateLike as OmniStandaloneAppState);
+}
+
+export function renderOmniUiWorkflowPanel(workflow: OmniUiWorkflowMeta): string {
+  return renderWorkflowPanel(workflow as OmniStandaloneWorkflowSnapshot);
+}
+
+export function renderOmniUiTodoPanel(snapshot: OmniUiSnapshot): string {
+  const stateLike = {
+    todos: snapshot.workflow.todos,
+  } as Pick<OmniStandaloneAppState, "todos">;
+  return renderTodoPanel(stateLike as OmniStandaloneAppState);
 }
 
 export function renderTodoPanel(state: OmniStandaloneAppState): string {
