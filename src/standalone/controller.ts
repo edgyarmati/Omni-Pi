@@ -18,6 +18,10 @@ import {
   appendDurablePromptHistory,
   readDurablePromptHistory,
 } from "./composer.js";
+import {
+  movePromptHistory,
+  type PromptHistoryCursor,
+} from "./opencode-adapter/prompt-behavior.js";
 import { readTasks } from "../tasks.js";
 import {
   copyTextToClipboard,
@@ -134,8 +138,7 @@ export function createStandaloneController(
     | ((result: string | boolean | string[] | undefined) => void)
     | undefined;
   let promptHistory: string[] = [];
-  let promptHistoryIndex: number | undefined;
-  let promptHistoryDraft = "";
+  let promptHistoryCursor: PromptHistoryCursor = { index: 0, draft: "" };
   let durablePromptHistory: string[] = [];
   const durablePromptHistoryPath = path.join(cwd, ".pi", "prompt-history.jsonl");
 
@@ -204,8 +207,7 @@ export function createStandaloneController(
   const loadPromptHistoryFromSessionFile = async (
     sessionFile: string | undefined,
   ) => {
-    promptHistoryIndex = undefined;
-    promptHistoryDraft = "";
+    promptHistoryCursor = { index: 0, draft: "" };
 
     if (!sessionFile || !existsSync(sessionFile)) {
       promptHistory = normalizePromptHistory(durablePromptHistory);
@@ -241,37 +243,33 @@ export function createStandaloneController(
     void appendDurablePromptHistory(durablePromptHistoryPath, message)
       .then(() => refreshDurablePromptHistory())
       .catch(() => undefined);
-    promptHistoryIndex = undefined;
-    promptHistoryDraft = "";
+    promptHistoryCursor = { index: 0, draft: "" };
   };
 
   const getPreviousPromptHistory = (currentDraft: string): string | undefined => {
-    if (promptHistory.length === 0) return undefined;
-    if (promptHistoryIndex === undefined) {
-      promptHistoryDraft = currentDraft;
-      promptHistoryIndex = promptHistory.length - 1;
-      return promptHistory[promptHistoryIndex];
-    }
-    promptHistoryIndex = Math.max(0, promptHistoryIndex - 1);
-    return promptHistory[promptHistoryIndex];
+    const moved = movePromptHistory(
+      promptHistory,
+      promptHistoryCursor,
+      -1,
+      currentDraft,
+    );
+    promptHistoryCursor = moved.cursor;
+    return moved.value;
   };
 
   const getNextPromptHistory = (currentDraft: string): string | undefined => {
-    if (promptHistory.length === 0) return undefined;
-    if (promptHistoryIndex === undefined) return undefined;
-    if (promptHistoryIndex >= promptHistory.length - 1) {
-      promptHistoryIndex = undefined;
-      const draft = promptHistoryDraft;
-      promptHistoryDraft = "";
-      return draft;
-    }
-    promptHistoryIndex += 1;
-    return promptHistory[promptHistoryIndex];
+    const moved = movePromptHistory(
+      promptHistory,
+      promptHistoryCursor,
+      1,
+      currentDraft,
+    );
+    promptHistoryCursor = moved.cursor;
+    return moved.value;
   };
 
   const resetPromptHistoryNavigation = () => {
-    promptHistoryIndex = undefined;
-    promptHistoryDraft = "";
+    promptHistoryCursor = { index: 0, draft: "" };
   };
 
   const nextId = (prefix: string) => `${prefix}-${++itemCounter}`;
