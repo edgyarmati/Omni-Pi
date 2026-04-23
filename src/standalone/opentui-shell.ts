@@ -1088,7 +1088,7 @@ export async function mountOmniShell(
       title.onMouseDown = focusComposerFromMouse;
       column.add(title);
 
-      if (item.toolCalls && item.toolCalls.length > 0) {
+      if (item.streaming && item.toolCalls && item.toolCalls.length > 0) {
         const toolsBox = new BoxRenderable(renderer, {
           id: `${item.id}-tools`,
           flexDirection: "column",

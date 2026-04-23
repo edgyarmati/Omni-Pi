@@ -499,8 +499,17 @@ export function createStandaloneController(
     return toolCall;
   };
 
+  const stripTerminalControlSequences = (value: string): string => {
+    return value
+      .replace(/\u001B\][^\u0007]*(?:\u0007|\u001B\\)/gu, "")
+      .replace(/\u001B\[[0-?]*[ -/]*[@-~]/gu, "")
+      .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/gu, "");
+  };
+
   const truncateUiText = (value: string, max = 180): string => {
-    const normalized = value.replace(/\s+/gu, " ").trim();
+    const normalized = stripTerminalControlSequences(value)
+      .replace(/\s+/gu, " ")
+      .trim();
     if (normalized.length <= max) {
       return normalized;
     }
