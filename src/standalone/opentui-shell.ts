@@ -102,6 +102,13 @@ const TAGLINES = [
   "99 problems, but a bug ain't one",
 ];
 
+const THINKING_MESSAGES = [
+  "Working…",
+  "Reading context…",
+  "Thinking…",
+  "Preparing a reply…",
+];
+
 function pickTagline(): string {
   const index = Math.floor(Math.random() * TAGLINES.length);
   return TAGLINES[index] ?? TAGLINES[0] ?? "";
@@ -141,6 +148,17 @@ function toolStatusGlyph(status: OmniStandaloneToolCall["status"]): {
 function renderShortcuts(snapshot: OmniUiSnapshot): string {
   const abort = snapshot.session.streaming ? "esc abort  ·  " : "";
   return `${abort}enter send  ·  ctrl+k commands  ·  ctrl+p model  ·  /providers setup`;
+}
+
+function getThinkingDisplay(snapshot: OmniUiSnapshot, nowMs: number): string | undefined {
+  if (!snapshot.session.streaming) {
+    return undefined;
+  }
+
+  const startedAt = snapshot.conversation.find((item) => item.role === "assistant" && item.streaming)?.thinkingSinceMs ?? nowMs;
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - startedAt) / 1000));
+  const message = THINKING_MESSAGES[Math.floor(nowMs / 1000) % THINKING_MESSAGES.length] ?? "Working…";
+  return `${message} ${elapsedSeconds}s`;
 }
 
 export interface MountShellResult {
@@ -1013,6 +1031,10 @@ export async function mountOmniShell(
     content: renderOmniUiFooterMeta(uiSnapshot),
     fg: COLOR.textMuted,
   });
+  const thinkingText = new TextRenderable(renderer, {
+    content: getThinkingDisplay(uiSnapshot, Date.now()) ?? "",
+    fg: COLOR.info,
+  });
   footerMetaRow.add(footerMetaText);
 
   const shortcutsRow = new BoxRenderable(renderer, {
@@ -1030,6 +1052,7 @@ export async function mountOmniShell(
   inputDock.add(popover);
   inputDock.add(inputRow);
   statusDock.add(footerMetaRow);
+  statusDock.add(thinkingText);
   statusDock.add(shortcutsRow);
 
   root.add(body);
@@ -1091,6 +1114,7 @@ export async function mountOmniShell(
 
   // --- Conversation renderer -------------------------------------------
   const renderConversation = (snapshot: OmniUiSnapshot) => {
+    const nowMs = Date.now();
     for (const child of conversationStack.getChildren()) {
       conversationStack.remove(child.id);
     }
@@ -1275,17 +1299,6 @@ export async function mountOmniShell(
         });
         body.onMouseDown = focusComposerFromMouse;
         column.add(body);
-      } else if (
-        item.streaming &&
-        (!item.toolCalls || item.toolCalls.length === 0)
-      ) {
-        const thinking = new TextRenderable(renderer, {
-          id: `${item.id}-thinking`,
-          content: item.statusText ? item.statusText : "thinking…",
-          fg: COLOR.textMuted,
-        });
-        thinking.onMouseDown = focusComposerFromMouse;
-        column.add(thinking);
       }
 
       card.onMouseDown = focusComposerFromMouse;
@@ -1294,6 +1307,18 @@ export async function mountOmniShell(
       conversationStack.add(card);
     }
   };
+
+  const thinkingTicker = setInterval(() => {
+    if (!uiSnapshot.session.streaming) {
+      if (thinkingText.content) {
+        thinkingText.content = "";
+        renderer.requestRender();
+      }
+      return;
+    }
+    thinkingText.content = getThinkingDisplay(uiSnapshot, Date.now()) ?? "Working…";
+    renderer.requestRender();
+  }, 250);
 
   const unsubscribeQuit =
     "onQuit" in controller
@@ -1331,10 +1356,12 @@ export async function mountOmniShell(
     statusDock.borderColor = COLOR.borderSoft;
     footerMetaRow.backgroundColor = COLOR.canvas;
     footerMetaText.fg = COLOR.textMuted;
+    thinkingText.fg = COLOR.info;
     shortcutsRow.backgroundColor = COLOR.canvas;
     shortcutsText.fg = COLOR.textFaint;
     shortcutsText.content = renderShortcuts(uiSnapshot);
     footerMetaText.content = renderOmniUiFooterMeta(uiSnapshot);
+    thinkingText.content = getThinkingDisplay(uiSnapshot, Date.now()) ?? "";
     renderConversation(uiSnapshot);
     workflowText.fg = COLOR.text;
     workflowText.content = renderOmniUiSessionPanel(uiSnapshot);
@@ -1384,6 +1411,7 @@ export async function mountOmniShell(
 
   return {
     teardown: () => {
+      clearInterval(thinkingTicker);
       unsubscribe();
       unsubscribeQuit();
     },

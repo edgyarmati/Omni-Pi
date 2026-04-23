@@ -475,7 +475,8 @@ export function createStandaloneController(
       role: "assistant",
       text: "",
       streaming: true,
-      statusText: "thinking…",
+      statusText: "thinking",
+      thinkingSinceMs: Date.now(),
       toolCalls: [],
     };
     activeAssistantId = id;
@@ -840,7 +841,7 @@ export function createStandaloneController(
     }
 
     if (item.streaming && !item.text.trim()) {
-      item.statusText = "thinking…";
+      item.statusText = "thinking";
       return;
     }
 

@@ -23,6 +23,7 @@ export interface OmniUiMessage {
   text: string;
   streaming: boolean;
   statusText?: string;
+  thinkingSinceMs?: number;
   toolName?: string;
   toolCalls: OmniUiToolCall[];
 }
@@ -71,7 +72,8 @@ export interface OmniUiAdapterInput {
     text: string;
     streaming?: boolean;
     statusText?: string;
+    thinkingSinceMs?: number;
     toolName?: string;
     toolCalls?: OmniUiToolCall[];
-  }>;
+  }>
 }

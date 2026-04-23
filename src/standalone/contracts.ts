@@ -84,6 +84,7 @@ export interface OmniStandaloneConversationItem {
   text: string;
   streaming?: boolean;
   statusText?: string;
+  thinkingSinceMs?: number;
   toolName?: string;
   toolCalls?: OmniStandaloneToolCall[];
 }
