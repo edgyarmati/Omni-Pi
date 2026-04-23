@@ -42,12 +42,59 @@ export const STANDALONE_SLASH_COMMANDS: StandaloneSlashCommand[] = [
   { name: "quit", description: "quit Omni", kind: "pi-builtin", supported: true }
 ];
 
+function isBoundaryChar(char: string | undefined): boolean {
+  return !char || char === "-" || char === "_" || char === "/" || char === ".";
+}
+
+function scoreSlashCommandMatch(name: string, query: string): number {
+  const candidate = name.toLowerCase();
+  const needle = query.toLowerCase();
+  if (!needle) return 0;
+  if (candidate.startsWith(needle)) return 10_000 - candidate.length;
+
+  let score = 0;
+  let searchIndex = 0;
+  let consecutive = 0;
+
+  for (const char of needle) {
+    const foundIndex = candidate.indexOf(char, searchIndex);
+    if (foundIndex === -1) {
+      return Number.NEGATIVE_INFINITY;
+    }
+
+    score += 10;
+
+    if (foundIndex === searchIndex) {
+      consecutive += 1;
+      score += 8 + consecutive * 2;
+    } else {
+      consecutive = 0;
+      score -= foundIndex - searchIndex;
+    }
+
+    if (isBoundaryChar(candidate[foundIndex - 1])) {
+      score += 20;
+    }
+
+    searchIndex = foundIndex + 1;
+  }
+
+  score -= candidate.length;
+  return score;
+}
+
 export function filterStandaloneSlashCommands(value: string): StandaloneSlashCommand[] {
   if (!value.startsWith("/")) return [];
   const rest = value.slice(1);
   if (rest.includes(" ")) return [];
   const query = rest.toLowerCase();
-  return STANDALONE_SLASH_COMMANDS.filter((cmd) => cmd.name.toLowerCase().startsWith(query));
+  if (!query) return STANDALONE_SLASH_COMMANDS;
+
+  return STANDALONE_SLASH_COMMANDS
+    .map((cmd) => ({ cmd, score: scoreSlashCommandMatch(cmd.name, query) }))
+    .filter((entry) => Number.isFinite(entry.score))
+    .sort((left, right) => right.score - left.score || left.cmd.name.localeCompare(right.cmd.name))
+    .map((entry) => entry.cmd);
 }
 
 export function renderStandaloneHelp(): string {
