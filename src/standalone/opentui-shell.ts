@@ -450,9 +450,13 @@ export async function mountOmniShell(
         content: label.padEnd(nameWidth, " "),
         fg: isSelected ? COLOR.accent : COLOR.text,
       });
+      const aliasHint =
+        cmd.aliases && cmd.aliases.length > 0
+          ? `  (/${cmd.aliases.join(", /")})`
+          : "";
       const description = new TextRenderable(renderer, {
         id: `slash-desc-${cmd.name}`,
-        content: cmd.description,
+        content: `${cmd.description}${aliasHint}`,
         fg: COLOR.textMuted,
       });
       row.add(name);

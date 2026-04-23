@@ -1,10 +1,16 @@
+import { mkdtemp } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
 import { describe, expect, test } from "vitest";
 
 import {
   appendAttachmentToken,
+  appendDurablePromptHistory,
   createImageAttachmentToken,
   expandComposerAttachments,
   pruneComposerAttachments,
+  readDurablePromptHistory,
   type ComposerAttachment,
 } from "../src/standalone/composer.js";
 
@@ -40,5 +46,19 @@ describe("standalone composer helpers", () => {
     expect(
       expandComposerAttachments("compare [image1] and [image2]", attachments),
     ).toBe("compare /tmp/one.png and /tmp/two.png");
+  });
+
+  test("persists and trims durable prompt history", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "omni-composer-"));
+    const historyFile = path.join(dir, ".pi", "prompt-history.jsonl");
+
+    await appendDurablePromptHistory(historyFile, "first");
+    await appendDurablePromptHistory(historyFile, "second");
+    await appendDurablePromptHistory(historyFile, "second");
+
+    expect(await readDurablePromptHistory(historyFile)).toEqual([
+      "first",
+      "second",
+    ]);
   });
 });

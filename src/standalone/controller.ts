@@ -14,6 +14,10 @@ import {
   findStandaloneSlashCommand,
   renderStandaloneHelp,
 } from "./commands.js";
+import {
+  appendDurablePromptHistory,
+  readDurablePromptHistory,
+} from "./composer.js";
 import { readTasks } from "../tasks.js";
 import {
   copyTextToClipboard,
@@ -132,6 +136,8 @@ export function createStandaloneController(
   let promptHistory: string[] = [];
   let promptHistoryIndex: number | undefined;
   let promptHistoryDraft = "";
+  let durablePromptHistory: string[] = [];
+  const durablePromptHistoryPath = path.join(cwd, ".pi", "prompt-history.jsonl");
 
   const emptyRepoSession: RepoMapSessionState = {
     signals: [],
@@ -167,6 +173,10 @@ export function createStandaloneController(
     return normalized;
   };
 
+  const refreshDurablePromptHistory = async () => {
+    durablePromptHistory = await readDurablePromptHistory(durablePromptHistoryPath);
+  };
+
   const extractMessageText = (message: unknown): string | undefined => {
     if (!message || typeof message !== "object") return undefined;
     const record = message as Record<string, unknown>;
@@ -191,11 +201,14 @@ export function createStandaloneController(
     return text || undefined;
   };
 
-  const loadPromptHistoryFromSessionFile = async (sessionFile: string | undefined) => {
+  const loadPromptHistoryFromSessionFile = async (
+    sessionFile: string | undefined,
+  ) => {
     promptHistoryIndex = undefined;
     promptHistoryDraft = "";
+
     if (!sessionFile || !existsSync(sessionFile)) {
-      promptHistory = [];
+      promptHistory = normalizePromptHistory(durablePromptHistory);
       return;
     }
 
@@ -217,14 +230,17 @@ export function createStandaloneController(
           // Ignore malformed session lines.
         }
       }
-      promptHistory = normalizePromptHistory(prompts);
+      promptHistory = normalizePromptHistory([...durablePromptHistory, ...prompts]);
     } catch {
-      promptHistory = [];
+      promptHistory = normalizePromptHistory(durablePromptHistory);
     }
   };
 
   const rememberPrompt = (message: string) => {
     promptHistory = normalizePromptHistory([...promptHistory, message]);
+    void appendDurablePromptHistory(durablePromptHistoryPath, message)
+      .then(() => refreshDurablePromptHistory())
+      .catch(() => undefined);
     promptHistoryIndex = undefined;
     promptHistoryDraft = "";
   };
@@ -1151,6 +1167,7 @@ export function createStandaloneController(
     await rpcClient.start();
     unsubscribeEvent = rpcClient.onEvent(handleEvent);
     unsubscribeUi = rpcClient.onExtensionUiRequest(handleUiRequest);
+    await refreshDurablePromptHistory();
     await refreshSessionState();
     await refreshProviderOverview();
     await refreshWorkflowContext();

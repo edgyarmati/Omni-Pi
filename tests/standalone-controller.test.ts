@@ -566,6 +566,54 @@ describe("standalone controller", () => {
     expect(controller.getPreviousPromptHistory("")).toBe("third prompt");
   });
 
+  test("merges durable prompt history with session prompt history", async () => {
+    const rpcClient = createRpcClientStub();
+    const projectDir = await mkdtemp(path.join(os.tmpdir(), "omni-history-"));
+    const sessionFile = path.join(projectDir, ".pi", "sessions", "history.jsonl");
+    const durableHistoryFile = path.join(projectDir, ".pi", "prompt-history.jsonl");
+
+    await mkdir(path.dirname(sessionFile), { recursive: true });
+    await writeFile(
+      sessionFile,
+      [
+        JSON.stringify({
+          type: "message",
+          message: { role: "user", content: [{ type: "text", text: "session prompt" }] },
+        }),
+      ].join("\n"),
+      "utf8",
+    );
+
+    await writeFile(
+      durableHistoryFile,
+      [
+        JSON.stringify({ input: "durable one" }),
+        JSON.stringify({ input: "durable two" }),
+      ].join("\n") + "\n",
+      "utf8",
+    );
+
+    rpcClient.send = vi.fn(async () => ({
+      type: "response",
+      command: "get_state",
+      success: true as const,
+      data: {
+        sessionId: "session-1",
+        sessionFile,
+        thinkingLevel: "medium",
+        isStreaming: false,
+        model: { provider: "anthropic", id: "claude-sonnet" },
+      },
+    }));
+
+    const controller = createStandaloneController({ rpcClient, cwd: projectDir });
+    await controller.start();
+
+    expect(controller.getPreviousPromptHistory("")).toBe("session prompt");
+    expect(controller.getPreviousPromptHistory("session prompt")).toBe("durable two");
+    expect(controller.getPreviousPromptHistory("durable two")).toBe("durable one");
+  });
+
   test("sanitizes and compacts sidebar summaries", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
