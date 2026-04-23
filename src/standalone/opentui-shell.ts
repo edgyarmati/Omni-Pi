@@ -165,9 +165,9 @@ export async function mountOmniShell(
   renderer.setBackgroundColor(COLOR.canvas);
 
   const terminalWidth = renderer.terminalWidth ?? renderer.root.width ?? 100;
-  // Hide the right rail below 100 cols so the conversation keeps breathing room.
+  // Keep OpenCode-like sidebar behavior: hide on narrow screens, fixed-width on wide screens.
   const sidebarVisible = terminalWidth >= 100;
-  const sidebarWidth = terminalWidth >= 140 ? 40 : 34;
+  const sidebarWidth = terminalWidth >= 140 ? 42 : 36;
 
   const root = new BoxRenderable(renderer, {
     id: "omni-root",
@@ -227,11 +227,11 @@ export async function mountOmniShell(
     gap: 1,
     paddingTop: 1,
     paddingBottom: 1,
-    paddingLeft: 1,
-    paddingRight: 1,
+    paddingLeft: 2,
+    paddingRight: 2,
     border: ["left"],
     borderColor: COLOR.border,
-    backgroundColor: COLOR.canvas,
+    backgroundColor: COLOR.surfaceAlt,
   });
 
   const workflowPanel = new BoxRenderable(renderer, {
@@ -239,7 +239,7 @@ export async function mountOmniShell(
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
-    backgroundColor: COLOR.canvas,
+    backgroundColor: COLOR.surfaceAlt,
     flexDirection: "column",
     gap: 0,
   });
@@ -261,7 +261,7 @@ export async function mountOmniShell(
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
-    backgroundColor: COLOR.canvas,
+    backgroundColor: COLOR.surfaceAlt,
     flexDirection: "column",
     gap: 0,
   });
@@ -281,7 +281,7 @@ export async function mountOmniShell(
     paddingRight: 1,
     paddingTop: 0,
     paddingBottom: 0,
-    backgroundColor: COLOR.canvas,
+    backgroundColor: COLOR.surfaceAlt,
     flexDirection: "column",
     gap: 0,
   });
@@ -296,9 +296,22 @@ export async function mountOmniShell(
   todoPanel.add(todoTitle);
   todoPanel.add(todoText);
 
+  const sidebarFooter = new BoxRenderable(renderer, {
+    width: "100%",
+    marginTop: 1,
+    backgroundColor: COLOR.surfaceAlt,
+    flexDirection: "column",
+  });
+  const sidebarFooterText = new TextRenderable(renderer, {
+    content: "• OpenCode-inspired Omni",
+    fg: COLOR.textMuted,
+  });
+  sidebarFooter.add(sidebarFooterText);
+
   sidebarColumn.add(workflowPanel);
   sidebarColumn.add(sessionPanel);
   sidebarColumn.add(todoPanel);
+  sidebarColumn.add(sidebarFooter);
 
   body.add(conversationColumn);
   if (sidebarVisible) {

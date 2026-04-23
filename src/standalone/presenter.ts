@@ -325,28 +325,27 @@ export function renderOmniUiTodoPanel(snapshot: OmniUiSnapshot): string {
 
 export function renderOmniUiSessionPanel(snapshot: OmniUiSnapshot): string {
   const lines: string[] = [];
-  lines.push(`model  ${truncateLine(snapshot.session.model ?? "default", 42)}`);
-  lines.push(`think  ${truncateLine(snapshot.session.thinking ?? "default", 24)}`);
-  if (snapshot.session.name) {
-    lines.push(`name   ${truncateLine(snapshot.session.name, 42)}`);
-  }
+
+  const title = truncateLine(snapshot.session.name ?? "Untitled session", 40);
+  lines.push(title);
+
   if (snapshot.session.id) {
-    lines.push(`id     ${truncateLine(snapshot.session.id, 42)}`);
+    lines.push(truncateLine(snapshot.session.id, 40));
   }
 
   const queueCount =
     snapshot.session.steeringQueue.length + snapshot.session.followUpQueue.length;
+
+  const connected = snapshot.providers.connectedProviderCount > 0;
+  lines.push(`${connected ? "●" : "○"} providers ${snapshot.providers.connectedProviderCount}`);
+  lines.push(`model  ${truncateLine(snapshot.session.model ?? "default", 36)}`);
+  lines.push(`think  ${truncateLine(snapshot.session.thinking ?? "default", 16)}`);
   lines.push(`queue  ${queueCount}`);
 
   if (snapshot.session.steeringQueue.length > 0) {
-    lines.push(
-      `steer  ${truncateLine(snapshot.session.steeringQueue[0] ?? "", 36)}`,
-    );
-  }
-  if (snapshot.session.followUpQueue.length > 0) {
-    lines.push(
-      `next   ${truncateLine(snapshot.session.followUpQueue[0] ?? "", 36)}`,
-    );
+    lines.push(`steer  ${truncateLine(snapshot.session.steeringQueue[0] ?? "", 32)}`);
+  } else if (snapshot.session.followUpQueue.length > 0) {
+    lines.push(`next   ${truncateLine(snapshot.session.followUpQueue[0] ?? "", 32)}`);
   }
 
   return lines.slice(0, 7).join("\n");
