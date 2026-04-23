@@ -80,10 +80,11 @@ export interface OmniStandaloneToolCall {
 
 export interface OmniStandaloneConversationItem {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   text: string;
   streaming?: boolean;
   statusText?: string;
+  toolName?: string;
   toolCalls?: OmniStandaloneToolCall[];
 }
 

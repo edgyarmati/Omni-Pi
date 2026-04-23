@@ -162,7 +162,9 @@ function renderConversationItem(item: OmniStandaloneConversationItem): string {
         ? item.statusText
           ? `Omni · ${truncateLine(item.statusText, 40)}`
           : "Omni"
-        : "Notice";
+        : item.role === "tool"
+          ? `Tool · ${truncateLine(item.toolName ?? item.statusText ?? "tool", 40)}`
+          : "Notice";
 
   const lines: string[] = [title];
   if (
@@ -180,6 +182,8 @@ function renderConversationItem(item: OmniStandaloneConversationItem): string {
     lines.push(indentBlock(text));
   } else if (item.role === "assistant" && item.streaming) {
     lines.push("  Thinking…");
+  } else if (item.role === "tool" && item.statusText) {
+    lines.push(`  ${item.statusText}`);
   }
 
   return lines.join("\n");

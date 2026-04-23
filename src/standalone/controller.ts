@@ -132,7 +132,8 @@ export function createStandaloneController(
 
   let unsubscribeEvent: (() => void) | undefined;
   let unsubscribeUi: (() => void) | undefined;
-  let streamingAssistantId: string | undefined;
+  let activeAssistantId: string | undefined;
+  const activeToolItemIds = new Map<string, string>();
   let itemCounter = 0;
   let pendingDialogResolve:
     | ((result: string | boolean | string[] | undefined) => void)
@@ -463,7 +464,7 @@ export function createStandaloneController(
   };
 
   const ensureAssistantItem = () => {
-    const existing = findConversationItem(streamingAssistantId);
+    const existing = findConversationItem(activeAssistantId);
     if (existing?.role === "assistant") {
       return existing;
     }
@@ -477,40 +478,58 @@ export function createStandaloneController(
       statusText: "thinking…",
       toolCalls: [],
     };
-    streamingAssistantId = id;
+    activeAssistantId = id;
     state.conversation.push(assistant);
     return assistant;
   };
 
-  const findToolCall = (
-    item: OmniStandaloneConversationItem,
-    toolName: string,
-  ): OmniStandaloneToolCall | undefined =>
-    item.toolCalls
-      ?.slice()
-      .reverse()
-      .find(
-        (toolCall) =>
-          toolCall.name === toolName &&
-          (toolCall.status === "pending" || toolCall.status === "running"),
-      );
+  const finishAssistantItem = () => {
+    const assistant = findConversationItem(activeAssistantId);
+    if (assistant?.role === "assistant") {
+      assistant.streaming = false;
+      refreshAssistantStatus(assistant);
+    }
+    activeAssistantId = undefined;
+  };
 
-  const ensureToolCall = (
-    item: OmniStandaloneConversationItem,
-    toolName: string,
-  ): OmniStandaloneToolCall => {
-    const existing = findToolCall(item, toolName);
+  const findActiveToolItem = (toolName: string) => {
+    const item = findConversationItem(activeToolItemIds.get(toolName));
+    return item?.role === "tool" ? item : undefined;
+  };
+
+  const ensureToolTimelineItem = (toolName: string) => {
+    const existing = findActiveToolItem(toolName);
     if (existing) {
       return existing;
     }
 
-    const toolCall: OmniStandaloneToolCall = {
-      id: nextId("tool"),
-      name: toolName,
-      status: "pending",
+    finishAssistantItem();
+    const id = nextId("tool");
+    const item: OmniStandaloneConversationItem = {
+      id,
+      role: "tool",
+      toolName,
+      text: "",
+      streaming: true,
+      statusText: "queued",
     };
-    item.toolCalls = [...(item.toolCalls ?? []), toolCall];
-    return toolCall;
+    activeToolItemIds.set(toolName, id);
+    state.conversation.push(item);
+    return item;
+  };
+
+  const closeToolTimelineItem = (toolName: string) => {
+    const item = findActiveToolItem(toolName);
+    if (item) {
+      item.streaming = false;
+    }
+    activeToolItemIds.delete(toolName);
+    return item;
+  };
+
+  const resetTimelineState = () => {
+    finishAssistantItem();
+    activeToolItemIds.clear();
   };
 
   const stripTerminalControlSequences = (value: string): string => {
@@ -820,14 +839,6 @@ export function createStandaloneController(
       return;
     }
 
-    const runningTool = item.toolCalls?.find(
-      (toolCall) => toolCall.status === "running",
-    );
-    if (runningTool) {
-      item.statusText = `using ${runningTool.name}`;
-      return;
-    }
-
     if (item.streaming && !item.text.trim()) {
       item.statusText = "thinking…";
       return;
@@ -1038,20 +1049,15 @@ export function createStandaloneController(
     switch (event.type) {
       case "agent_start": {
         state.session.isStreaming = true;
-        const assistant = ensureAssistantItem();
-        assistant.streaming = true;
-        refreshAssistantStatus(assistant);
         emitChange();
         return;
       }
       case "agent_end": {
         state.session.isStreaming = false;
-        const assistant = findConversationItem(streamingAssistantId);
-        if (assistant?.role === "assistant") {
-          assistant.streaming = false;
-          refreshAssistantStatus(assistant);
+        finishAssistantItem();
+        for (const [toolName] of activeToolItemIds) {
+          closeToolTimelineItem(toolName);
         }
-        streamingAssistantId = undefined;
         void refreshWorkflowContext();
         emitChange();
         return;
@@ -1104,52 +1110,46 @@ export function createStandaloneController(
             typeof update.toolCall?.name === "string"
               ? update.toolCall.name
               : "tool";
-          const assistant = ensureAssistantItem();
-          const toolCall = ensureToolCall(assistant, toolName);
+          const toolItem = ensureToolTimelineItem(toolName);
           const rawInput =
             update.toolCall?.input ??
             update.toolCall?.arguments ??
             update.toolCall?.command;
-          toolCall.inputText =
-            summarizeToolInput(toolName, rawInput) ?? toolCall.inputText;
-          refreshAssistantStatus(assistant);
+          toolItem.statusText = "queued";
+          toolItem.text = summarizeToolInput(toolName, rawInput) ?? toolItem.text;
           emitChange();
           return;
         }
         return;
       }
       case "message_end": {
-        const assistant = findConversationItem(streamingAssistantId);
-        if (assistant?.role === "assistant") {
-          assistant.streaming = false;
-          refreshAssistantStatus(assistant);
-          emitChange();
-        }
+        finishAssistantItem();
+        emitChange();
         return;
       }
       case "tool_execution_start": {
         const toolName =
           typeof event.toolName === "string" ? event.toolName : "tool";
-        const assistant = ensureAssistantItem();
-        const toolCall = ensureToolCall(assistant, toolName);
-        toolCall.status = "running";
-        toolCall.inputText =
-          extractToolInputText(toolName, event) ?? toolCall.inputText;
-        assistant.streaming = true;
-        refreshAssistantStatus(assistant);
+        const toolItem = ensureToolTimelineItem(toolName);
+        const inputText = extractToolInputText(toolName, event);
+        toolItem.streaming = true;
+        toolItem.statusText = "running";
+        if (inputText) {
+          toolItem.text = inputText;
+        }
         emitChange();
         return;
       }
       case "tool_execution_end": {
         const toolName =
           typeof event.toolName === "string" ? event.toolName : "tool";
-        const assistant = ensureAssistantItem();
-        const toolCall = ensureToolCall(assistant, toolName);
-        toolCall.status = event.isError === true ? "failed" : "done";
-        toolCall.outputText =
-          extractToolOutputText(toolName, event, toolCall.inputText) ??
-          toolCall.outputText;
-        refreshAssistantStatus(assistant);
+        const toolItem = closeToolTimelineItem(toolName) ?? ensureToolTimelineItem(toolName);
+        const outputText = extractToolOutputText(toolName, event, toolItem.text);
+        toolItem.streaming = false;
+        toolItem.statusText = event.isError === true ? "failed" : "done";
+        if (outputText) {
+          toolItem.text = toolItem.text ? `${toolItem.text}\n${outputText}` : outputText;
+        }
         emitChange();
         return;
       }
@@ -1207,7 +1207,7 @@ export function createStandaloneController(
     }
 
     await rpcClient.switchSession(selected);
-    streamingAssistantId = undefined;
+    resetTimelineState();
     state.conversation = [];
     await refreshSessionState();
     await refreshProviderOverview();
@@ -1620,7 +1620,7 @@ export function createStandaloneController(
       }
 
       await rpcClient.switchSession(destinationPath);
-      streamingAssistantId = undefined;
+      resetTimelineState();
       state.conversation = [];
       await refreshSessionState();
       await refreshProviderOverview();
@@ -1739,7 +1739,7 @@ export function createStandaloneController(
           return;
         case "new":
           await rpcClient.newSession();
-          streamingAssistantId = undefined;
+          resetTimelineState();
           state.conversation = [];
           await refreshSessionState();
           await refreshProviderOverview();
@@ -1829,7 +1829,7 @@ export function createStandaloneController(
           return;
         case "switch":
           await rpcClient.switchSession(rest);
-          streamingAssistantId = undefined;
+          resetTimelineState();
           state.conversation = [];
           await refreshSessionState();
           await refreshProviderOverview();
@@ -1845,7 +1845,7 @@ export function createStandaloneController(
             return;
           }
           await rpcClient.switchSession(rest);
-          streamingAssistantId = undefined;
+          resetTimelineState();
           state.conversation = [];
           await refreshSessionState();
           await refreshProviderOverview();

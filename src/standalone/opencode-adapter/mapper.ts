@@ -23,6 +23,7 @@ function mapMessage(message: OmniUiAdapterInput["conversation"][number]): OmniUi
     text: message.text,
     streaming: message.streaming === true,
     statusText: message.statusText,
+    toolName: message.toolName,
     toolCalls: (message.toolCalls ?? []).map(mapToolCall),
   };
 }
@@ -72,6 +73,7 @@ export function standaloneStateToOmniUiSnapshot(
       text: item.text,
       streaming: item.streaming,
       statusText: item.statusText,
+      toolName: item.toolName,
       toolCalls: (item.toolCalls ?? []).map((tool) => ({
         id: tool.id,
         name: tool.name,

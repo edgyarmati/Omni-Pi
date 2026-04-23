@@ -83,7 +83,7 @@ function createRpcClientStub(): OmniRpcClient & {
 }
 
 describe("standalone controller", () => {
-  test("loads initial session state and keeps tool activity inline with the assistant turn", async () => {
+  test("loads initial session state and keeps tool activity in chronological timeline order", async () => {
     const rpcClient = createRpcClientStub();
     const controller = createStandaloneController({ rpcClient });
 
@@ -121,25 +121,25 @@ describe("standalone controller", () => {
     rpcClient.emitEvent({ type: "agent_end", messages: [] });
 
     expect(controller.state.session.modelLabel).toBe("anthropic/claude-sonnet");
-    expect(controller.state.conversation).toHaveLength(2);
-    expect(controller.state.conversation[1]?.text).toBe("Hi there");
-    expect(controller.state.conversation[1]?.toolCalls).toEqual([
-      {
-        id: expect.any(String),
-        name: "web_search",
-        status: "done",
-        inputText: '{"query":"omni"}',
-        outputText: 'search complete',
-      },
-    ]);
+    expect(controller.state.conversation).toHaveLength(3);
+    expect(controller.state.conversation[1]).toMatchObject({
+      role: "tool",
+      toolName: "web_search",
+      statusText: "done",
+    });
+    expect(controller.state.conversation[1]?.text).toContain('{"query":"omni"}');
+    expect(controller.state.conversation[1]?.text).toContain("search complete");
+    expect(controller.state.conversation[2]).toMatchObject({
+      role: "assistant",
+      text: "Hi there",
+    });
     expect(controller.state.session.isStreaming).toBe(false);
 
     const rendered = renderConversationLines(controller.state);
-    expect(rendered).toContain("Omni");
-    expect(rendered).toContain("↳ web_search · done");
-    expect(rendered).toContain("input");
+    expect(rendered).toContain("Tool · web_search");
     expect(rendered).toContain("search complete");
-    expect(rendered).not.toContain("Tool:");
+    expect(rendered).toContain("Omni");
+    expect(rendered).toContain("Hi there");
   });
 
   test("loads workflow and repo-map sidebar context from the project directory", async () => {
@@ -445,6 +445,7 @@ describe("standalone controller", () => {
     expect(rendered).toContain("rtk git status --short --branch");
     expect(rendered).toContain("feat/opentui-standalone-omni");
     expect(rendered).not.toContain('{"content"');
+    expect(rendered).toContain("Tool · bash");
   });
 
   test("filters streamed tool-telemetry and terminal-control artifacts from assistant text", async () => {

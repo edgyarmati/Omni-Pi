@@ -246,11 +246,11 @@ export async function mountOmniShell(
   let uiSnapshot = standaloneStateToOmniUiSnapshot(controller.state);
 
   const workflowTitle = new TextRenderable(renderer, {
-    content: "workflow",
+    content: "Context",
     fg: COLOR.text,
   });
   const workflowText = new TextRenderable(renderer, {
-    content: renderOmniUiWorkflowPanel(uiSnapshot.workflow),
+    content: renderOmniUiSessionPanel(uiSnapshot),
     fg: COLOR.textMuted,
   });
   workflowPanel.add(workflowTitle);
@@ -266,11 +266,11 @@ export async function mountOmniShell(
     gap: 0,
   });
   const sessionTitle = new TextRenderable(renderer, {
-    content: "session",
+    content: uiSnapshot.session.name ?? "Greeting",
     fg: COLOR.text,
   });
   const sessionText = new TextRenderable(renderer, {
-    content: renderOmniUiSessionPanel(uiSnapshot),
+    content: renderOmniUiWorkflowPanel(uiSnapshot.workflow),
     fg: COLOR.textMuted,
   });
   sessionPanel.add(sessionTitle);
@@ -286,7 +286,7 @@ export async function mountOmniShell(
     gap: 0,
   });
   const todoTitle = new TextRenderable(renderer, {
-    content: "todos",
+    content: "Workflow",
     fg: COLOR.text,
   });
   const todoText = new TextRenderable(renderer, {
@@ -303,7 +303,7 @@ export async function mountOmniShell(
     flexDirection: "column",
   });
   const sidebarFooterText = new TextRenderable(renderer, {
-    content: "• OpenCode-inspired Omni",
+    content: `${process.cwd()}\n• Omni / OpenCode shell`,
     fg: COLOR.textMuted,
   });
   sidebarFooter.add(sidebarFooterText);
@@ -1032,8 +1032,8 @@ export async function mountOmniShell(
   statusDock.add(footerMetaRow);
   statusDock.add(shortcutsRow);
 
-  root.add(inputDock);
   root.add(body);
+  root.add(inputDock);
   root.add(statusDock);
   root.add(dialogOverlay);
   renderer.root.add(root);
@@ -1147,6 +1147,40 @@ export async function mountOmniShell(
         });
         notice.onMouseDown = focusComposerFromMouse;
         conversationStack.add(notice);
+        continue;
+      }
+
+      if (item.role === "tool") {
+        const toolCard = new BoxRenderable(renderer, {
+          id: `${item.id}-card`,
+          width: "100%",
+          flexDirection: "column",
+          border: ["left"],
+          borderColor: item.statusText === "failed" ? COLOR.danger : item.statusText === "done" ? COLOR.success : COLOR.info,
+          paddingLeft: 2,
+          paddingRight: 1,
+          paddingTop: 0,
+          paddingBottom: 0,
+          backgroundColor: COLOR.canvas,
+        });
+        const toolTitle = new TextRenderable(renderer, {
+          id: `${item.id}-title`,
+          content: `${item.toolName ?? "tool"}  ·  ${item.statusText ?? (item.streaming ? "running" : "done")}`,
+          fg: item.statusText === "failed" ? COLOR.danger : item.statusText === "done" ? COLOR.success : COLOR.textMuted,
+        });
+        const toolText = new TextRenderable(renderer, {
+          id: `${item.id}-text`,
+          content: item.text ? truncateToolDetail(formatMarkdownForTerminal(item.text), 220) : (item.streaming ? "running…" : ""),
+          fg: COLOR.textFaint,
+        });
+        toolCard.onMouseDown = focusComposerFromMouse;
+        toolTitle.onMouseDown = focusComposerFromMouse;
+        toolText.onMouseDown = focusComposerFromMouse;
+        toolCard.add(toolTitle);
+        if (toolText.content) {
+          toolCard.add(toolText);
+        }
+        conversationStack.add(toolCard);
         continue;
       }
 
@@ -1276,11 +1310,14 @@ export async function mountOmniShell(
     body.backgroundColor = COLOR.canvas;
     conversationColumn.backgroundColor = COLOR.canvas;
     conversationStack.backgroundColor = COLOR.canvas;
-    sidebarColumn.backgroundColor = COLOR.canvas;
+    sidebarColumn.backgroundColor = COLOR.surfaceAlt;
     sidebarColumn.borderColor = COLOR.border;
     workflowTitle.fg = COLOR.text;
+    workflowTitle.content = "Context";
     sessionTitle.fg = COLOR.text;
+    sessionTitle.content = uiSnapshot.session.name ?? "Greeting";
     todoTitle.fg = COLOR.text;
+    todoTitle.content = "Workflow";
     inputDock.backgroundColor = COLOR.canvas;
     inputDock.borderColor = COLOR.borderSoft;
     popover.borderColor = COLOR.border;
@@ -1300,11 +1337,13 @@ export async function mountOmniShell(
     footerMetaText.content = renderOmniUiFooterMeta(uiSnapshot);
     renderConversation(uiSnapshot);
     workflowText.fg = COLOR.text;
-    workflowText.content = renderOmniUiWorkflowPanel(uiSnapshot.workflow);
+    workflowText.content = renderOmniUiSessionPanel(uiSnapshot);
     sessionText.fg = COLOR.text;
-    sessionText.content = renderOmniUiSessionPanel(uiSnapshot);
+    sessionText.content = renderOmniUiWorkflowPanel(uiSnapshot.workflow);
     todoText.fg = COLOR.text;
     todoText.content = renderOmniUiTodoPanel(uiSnapshot);
+    sidebarFooterText.fg = COLOR.textMuted;
+    sidebarFooterText.content = `${process.cwd()}\n• Omni / OpenCode shell`;
     renderDialog(state);
 
     if (state.dialog) {

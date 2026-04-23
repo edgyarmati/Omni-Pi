@@ -7,7 +7,7 @@ import type {
   OmniStandaloneWorkflowSnapshot,
 } from "../contracts.js";
 
-export type OmniUiRole = "user" | "assistant" | "system";
+export type OmniUiRole = "user" | "assistant" | "system" | "tool";
 
 export interface OmniUiToolCall {
   id: string;
@@ -23,6 +23,7 @@ export interface OmniUiMessage {
   text: string;
   streaming: boolean;
   statusText?: string;
+  toolName?: string;
   toolCalls: OmniUiToolCall[];
 }
 
@@ -70,6 +71,7 @@ export interface OmniUiAdapterInput {
     text: string;
     streaming?: boolean;
     statusText?: string;
+    toolName?: string;
     toolCalls?: OmniUiToolCall[];
   }>;
 }
