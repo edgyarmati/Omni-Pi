@@ -29,15 +29,15 @@ import {
 } from "./presenter.js";
 
 const BASE_COLOR = {
-  canvas: "#0b0b0f",
-  surface: "#101014",
-  surfaceAlt: "#16161d",
-  border: "#26262e",
-  borderSoft: "#1d1d24",
-  divider: "#2a2a33",
+  canvas: "#121318",
+  surface: "#171922",
+  surfaceAlt: "#1d2030",
+  border: "#31354a",
+  borderSoft: "#25293b",
+  divider: "#373d55",
   text: "#f5f5f7",
-  textMuted: "#ededf2",
-  textFaint: "#d6d6df",
+  textMuted: "#e7e8ef",
+  textFaint: "#c8ccda",
   userAccent: "#7dd3fc",
   info: "#60a5fa",
   success: "#86efac",
@@ -64,10 +64,27 @@ function mixHex(hex: string, target: string, ratio: number): string {
 
 function buildPalette(state: OmniStandaloneAppState): ShellPalette {
   const accent = state.theme.brand;
+  const welcome = state.theme.welcome;
+  const charcoal = "#14161d";
+  const canvas = mixHex(mixHex(charcoal, accent, 0.12), welcome, 0.06);
+  const surface = mixHex(canvas, accent, 0.09);
+  const surfaceAlt = mixHex(surface, welcome, 0.11);
+  const border = mixHex(surfaceAlt, accent, 0.2);
+  const borderSoft = mixHex(surface, accent, 0.12);
+  const divider = mixHex(border, welcome, 0.14);
+
   return {
     ...BASE_COLOR,
+    canvas,
+    surface,
+    surfaceAlt,
+    border,
+    borderSoft,
+    divider,
+    textMuted: mixHex(BASE_COLOR.textMuted, accent, 0.06),
+    textFaint: mixHex(BASE_COLOR.textFaint, accent, 0.12),
     accent,
-    accentSoft: mixHex(accent, BASE_COLOR.canvas, 0.45),
+    accentSoft: mixHex(accent, canvas, 0.58),
   };
 }
 
