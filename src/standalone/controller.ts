@@ -506,6 +506,24 @@ export function createStandaloneController(
       .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/gu, "");
   };
 
+  const sanitizeAssistantDelta = (value: string): string => {
+    const cleaned = stripTerminalControlSequences(value).replace(/\r/gu, "");
+    const filtered = cleaned
+      .split("\n")
+      .filter((line) => {
+        const trimmed = line.trimStart();
+        if (/^[✓✗○]\s+\S+\s+(queued|running|done|failed)$/u.test(trimmed)) {
+          return false;
+        }
+        if (/^(input|output)\s+/u.test(trimmed)) {
+          return false;
+        }
+        return true;
+      })
+      .join("\n");
+    return filtered;
+  };
+
   const truncateUiText = (value: string, max = 180): string => {
     const normalized = stripTerminalControlSequences(value)
       .replace(/\s+/gu, " ")
@@ -1055,8 +1073,13 @@ export function createStandaloneController(
           | undefined;
         if (update?.type === "text_delta") {
           const assistant = ensureAssistantItem();
-          assistant.text +=
-            typeof update.delta === "string" ? update.delta : "";
+          const delta =
+            typeof update.delta === "string"
+              ? sanitizeAssistantDelta(update.delta)
+              : "";
+          if (delta) {
+            assistant.text += delta;
+          }
           assistant.streaming = true;
           refreshAssistantStatus(assistant);
           emitChange();
