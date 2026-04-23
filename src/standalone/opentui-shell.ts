@@ -24,6 +24,11 @@ import type { OmniStandaloneController } from "./controller.js";
 import { standaloneStateToOmniUiSnapshot } from "./opencode-adapter/mapper.js";
 import type { OmniUiSnapshot } from "./opencode-adapter/contracts.js";
 import {
+  applySlashSelection,
+  isSlashPopoverVisible,
+  stripPromptUiMetadata,
+} from "./opencode-adapter/prompt-behavior.js";
+import {
   formatMarkdownForTerminal,
   renderOmniUiFooterMeta,
   renderOmniUiSessionPanel,
@@ -689,6 +694,14 @@ export async function mountOmniShell(
       renderer.requestRender();
       return;
     }
+    if (!isSlashPopoverVisible(input.value)) {
+      slashMatches = [];
+      slashIndex = 0;
+      popover.visible = false;
+      renderer.requestRender();
+      return;
+    }
+
     const matches = filterStandaloneSlashCommands(input.value);
     if (matches.length === 0) {
       slashMatches = [];
@@ -706,21 +719,31 @@ export async function mountOmniShell(
   const completeSelectedCommand = (submitIfNoArgs = false) => {
     const selected = slashMatches[slashIndex];
     if (!selected) return;
-    const commandText = `/${selected.name}`;
+
+    const selection = applySlashSelection({
+      commandName: selected.name,
+      hasArgs: Boolean(selected.args),
+      submitIfNoArgs,
+    });
+
     slashMatches = [];
     slashIndex = 0;
     popover.visible = false;
-    if (submitIfNoArgs && !selected.args) {
+
+    if (selection.shouldSubmit) {
       setInputValue("");
       controller.resetPromptHistoryNavigation();
       input.focus();
-      void controller.submitPrompt(commandText).catch((error: unknown) => {
-        console.error(error instanceof Error ? error.message : String(error));
-      });
+      void controller
+        .submitPrompt(`/${selected.name}`)
+        .catch((error: unknown) => {
+          console.error(error instanceof Error ? error.message : String(error));
+        });
       renderer.requestRender();
       return;
     }
-    setInputValue(selected.args ? `${commandText} ` : commandText);
+
+    setInputValue(selection.nextInput);
     controller.resetPromptHistoryNavigation();
     input.focus();
     renderer.requestRender();
@@ -797,7 +820,7 @@ export async function mountOmniShell(
       return;
     }
 
-    const displayValue = input.value;
+    const displayValue = stripPromptUiMetadata(input.value);
     syncComposerAttachments();
     const submittedValue = expandComposerAttachments(
       displayValue,
