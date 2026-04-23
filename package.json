@@ -53,10 +53,10 @@
     "prepublishOnly": "npm run verify"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.9",
-    "@types/node": "^24.12.0",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "@biomejs/biome": "^2.4.12",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "pi": {
     "extensions": [
@@ -79,13 +79,13 @@
     ]
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.84",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.118",
     "@juanibiapina/pi-extension-settings": "^0.6.1",
-    "@juanibiapina/pi-powerbar": "^0.8.0",
-    "@mariozechner/pi-coding-agent": "^0.67.68",
-    "@opentui/core": "^0.1.101",
-    "glimpseui": "^0.7.0",
-    "pi-interview": "^0.6.2",
+    "@juanibiapina/pi-powerbar": "^0.9.0",
+    "@mariozechner/pi-coding-agent": "^0.69.0",
+    "@opentui/core": "^0.1.102",
+    "glimpseui": "^0.8.0",
+    "pi-interview": "^0.8.6",
     "pi-web-access": "^0.10.6",
     "zod": "^4.3.6"
   },
