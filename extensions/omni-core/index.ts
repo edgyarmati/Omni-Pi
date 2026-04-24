@@ -53,7 +53,9 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
     ensureBundledPromptTemplates(
-      fileURLToPath(new URL("../../prompts", import.meta.url)),
+      fileURLToPath(
+        new URL("../../templates/managed-prompts", import.meta.url),
+      ),
     );
     loadSavedTheme(ctx.cwd);
     const omniMode = readOmniMode(ctx.cwd);

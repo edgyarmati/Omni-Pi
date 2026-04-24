@@ -1,9 +1,16 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 const MANAGED_PROMPT_FILES = ["commit.md", "push.md"] as const;
-const MANAGED_SUBDIR = "zz-omni-pi";
+const MANAGED_SUBDIR = "omni-pi";
+const LEGACY_MANAGED_SUBDIRS = ["zz-omni-pi"] as const;
 
 export function ensureBundledPromptTemplates(
   sourceDir: string,
@@ -11,12 +18,23 @@ export function ensureBundledPromptTemplates(
     homeDir?: string;
     targetSubdir?: string;
     promptFiles?: readonly string[];
+    legacySubdirs?: readonly string[];
   },
 ): string[] {
   const homeDir = options?.homeDir ?? os.homedir();
   const targetSubdir = options?.targetSubdir ?? MANAGED_SUBDIR;
   const promptFiles = options?.promptFiles ?? MANAGED_PROMPT_FILES;
-  const targetDir = path.join(homeDir, ".pi", "agent", "prompts", targetSubdir);
+  const legacySubdirs = options?.legacySubdirs ?? LEGACY_MANAGED_SUBDIRS;
+  const promptsRoot = path.join(homeDir, ".pi", "agent", "prompts");
+  const targetDir = path.join(promptsRoot, targetSubdir);
+
+  for (const legacySubdir of legacySubdirs) {
+    const legacyDir = path.join(promptsRoot, legacySubdir);
+    if (legacyDir === targetDir || !existsSync(legacyDir)) {
+      continue;
+    }
+    rmSync(legacyDir, { recursive: true, force: true });
+  }
 
   mkdirSync(targetDir, { recursive: true });
 

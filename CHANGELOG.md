@@ -6,6 +6,7 @@
 
 - upgraded `@mariozechner/pi-coding-agent` to `0.70.0`
 - bundled `pi-diff-review` as a packaged Omni-Pi dependency so `/diff-review` is available out of the box
+- vendored `pi-diff-review` locally so global installs no longer fail on the extension's git prepare hook
 - bundled `pi-prompt-template-model` so packaged prompt templates can register smarter slash commands
 
 ### Commands

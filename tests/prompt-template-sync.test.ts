@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -17,13 +23,7 @@ describe("ensureBundledPromptTemplates", () => {
     writeFileSync(path.join(sourceDir, "push.md"), "push prompt\n", "utf8");
 
     const written = ensureBundledPromptTemplates(sourceDir, { homeDir });
-    const targetDir = path.join(
-      homeDir,
-      ".pi",
-      "agent",
-      "prompts",
-      "zz-omni-pi",
-    );
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
 
     expect(written).toEqual([
       path.join(targetDir, "commit.md"),
@@ -41,13 +41,7 @@ describe("ensureBundledPromptTemplates", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "omni-prompt-sync-"));
     const sourceDir = path.join(root, "source-prompts");
     const homeDir = path.join(root, "home");
-    const targetDir = path.join(
-      homeDir,
-      ".pi",
-      "agent",
-      "prompts",
-      "zz-omni-pi",
-    );
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
 
     mkdirSync(sourceDir, { recursive: true });
     mkdirSync(targetDir, { recursive: true });
@@ -64,6 +58,33 @@ describe("ensureBundledPromptTemplates", () => {
     );
     expect(readFileSync(path.join(targetDir, "push.md"), "utf8")).toBe(
       "same push\n",
+    );
+  });
+
+  test("removes the legacy managed prompt directory", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "omni-prompt-sync-"));
+    const sourceDir = path.join(root, "source-prompts");
+    const homeDir = path.join(root, "home");
+    const legacyDir = path.join(
+      homeDir,
+      ".pi",
+      "agent",
+      "prompts",
+      "zz-omni-pi",
+    );
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
+
+    mkdirSync(sourceDir, { recursive: true });
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(path.join(sourceDir, "commit.md"), "commit prompt\n", "utf8");
+    writeFileSync(path.join(sourceDir, "push.md"), "push prompt\n", "utf8");
+    writeFileSync(path.join(legacyDir, "push.md"), "legacy prompt\n", "utf8");
+
+    ensureBundledPromptTemplates(sourceDir, { homeDir });
+
+    expect(existsSync(legacyDir)).toBe(false);
+    expect(readFileSync(path.join(targetDir, "push.md"), "utf8")).toBe(
+      "push prompt\n",
     );
   });
 });

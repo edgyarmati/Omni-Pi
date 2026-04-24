@@ -36,6 +36,7 @@
     "skills",
     "src",
     "templates",
+    "vendor/pi-diff-review",
     "README.md",
     "PROVIDERS.md",
     "CREDITS.md"
@@ -85,7 +86,7 @@
     "@juanibiapina/pi-powerbar": "^0.8.0",
     "@mariozechner/pi-coding-agent": "^0.70.0",
     "glimpseui": "^0.7.0",
-    "pi-diff-review": "git+https://github.com/badlogic/pi-diff-review.git#v0.2.0",
+    "pi-diff-review": "file:./vendor/pi-diff-review",
     "pi-interview": "^0.6.2",
     "pi-prompt-template-model": "^0.8.2",
     "pi-web-access": "^0.10.6",
