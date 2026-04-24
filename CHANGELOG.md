@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1 - 2026-04-24
+
+### Release follow-up
+
+- republished the previous 0.10.0 release work under a new patch version because npm will not republish a previously published version number
+- kept the bundled `pi-diff-review` and `pi-prompt-template-model` integration changes intact
+
 ## 0.10.0 - 2026-04-24
 
 ### Runtime and integrations
