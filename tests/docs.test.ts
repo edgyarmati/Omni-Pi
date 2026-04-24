@@ -43,6 +43,15 @@ describe("documentation coverage", () => {
       "| `/manage-providers` | Remove stored auth for bundled providers |",
     );
     expect(readme).toContain(
+      "| `/diff-review` | Open a native git diff review window and insert feedback into the editor |",
+    );
+    expect(readme).toContain(
+      "| `/commit` | Review local changes and create a descriptive conventional commit |",
+    );
+    expect(readme).toContain(
+      "| `/push` | Push the current branch, with automatic recovery flow if the first push fails |",
+    );
+    expect(readme).toContain(
       "`/model-setup` is for custom providers and custom model entries only.",
     );
     expect(readme).toContain("Use `/model-setup` when you want to configure:");

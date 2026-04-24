@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0 - 2026-04-24
+
+### Runtime and integrations
+
+- upgraded `@mariozechner/pi-coding-agent` to `0.70.0`
+- bundled `pi-diff-review` as a packaged Omni-Pi dependency so `/diff-review` is available out of the box
+- bundled `pi-prompt-template-model` so packaged prompt templates can register smarter slash commands
+
+### Commands
+
+- added `/commit` to review local changes and create a descriptive conventional commit
+- added `/push` with a deterministic first `git push` attempt that only hands off to the model when the push fails
+
 ## 0.8.3 - 2026-04-17
 
 ### Model refresh flow

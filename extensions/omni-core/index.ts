@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import {
@@ -12,6 +14,7 @@ import {
   registerOmniMessageRenderer,
   registerPiCommands,
 } from "../../src/pi.js";
+import { ensureBundledPromptTemplates } from "../../src/prompt-template-sync.js";
 import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
 import {
   buildRepoMapPromptSuffix,
@@ -49,6 +52,9 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
 
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
+    ensureBundledPromptTemplates(
+      fileURLToPath(new URL("../../prompts", import.meta.url)),
+    );
     loadSavedTheme(ctx.cwd);
     const omniMode = readOmniMode(ctx.cwd);
     ctx.ui.setTitle("Omni-Pi");

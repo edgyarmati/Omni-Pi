@@ -15,7 +15,7 @@ Requires Node.js 22 or newer.
 - Keeps durable standards and project context in `.omni/`, even when Omni mode is off.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
 - Adds a repo map that indexes supported source files, ranks them by structure plus recent activity, and injects a compact codebase-awareness block into Omni prompts.
-- Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
+- Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, native git diff review, prompt-template-powered workflow commands, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
 
 ## Install
 
@@ -71,6 +71,8 @@ Current deferred roadmap items remain intentional and visible in docs rather tha
 | **glimpseui** | Native micro-UI windows and the optional floating companion widget |
 | **pi-web-access** | Web search and fetch tools for the agent |
 | **pi-interview** | Guided Q&A when the agent needs clarification |
+| **pi-diff-review** | Native git diff review window that inserts structured review feedback into the editor |
+| **pi-prompt-template-model** | Prompt templates can set thinking/model behavior and back commands like `/commit` and `/push` |
 | **pi-powerbar** | Powerline-style status bar with segments |
 | **pi-extension-settings** | Settings persistence for extensions |
 
@@ -90,6 +92,9 @@ Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro
 | `/manage-providers` | Remove stored auth for bundled providers |
 | `/omni-mode` | Toggle persistent Omni mode on or off for this project |
 | `/companion` | Toggle the Glimpse floating companion widget |
+| `/diff-review` | Open a native git diff review window and insert feedback into the editor |
+| `/commit` | Review local changes and create a descriptive conventional commit |
+| `/push` | Push the current branch, with automatic recovery flow if the first push fails |
 | `/theme` | Switch between color presets (lavender, ember, ocean, mint, rose, gold, arctic, neon, copper, slate) |
 | `/update` | Check for Omni-Pi updates |
 
