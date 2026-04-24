@@ -9,13 +9,11 @@ import {
 } from "../../src/brain.js";
 import { createOmniCommands } from "../../src/commands.js";
 import { renderHeader } from "../../src/header.js";
-import { registerModelCommand } from "../../src/model-command.js";
 import {
   registerOmniMessageRenderer,
   registerPiCommands,
 } from "../../src/pi.js";
 import { ensureBundledPromptTemplates } from "../../src/prompt-template-sync.js";
-import { registerProviderAuthCommand } from "../../src/provider-auth-command.js";
 import {
   buildRepoMapPromptSuffix,
   registerRepoMapTracking,
@@ -42,8 +40,6 @@ import { buildOnboardingInterviewKickoff } from "../../src/workflow.js";
 export default function omniCoreExtension(api: ExtensionAPI): void {
   registerOmniMessageRenderer(api);
   registerPiCommands(api, createOmniCommands());
-  registerModelCommand(api);
-  registerProviderAuthCommand(api);
   registerThemeCommand(api);
   registerTodoShortcut(api);
   registerUpdater(api);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.0 - 2026-04-24
+
+### Removed
+
+- Removed `/model-setup`, `/manage-providers`, the `omni-providers` extension, and the bundled provider catalog. Pi now handles provider and model management natively.
+- Removed `PROVIDERS.md` and the provider docs spec.
+
 ## 0.10.1 - 2026-04-24
 
 ### Release follow-up
@@ -8,6 +15,10 @@
 - kept the bundled `pi-diff-review` and `pi-prompt-template-model` integration changes intact
 
 ## 0.10.0 - 2026-04-24
+
+### Removed
+
+- Removed `/model-setup`, `/manage-providers`, and the `omni-providers` extension. Pi now handles provider and model management natively.
 
 ### Runtime and integrations
 

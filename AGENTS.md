@@ -20,7 +20,6 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 **Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Custom entrypoints live in `extensions/`. Third-party extensions are referenced via `./node_modules/` paths.
 
 **Bundled extensions** (loaded in order):
-- `omni-providers` — model provider wiring
 - `omni-core` — brain workflow, themed UI, header, shortcuts, updater
 - `omni-memory` — `.omni/` durable memory bootstrap
 - `pi-web-access` — web search and fetch tools

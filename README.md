@@ -15,7 +15,7 @@ Requires Node.js 22 or newer.
 - Keeps durable standards and project context in `.omni/`, even when Omni mode is off.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
 - Adds a repo map that indexes supported source files, ranks them by structure plus recent activity, and injects a compact codebase-awareness block into Omni prompts.
-- Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, native git diff review, prompt-template-powered workflow commands, a task viewer, a powerbar, custom provider/model management, and automatic updates out of the box.
+- Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, native git diff review, prompt-template-powered workflow commands, a task viewer, a powerbar, and automatic updates out of the box.
 
 ## Install
 
@@ -29,8 +29,6 @@ Then run it in any project:
 cd your-project
 omni
 ```
-
-Custom provider setup, refresh behavior, and bundled provider behavior are documented in [PROVIDERS.md](PROVIDERS.md).
 
 ## Features
 
@@ -66,7 +64,6 @@ Current deferred roadmap items remain intentional and visible in docs rather tha
 | Extension | What it does |
 |-----------|-------------|
 | **omni-core** | Brain workflow, themed header, session init, system prompt injection |
-| **omni-providers** | Model provider wiring |
 | **omni-memory** | `.omni/` durable memory bootstrap |
 | **glimpseui** | Native micro-UI windows and the optional floating companion widget |
 | **pi-web-access** | Web search and fetch tools for the agent |
@@ -88,8 +85,6 @@ Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro
 
 | Command | Description |
 |---------|-------------|
-| `/model-setup` | Add, refresh, or remove custom provider/model entries |
-| `/manage-providers` | Remove stored auth for bundled providers |
 | `/omni-mode` | Toggle persistent Omni mode on or off for this project |
 | `/companion` | Toggle the Glimpse floating companion widget |
 | `/diff-review` | Open a native git diff review window and insert feedback into the editor |
@@ -107,24 +102,6 @@ Omni-Pi now bundles [Glimpse](https://github.com/HazAT/glimpse) for native micro
 ### Auto-Updater
 
 Omni-Pi checks for new versions on startup (cached, re-checks every 4 hours). When an update is available, it prompts to install and restart. Pi's own update notification is suppressed to avoid duplication.
-
-## Provider Support
-
-`/model-setup` is for custom providers and custom model entries only.
-
-Use `/model-setup` when you want to configure:
-
-- a custom provider id
-- an API type and base URL
-- an API key for that custom provider
-- discovered models or manual model entries
-- a manual refresh of already configured custom providers
-
-Use `/manage-providers` to remove stored auth for bundled Pi providers.
-
-Anthropic is intentionally API-key-only in Omni-Pi. Anthropic OAuth login is disabled.
-
-See [PROVIDERS.md](PROVIDERS.md) for the current supported-provider list and auth-management split.
 
 ## Omni Mode
 
@@ -176,7 +153,7 @@ npm run chat    # launch locally in dev mode
 ## CI/CD
 
 - Pull requests and pushes to `main` run `npm run verify`.
-- The docs are part of the test contract, including a sync check between `PROVIDERS.md` and the bundled-provider setup list in code.
+- The docs are part of the test contract.
 - Pushing a `v*` tag runs the release workflow, verifies the repo again, publishes to npm through GitHub Actions trusted publishing with provenance, and then creates the GitHub release.
 - Trusted publishing still requires npm-side setup for this repository/workflow in the npm package settings.
 
