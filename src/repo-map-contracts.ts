@@ -2,7 +2,7 @@ import path from "node:path";
 
 export const REPO_MAP_DIR = path.join(".pi", "repo-map");
 export const REPO_MAP_STATE_FILE = path.join(REPO_MAP_DIR, "state.json");
-export const REPO_MAP_SCHEMA_VERSION = 1;
+export const REPO_MAP_SCHEMA_VERSION = 2;
 
 export type RepoMapParserStatus =
   | "indexed"
@@ -32,13 +32,17 @@ export interface RepoMapImport {
   resolvedPath?: string;
 }
 
+export type RepoMapFingerprint =
+  | { kind: "hash"; value: string }
+  | { kind: "stat"; value: string };
+
 export interface RepoMapFileRecord {
   path: string;
   language: string;
   parserStatus: RepoMapParserStatus;
   size: number;
   mtimeMs: number;
-  fingerprint: string;
+  fingerprint: RepoMapFingerprint;
   indexedAt: string;
   firstIndexedAt: string;
   symbols: RepoMapSymbol[];

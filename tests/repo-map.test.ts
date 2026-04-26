@@ -8,6 +8,7 @@ import { refreshRepoMapState } from "../src/repo-map-index.js";
 import {
   getRepoMapDebugSnapshot,
   recordRepoMapSignal,
+  warmRepoMap,
 } from "../src/repo-map-runtime.js";
 import { repoMapStatePath } from "../src/repo-map-store.js";
 import { saveOmniMode } from "../src/theme.js";
@@ -275,5 +276,51 @@ describe("repo map", () => {
       "binary-fallback",
     );
     expect(snapshot.rendered).toContain("src/good.ts");
+  });
+
+  test("file fingerprints carry a discriminant tag", async () => {
+    const rootDir = await createTempProject("repo-map-fingerprint-");
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "src", "indexed.ts"),
+      "export const indexed = true;\n",
+      "utf8",
+    );
+
+    const result = await refreshRepoMapState(rootDir);
+    const fingerprint = result.state.files["src/indexed.ts"]?.fingerprint;
+    expect(fingerprint?.kind).toBe("hash");
+    expect(typeof fingerprint?.value).toBe("string");
+    expect(fingerprint?.value.length).toBeGreaterThan(0);
+  });
+
+  test("warmRepoMap preserves edits arriving during a refresh", async () => {
+    const rootDir = await createTempProject("repo-map-dirty-snapshot-");
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "src", "a.ts"),
+      "export const a = 1;\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(rootDir, "src", "b.ts"),
+      "export const b = 1;\n",
+      "utf8",
+    );
+
+    await refreshRepoMapState(rootDir);
+
+    recordRepoMapSignal(rootDir, "edit", "src/a.ts");
+    const refresh = warmRepoMap(rootDir);
+    // Simulate an edit landing while the refresh is in flight.
+    recordRepoMapSignal(rootDir, "edit", "src/b.ts");
+    await refresh;
+
+    // src/a.ts was in the snapshot and should be cleared; src/b.ts arrived
+    // after the snapshot and must remain dirty so the next refresh picks it up.
+    const followUp = warmRepoMap(rootDir);
+    const result = await followUp;
+    expect(result.indexedPaths).toContain("src/b.ts");
+    expect(result.indexedPaths).not.toContain("src/a.ts");
   });
 });
