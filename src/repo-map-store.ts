@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -42,5 +43,9 @@ export async function writeRepoMapState(
 ): Promise<void> {
   const filePath = repoMapStatePath(rootDir);
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  // Write to a sibling temp file then rename so a crash mid-write
+  // can't leave the cache truncated / unparseable.
+  const tempPath = `${filePath}.${randomBytes(6).toString("hex")}.tmp`;
+  await writeFile(tempPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await rename(tempPath, filePath);
 }
