@@ -1,6 +1,7 @@
 import { execFile as execFileCb } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,7 +11,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 
 const PACKAGE_NAME = "omni-pi";
-const CACHE_DIR = path.join(process.env.HOME ?? "~", ".omni");
+const CACHE_DIR = path.join(os.homedir(), ".omni");
 const CACHE_PATH = path.join(CACHE_DIR, "update-cache.json");
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -49,13 +50,26 @@ async function writeCache(cache: UpdateCache): Promise<void> {
   writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), "utf8");
 }
 
-function isNewer(latest: string, current: string): boolean {
-  const parse = (v: string) => v.split(".").map(Number);
-  const [lMaj, lMin, lPat] = parse(latest);
-  const [cMaj, cMin, cPat] = parse(current);
-  if (lMaj !== cMaj) return lMaj > cMaj;
-  if (lMin !== cMin) return lMin > cMin;
-  return lPat > cPat;
+function parseVersion(version: string): [number, number, number] | null {
+  // Accept "X.Y.Z" optionally followed by a prerelease/build suffix like
+  // "-beta.1" or "+sha". Anything else (NaN segments, missing pieces) is
+  // treated as unparseable so we don't prompt with garbage comparisons.
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(version.trim());
+  if (!match) return null;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (![major, minor, patch].every(Number.isFinite)) return null;
+  return [major, minor, patch];
+}
+
+export function isNewer(latest: string, current: string): boolean {
+  const l = parseVersion(latest);
+  const c = parseVersion(current);
+  if (!l || !c) return false;
+  if (l[0] !== c[0]) return l[0] > c[0];
+  if (l[1] !== c[1]) return l[1] > c[1];
+  return l[2] > c[2];
 }
 
 async function fetchLatestVersion(): Promise<string | null> {
