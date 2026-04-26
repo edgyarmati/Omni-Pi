@@ -1,7 +1,8 @@
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { writeFileAtomic } from "./atomic.js";
 import type { SkillCandidate, SkillPolicy, TaskBrief } from "./contracts.js";
 
 export interface SkillSignal {
@@ -208,7 +209,7 @@ export async function appendSkillUsageNote(
     /## Usage Notes\n\n([\s\S]*)$/u,
     (_match, section) => `## Usage Notes\n\n${section.trimEnd()}\n- ${note}\n`,
   );
-  await writeFile(skillPath, next, "utf8");
+  await writeFileAtomic(skillPath, next);
 }
 
 function replaceSection(
@@ -275,7 +276,7 @@ export async function applyInstallResults(
       : ["- None yet"];
   content = replaceSection(content, "## Installed", installedLines);
   content = replaceSection(content, "## Deferred", deferredLines);
-  await writeFile(skillPath, content, "utf8");
+  await writeFileAtomic(skillPath, content);
 
   return { deferred, installed };
 }
@@ -334,10 +335,9 @@ async function writeProjectSkillState(
   state: ProjectSkillState,
 ): Promise<void> {
   await mkdir(path.join(rootDir, ".omni"), { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     projectSkillStatePath(rootDir),
     `${JSON.stringify(state, null, 2)}\n`,
-    "utf8",
   );
 }
 
@@ -369,7 +369,7 @@ async function updateInstalledRegistry(
       ? registry.installed.map(renderSkillDecision)
       : ["- None yet"],
   );
-  await writeFile(skillPath, content, "utf8");
+  await writeFileAtomic(skillPath, content);
 }
 
 async function updateDeferredRegistry(
@@ -395,7 +395,7 @@ async function updateDeferredRegistry(
       ? registry.deferred.map(renderSkillDecision)
       : ["- None yet"],
   );
-  await writeFile(skillPath, content, "utf8");
+  await writeFileAtomic(skillPath, content);
 }
 
 export async function loadSkillTriggers(
@@ -540,7 +540,7 @@ async function writeProjectSkill(
 ): Promise<string> {
   const dir = path.join(projectSkillsDir(rootDir), name);
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "SKILL.md"), content, "utf8");
+  await writeFileAtomic(path.join(dir, "SKILL.md"), content);
   return dir;
 }
 

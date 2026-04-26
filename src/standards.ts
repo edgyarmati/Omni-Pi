@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { writeFileAtomic } from "./atomic.js";
 import { OMNI_DIR } from "./contracts.js";
 
 export const OMNI_STANDARD_VERSION = 1;
@@ -195,10 +196,9 @@ async function writeImportState(
   state: ImportState,
 ): Promise<void> {
   await mkdir(path.join(rootDir, OMNI_DIR), { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     path.join(rootDir, IMPORT_STATE_PATH),
     `${JSON.stringify(state, null, 2)}\n`,
-    "utf8",
   );
 }
 
@@ -223,7 +223,7 @@ These standards were imported from other harness-specific instruction files and 
 
 ${body || "No imported standards have been accepted yet.\n"}
 `;
-  await writeFile(path.join(rootDir, STANDARDS_PATH), next, "utf8");
+  await writeFileAtomic(path.join(rootDir, STANDARDS_PATH), next);
 }
 
 function buildConfirmationMessage(candidates: DiscoveredStandard[]): string {
@@ -301,16 +301,23 @@ export async function readOmniVersion(rootDir: string): Promise<number | null> {
   if (!content) {
     return null;
   }
-  const parsed = Number.parseInt(content.trim(), 10);
+  // Accept the integer version as the only file content (with optional
+  // trailing newline / whitespace). Refuse files like "1abc", "1 2", or
+  // "v1" so a corrupted or unrelated file can't be silently treated as
+  // a valid Omni standard version.
+  const trimmed = content.trim();
+  if (!/^\d+$/u.test(trimmed)) {
+    return null;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 export async function writeOmniVersion(rootDir: string): Promise<void> {
   await mkdir(path.join(rootDir, OMNI_DIR), { recursive: true });
-  await writeFile(
+  await writeFileAtomic(
     path.join(rootDir, VERSION_PATH),
     `${OMNI_STANDARD_VERSION}\n`,
-    "utf8",
   );
 }
 
@@ -334,6 +341,6 @@ export async function ensurePiIgnoredInGitignore(
 
   const prefix = existing.trimEnd();
   const next = prefix.length > 0 ? `${prefix}\n.pi/\n` : ".pi/\n";
-  await writeFile(gitignorePath, next, "utf8");
+  await writeFileAtomic(gitignorePath, next);
   return true;
 }

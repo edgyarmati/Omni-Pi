@@ -1,10 +1,33 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import {
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+function writeFileAtomicSync(filePath, content) {
+  const tempPath = `${filePath}.${randomBytes(6).toString("hex")}.tmp`;
+  try {
+    writeFileSync(tempPath, content, "utf8");
+    renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      unlinkSync(tempPath);
+    } catch {
+      // temp may not exist
+    }
+    throw error;
+  }
+}
 
 export function getOmniPackageDir() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -22,8 +45,12 @@ export function resolvePiCliPath() {
 }
 
 export function buildOmniEnvironment(baseEnv = process.env) {
+  // Pi has its own update prompt; Omni-Pi runs its own (registerUpdater).
+  // Suppress Pi's check at the launcher boundary so the Omni updater is
+  // the only one that surfaces upgrade prompts.
   return {
     ...baseEnv,
+    PI_SKIP_VERSION_CHECK: "1",
   };
 }
 
@@ -56,10 +83,9 @@ export function ensureQuietStartupDefault(baseEnv = process.env) {
       typeof parsed === "object" &&
       parsed.quietStartup === undefined
     ) {
-      writeFileSync(
+      writeFileAtomicSync(
         settingsFile,
         `${JSON.stringify({ ...parsed, quietStartup: true }, null, 2)}\n`,
-        "utf8",
       );
     }
   } catch (error) {
@@ -73,10 +99,9 @@ export function ensureQuietStartupDefault(baseEnv = process.env) {
     }
 
     mkdirSync(agentDir, { recursive: true });
-    writeFileSync(
+    writeFileAtomicSync(
       settingsFile,
       `${JSON.stringify({ quietStartup: true }, null, 2)}\n`,
-      "utf8",
     );
   }
 }
