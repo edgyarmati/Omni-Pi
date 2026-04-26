@@ -507,15 +507,19 @@ function taskKeywords(task: TaskBrief): string[] {
   ).slice(0, 6);
 }
 
+// Strip control characters from user-supplied task fields so they can't
+// inject newlines into the YAML front-matter or markdown bullet body.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from user-supplied task fields is the point.
+const SKILL_CONTROL_CHARS = /[\u0000-\u001f\u007f]/gu;
+
 // Collapse a string to a single safe line for interpolation into the
 // SKILL.md YAML front-matter. Strips control characters, removes
 // quotes/backslashes that would break the surrounding double-quoted
 // values, collapses whitespace, and trims to a sane length so a
 // pathological task title can't blow up the front-matter.
 function sanitizeYamlInline(value: string, maxLen = 200): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from user-supplied task fields is the point of this function.
   return value
-    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(SKILL_CONTROL_CHARS, " ")
     .replace(/["\\]/gu, "")
     .replace(/\s+/gu, " ")
     .trim()
@@ -527,9 +531,8 @@ function sanitizeYamlInline(value: string, maxLen = 200): string {
 // bullet) and refuses a literal "---" so a sanitized value can't
 // re-open YAML front-matter.
 function sanitizeMarkdownInline(value: string, maxLen = 500): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from user-supplied task fields is the point of this function.
   const collapsed = value
-    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(SKILL_CONTROL_CHARS, " ")
     .replace(/\s+/gu, " ")
     .trim()
     .slice(0, maxLen);

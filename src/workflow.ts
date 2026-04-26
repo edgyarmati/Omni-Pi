@@ -237,15 +237,17 @@ function hasKeyword(text: string, pattern: RegExp): boolean {
 
 // Repo-derived hints (package.json description, README summary, doc
 // filenames) flow into the brain prompt verbatim. A README that
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from repo-derived hints is the point.
+const KICKOFF_CONTROL_CHARS = /[\u0000-\u001f\u007f]/gu;
+
 // contains "## " headings, "---" front-matter terminators, or
 // backticked instructions could redirect the brain prompt itself.
 // Keep each hint to a single short line, drop control chars and
 // backticks, and refuse content that starts with markdown headings
 // or a front-matter marker.
 function sanitizeKickoffHint(value: string, maxLen = 200): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from repo-derived hints is the point.
   const collapsed = value
-    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(KICKOFF_CONTROL_CHARS, " ")
     .replace(/`/gu, "'")
     .replace(/\s+/gu, " ")
     .trim()
@@ -311,7 +313,9 @@ async function assessInitialProjectClarity(rootDir: string): Promise<{
 
   const hints: string[] = [];
   if (packageDescription) {
-    hints.push(`Package description: ${sanitizeKickoffHint(packageDescription)}`);
+    hints.push(
+      `Package description: ${sanitizeKickoffHint(packageDescription)}`,
+    );
   }
   if (readmeSummary) {
     hints.push(`README summary: ${sanitizeKickoffHint(readmeSummary)}`);
