@@ -94,14 +94,14 @@ describe("Omni brain runtime", () => {
         },
       },
     );
-    const beforeStart = await handlers.get("before_agent_start")?.(
+    const beforeStart = (await handlers.get("before_agent_start")?.(
       {
         type: "before_agent_start",
         prompt: "Build me a todo app",
         systemPrompt: "BASE",
       },
       { cwd: rootDir },
-    );
+    )) as { systemPrompt: string };
 
     expect(statuses).toHaveLength(3);
     expect(sentMessages).toHaveLength(0);
@@ -126,14 +126,14 @@ describe("Omni brain runtime", () => {
       },
     } as never);
 
-    const beforeStart = await handlers.get("before_agent_start")?.(
+    const beforeStart = (await handlers.get("before_agent_start")?.(
       {
         type: "before_agent_start",
         prompt: "Build me a todo app",
         systemPrompt: "BASE",
       },
       { cwd: rootDir },
-    );
+    )) as { systemPrompt: string };
 
     expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
     expect(beforeStart.systemPrompt).toContain(

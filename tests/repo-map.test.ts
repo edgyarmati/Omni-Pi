@@ -164,27 +164,27 @@ describe("repo map", () => {
       },
     );
 
-    let beforeStart = await handlers.get("before_agent_start")?.(
+    let beforeStart = (await handlers.get("before_agent_start")?.(
       {
         type: "before_agent_start",
         prompt: "inspect workflow.ts",
         systemPrompt: "BASE",
       },
       { cwd: rootDir },
-    );
+    )) as { systemPrompt: string };
 
     expect(beforeStart.systemPrompt).toContain("## Repo Map");
     expect(beforeStart.systemPrompt).toContain("src/workflow.ts");
 
     recordRepoMapSignal(rootDir, "edit", "src/workflow.ts");
-    beforeStart = await handlers.get("before_agent_start")?.(
+    beforeStart = (await handlers.get("before_agent_start")?.(
       {
         type: "before_agent_start",
         prompt: "update workflow.ts",
         systemPrompt: "BASE",
       },
       { cwd: rootDir },
-    );
+    )) as { systemPrompt: string };
 
     const repoMapSection =
       beforeStart.systemPrompt.split("## Repo Map")[1] ?? "";
@@ -235,14 +235,14 @@ describe("repo map", () => {
       },
     );
 
-    const beforeStart = await handlers.get("before_agent_start")?.(
+    const beforeStart = (await handlers.get("before_agent_start")?.(
       {
         type: "before_agent_start",
         prompt: "inspect workflow.ts",
         systemPrompt: "BASE",
       },
       { cwd: rootDir },
-    );
+    )) as { systemPrompt: string };
 
     expect(beforeStart.systemPrompt).toContain("BASE");
     expect(beforeStart.systemPrompt).toContain("## Repo Map");
