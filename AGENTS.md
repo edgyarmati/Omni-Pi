@@ -22,8 +22,11 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 **Bundled extensions** (loaded in order):
 - `omni-core` — brain workflow, themed UI, header, shortcuts, updater
 - `omni-memory` — `.omni/` durable memory bootstrap
+- `glimpseui` — native micro-UI windows and floating companion widget
 - `pi-web-access` — web search and fetch tools
 - `pi-interview` — guided Q&A for clarification
+- `pi-diff-review` — diff review surface
+- `pi-prompt-template-model` — prompt template / model wiring
 - `pi-extension-settings` — settings persistence
 - `pi-powerbar` — powerline-style status bar
 
