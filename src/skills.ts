@@ -507,29 +507,70 @@ function taskKeywords(task: TaskBrief): string[] {
   ).slice(0, 6);
 }
 
+// Collapse a string to a single safe line for interpolation into the
+// SKILL.md YAML front-matter. Strips control characters, removes
+// quotes/backslashes that would break the surrounding double-quoted
+// values, collapses whitespace, and trims to a sane length so a
+// pathological task title can't blow up the front-matter.
+function sanitizeYamlInline(value: string, maxLen = 200): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from user-supplied task fields is the point of this function.
+  return value
+    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(/["\\]/gu, "")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, maxLen);
+}
+
+// Single-line markdown bullet content. Collapses all whitespace
+// (including newlines, since each interpolation site is a one-line
+// bullet) and refuses a literal "---" so a sanitized value can't
+// re-open YAML front-matter.
+function sanitizeMarkdownInline(value: string, maxLen = 500): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from user-supplied task fields is the point of this function.
+  const collapsed = value
+    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, maxLen);
+  return collapsed === "---" ? "—" : collapsed;
+}
+
 function buildGeneratedSkill(task: TaskBrief, name: string): string {
-  const keywords = taskKeywords(task);
+  const safeName = sanitizeYamlInline(name, 80);
+  const safeTitle = sanitizeYamlInline(task.title);
+  const safeObjective = sanitizeMarkdownInline(task.objective);
+  const safeDoneCriteria = task.doneCriteria
+    .map((item) => sanitizeMarkdownInline(item))
+    .filter((item) => item.length > 0);
+  const safeContextFiles = task.contextFiles
+    .map((item) => sanitizeYamlInline(item, 240))
+    .filter((item) => item.length > 0);
+  const keywords = taskKeywords(task)
+    .map((item) => sanitizeYamlInline(item, 40))
+    .filter((item) => item.length > 0);
   const triggerText =
     keywords.length > 0
       ? keywords.map((item) => `"${item}"`).join(", ")
-      : `"${task.id.toLowerCase()}"`;
+      : `"${sanitizeYamlInline(task.id.toLowerCase(), 40)}"`;
+
   return `---
-name: ${name}
-description: Project-specific skill for ${task.title}. Triggers include ${triggerText}
+name: ${safeName}
+description: Project-specific skill for ${safeTitle}. Triggers include ${triggerText}
 ---
 
-# ${name}
+# ${safeName}
 
-Use this skill for the task "${task.title}".
+Use this skill for the task "${safeTitle}".
 
 Focus:
-- ${task.objective}
+- ${safeObjective || "Refer to the active task brief."}
 
 Definition of done:
-${task.doneCriteria.map((item) => `- ${item}`).join("\n") || "- Follow the task brief."}
+${safeDoneCriteria.map((item) => `- ${item}`).join("\n") || "- Follow the task brief."}
 
 Context:
-${task.contextFiles.map((item) => `- ${item}`).join("\n") || "- Refer to the active task brief and .omni files."}
+${safeContextFiles.map((item) => `- ${item}`).join("\n") || "- Refer to the active task brief and .omni files."}
 `;
 }
 
@@ -610,7 +651,15 @@ export async function ensureTaskSkillDependencies(
     );
   }
 
-  for (const name of desired) {
+  // Snapshot the iteration order: we may rename a desired entry below
+  // (when a generated skill name has to be normalized), and Set
+  // mutation during for-of can either skip the new entry or revisit
+  // entries depending on insertion order. Collect renames and apply
+  // them after the loop instead.
+  const initialDesired = [...desired];
+  const renames: Array<{ from: string; to: string }> = [];
+
+  for (const name of initialDesired) {
     const existingRecord = state.managed.find((entry) => entry.name === name);
     const availableSkill = availableByName.get(name);
 
@@ -647,8 +696,7 @@ export async function ensureTaskSkillDependencies(
         buildGeneratedSkill(task, generatedName),
       );
       if (generatedName !== name) {
-        desired.delete(name);
-        desired.add(generatedName);
+        renames.push({ from: name, to: generatedName });
       }
       created.push(generatedName);
       state.managed = state.managed.filter(
@@ -665,6 +713,11 @@ export async function ensureTaskSkillDependencies(
         `Created project skill ${generatedName} for ${task.id} because ${name} was unavailable.`,
       );
     }
+  }
+
+  for (const { from, to } of renames) {
+    desired.delete(from);
+    desired.add(to);
   }
 
   await writeProjectSkillState(rootDir, state);
