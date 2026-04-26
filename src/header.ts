@@ -40,7 +40,7 @@ export function centerIn(text: string, width: number): string {
   return " ".repeat(pad) + text;
 }
 
-function readVersion(): string {
+function loadVersion(): string {
   try {
     const pkgPath = path.resolve(
       path.dirname(fileURLToPath(import.meta.url)),
@@ -56,16 +56,19 @@ function readVersion(): string {
   }
 }
 
+// Read once at module load — package.json doesn't change while the
+// process is running, so re-parsing on every render is wasted work.
+const VERSION = loadVersion();
+
 export function pickWelcome(): string {
   return WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
 }
 
 export function renderHeader(theme: Theme): Text {
-  const version = readVersion();
   const welcome = pickWelcome();
 
   const logo = ASCII_LOGO.map((line) => brand(line)).join("\n");
-  const subtitleText = `— P I  v${version} —`;
+  const subtitleText = `— P I  v${VERSION} —`;
   const subtitle = theme.fg("muted", centerIn(subtitleText, LOGO_WIDTH));
   const taglineText = "plan · build · verify";
   const tagline = theme.fg("muted", centerIn(taglineText, LOGO_WIDTH));
