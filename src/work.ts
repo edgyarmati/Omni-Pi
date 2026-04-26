@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { writeFileAtomic } from "./atomic.js";
 import {
   gatherTaskContext,
   renderContextBlocks,
@@ -81,10 +82,9 @@ async function writeTaskHistory(
   taskId: string,
   history: TaskAttemptResult[],
 ): Promise<void> {
-  await writeFile(
+  await writeFileAtomic(
     historyPath(taskDir, taskId),
     JSON.stringify(history, null, 2),
-    "utf8",
   );
 }
 
@@ -107,7 +107,7 @@ ${task.skills.map((item) => `- ${item}`).join("\n") || "- None"}
 
 ${task.contextFiles.map((item) => `- ${item}`).join("\n") || "- None"}
 `;
-  await writeFile(path.join(taskDir, `${task.id}-BRIEF.md`), content, "utf8");
+  await writeFileAtomic(path.join(taskDir, `${task.id}-BRIEF.md`), content);
 }
 
 export async function prepareNextTaskDispatch(
@@ -234,11 +234,7 @@ ${modifiedFilesSection}
 
 Revisit the task inputs, tighten the scope, and retry ${task.id} with a narrower, clearer implementation slice.
 `;
-  await writeFile(
-    path.join(taskDir, `${task.id}-RECOVERY.md`),
-    content,
-    "utf8",
-  );
+  await writeFileAtomic(path.join(taskDir, `${task.id}-RECOVERY.md`), content);
 }
 
 function formatVerificationSummary(result: TaskAttemptResult): string {

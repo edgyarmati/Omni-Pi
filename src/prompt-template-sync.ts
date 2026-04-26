@@ -1,12 +1,8 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+import { writeFileAtomicSync } from "./atomic.js";
 
 const MANAGED_PROMPT_FILES = ["commit.md", "push.md"] as const;
 const MANAGED_SUBDIR = "omni-pi";
@@ -55,7 +51,7 @@ export function ensureBundledPromptTemplates(
       continue;
     }
 
-    writeFileSync(targetPath, nextContent, "utf8");
+    writeFileAtomicSync(targetPath, nextContent);
     written.push(targetPath);
   }
 

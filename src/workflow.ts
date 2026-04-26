@@ -1,5 +1,6 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { writeFileAtomic } from "./atomic.js";
 import { readConfig } from "./config.js";
 import type {
   ConversationBrief,
@@ -99,7 +100,7 @@ async function writeIfMissing(
     return false;
   } catch {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(filePath, content, "utf8");
+    await writeFileAtomic(filePath, content);
     return true;
   }
 }
@@ -119,7 +120,7 @@ async function replaceSection(
   const next = current.match(sectionRegex)
     ? current.replace(sectionRegex, replacement)
     : `${current.trimEnd()}\n\n${heading}\n\n${lines.join("\n")}\n`;
-  await writeFile(filePath, next, "utf8");
+  await writeFileAtomic(filePath, next);
 }
 
 async function appendBullets(
@@ -139,10 +140,9 @@ async function appendBullets(
   );
   const match = content.match(sectionRegex);
   if (!match) {
-    await writeFile(
+    await writeFileAtomic(
       filePath,
       `${content.trimEnd()}\n\n${heading}\n\n${bullets.map((bullet) => `- ${bullet}`).join("\n")}\n`,
-      "utf8",
     );
     return;
   }
@@ -152,10 +152,9 @@ async function appendBullets(
   const merged = [body, ...bullets.map((bullet) => `- ${bullet}`)]
     .filter(Boolean)
     .join("\n");
-  await writeFile(
+  await writeFileAtomic(
     filePath,
     content.replace(sectionRegex, `${prefix}${merged}\n`),
-    "utf8",
   );
 }
 
@@ -207,7 +206,7 @@ Status Summary: ${state.statusSummary}
 Blockers: ${state.blockers.length > 0 ? state.blockers.join("; ") : "None"}
 Next Step: ${state.nextStep}
 ${recoverySection}`;
-  await writeFile(statePath, content, "utf8");
+  await writeFileAtomic(statePath, content);
 }
 
 async function readOptionalText(filePath: string): Promise<string> {
@@ -419,10 +418,9 @@ export async function initializeOmniProject(
     `- Detected tools: ${repoSignals.tools.join(", ") || "unknown"}`,
   ].join("\n");
   if (!project.includes("## Repo Signals")) {
-    await writeFile(
+    await writeFileAtomic(
       projectPath,
       `${project.trimEnd()}\n\n## Repo Signals\n\n${signalSummary}\n`,
-      "utf8",
     );
   }
 
@@ -554,9 +552,9 @@ export async function planOmniProject(
     const enriched = await ensureTaskSkillDependencies(rootDir, task);
     enrichedTasks.push(enriched.task);
   }
-  await writeFile(specPath, renderSpecMarkdown(spec), "utf8");
-  await writeFile(tasksPath, renderTasksMarkdown(enrichedTasks), "utf8");
-  await writeFile(testsPath, renderTestsMarkdown(repoSignals), "utf8");
+  await writeFileAtomic(specPath, renderSpecMarkdown(spec));
+  await writeFileAtomic(tasksPath, renderTasksMarkdown(enrichedTasks));
+  await writeFileAtomic(testsPath, renderTestsMarkdown(repoSignals));
   await cleanupUnusedProjectSkills(rootDir, enrichedTasks);
 
   const planEntry = await createPlan(

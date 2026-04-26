@@ -1,6 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import { writeFileAtomic } from "./atomic.js";
 import type { OmniConfig } from "./contracts.js";
 import { AVAILABLE_MODELS } from "./providers.js";
 
@@ -84,7 +85,7 @@ export async function writeConfig(
 ): Promise<void> {
   const configPath = path.join(rootDir, CONFIG_PATH);
   await mkdir(path.dirname(configPath), { recursive: true });
-  await writeFile(configPath, renderConfigContent(config), "utf8");
+  await writeFileAtomic(configPath, renderConfigContent(config));
 }
 
 export async function updateModelConfig(

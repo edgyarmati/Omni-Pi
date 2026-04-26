@@ -1,6 +1,7 @@
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 
+import { writeFileAtomic } from "./atomic.js";
 import type { PlanEntry, PlanStatus } from "./contracts.js";
 import { OMNI_DIR } from "./contracts.js";
 
@@ -109,7 +110,7 @@ async function writeIndex(
   entries: PlanEntry[],
 ): Promise<void> {
   await ensurePlansDir(rootDir);
-  await writeFile(indexPath(rootDir), renderIndex(entries), "utf8");
+  await writeFileAtomic(indexPath(rootDir), renderIndex(entries));
 }
 
 export async function createPlan(
@@ -123,10 +124,9 @@ export async function createPlan(
   const entry: PlanEntry = { id, title, status: "active", createdAt };
 
   await ensurePlansDir(rootDir);
-  await writeFile(
+  await writeFileAtomic(
     planFilePath(rootDir, id),
     renderPlanFile(entry, description, tasks),
-    "utf8",
   );
 
   const entries = await readPlanIndex(rootDir);
@@ -157,7 +157,7 @@ export async function updatePlanStatus(
     const filePath = planFilePath(rootDir, planId);
     const content = await readFile(filePath, "utf8");
     const updated = content.replace(/^Status:\s*.+$/mu, `Status: ${status}`);
-    await writeFile(filePath, updated, "utf8");
+    await writeFileAtomic(filePath, updated);
   } catch {
     // file may have been cleaned up already
   }
@@ -198,13 +198,12 @@ export async function appendProgress(
 
   try {
     const content = await readFile(filePath, "utf8");
-    await writeFile(filePath, `${content.trimEnd()}\n${bullet}\n`, "utf8");
+    await writeFileAtomic(filePath, `${content.trimEnd()}\n${bullet}\n`);
   } catch {
     await mkdir(path.dirname(filePath), { recursive: true });
-    await writeFile(
+    await writeFileAtomic(
       filePath,
       `# Progress\n\nOngoing log of project progress.\n\n${bullet}\n`,
-      "utf8",
     );
   }
 }

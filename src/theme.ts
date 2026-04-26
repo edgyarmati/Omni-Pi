@@ -1,8 +1,10 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { Theme } from "@mariozechner/pi-coding-agent";
+
+import { writeFileAtomicSync } from "./atomic.js";
 
 // ── Curated presets ──────────────────────────────────────────────
 
@@ -123,10 +125,9 @@ export function readPiSettings(cwd: string): PiSettings {
 
 function writeSettings(cwd: string, settings: PiSettings): void {
   mkdirSync(path.join(cwd, ".pi"), { recursive: true });
-  writeFileSync(
+  writeFileAtomicSync(
     settingsPath(cwd),
     `${JSON.stringify(settings, null, 2)}\n`,
-    "utf8",
   );
 }
 

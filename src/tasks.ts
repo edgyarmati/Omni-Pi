@@ -1,5 +1,6 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
+import { writeFileAtomic } from "./atomic.js";
 import type { TaskBrief, TaskStatus } from "./contracts.js";
 
 export function escapeTaskTableCell(value: string): string {
@@ -117,7 +118,7 @@ export async function writeTasks(
   taskPath: string,
   tasks: TaskBrief[],
 ): Promise<void> {
-  await writeFile(taskPath, renderTaskTable(tasks), "utf8");
+  await writeFileAtomic(taskPath, renderTaskTable(tasks));
 }
 
 export function findNextExecutableTask(tasks: TaskBrief[]): TaskBrief | null {

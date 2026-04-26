@@ -1,5 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
+
+import { writeFileAtomic } from "./atomic.js";
 
 export interface SyncRequest {
   summary: string;
@@ -24,10 +26,9 @@ async function appendBullets(
   );
   const match = content.match(sectionRegex);
   if (!match) {
-    await writeFile(
+    await writeFileAtomic(
       filePath,
       `${content.trimEnd()}\n\n${heading}\n\n${bullets.map((bullet) => `- ${bullet}`).join("\n")}\n`,
-      "utf8",
     );
     return;
   }
@@ -37,10 +38,9 @@ async function appendBullets(
   const merged = [body, ...bullets.map((bullet) => `- ${bullet}`)]
     .filter(Boolean)
     .join("\n");
-  await writeFile(
+  await writeFileAtomic(
     filePath,
     content.replace(sectionRegex, `${prefix}${merged}\n`),
-    "utf8",
   );
 }
 
@@ -65,6 +65,6 @@ export async function syncOmniMemory(
     );
     const content = await readFile(decisionsPath, "utf8");
     const next = `${content.trimEnd()}\n${decisionLines.map((line) => `\n- ${line}`).join("\n")}\n`;
-    await writeFile(decisionsPath, next, "utf8");
+    await writeFileAtomic(decisionsPath, next);
   }
 }

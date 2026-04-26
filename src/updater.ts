@@ -1,5 +1,5 @@
 import { execFile as execFileCb } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +9,8 @@ import type {
   ExtensionAPI,
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
+
+import { writeFileAtomicSync } from "./atomic.js";
 
 const PACKAGE_NAME = "omni-pi";
 const CACHE_DIR = path.join(os.homedir(), ".omni");
@@ -47,7 +49,7 @@ function readCache(): UpdateCache | null {
 
 async function writeCache(cache: UpdateCache): Promise<void> {
   await mkdir(CACHE_DIR, { recursive: true });
-  writeFileSync(CACHE_PATH, JSON.stringify(cache, null, 2), "utf8");
+  writeFileAtomicSync(CACHE_PATH, JSON.stringify(cache, null, 2));
 }
 
 function parseVersion(version: string): [number, number, number] | null {
@@ -193,9 +195,6 @@ async function promptUpdate(
 }
 
 export function registerUpdater(api: ExtensionAPI): void {
-  // Suppress Pi's own version check
-  process.env.PI_SKIP_VERSION_CHECK = "1";
-
   api.on("session_start", async (_event, ctx) => {
     const newVersion = await checkAndCache();
     if (newVersion) {
