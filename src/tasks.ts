@@ -15,6 +15,7 @@ function splitMarkdownTableRow(row: string): string[] {
   const columns: string[] = [];
   let current = "";
   let escaped = false;
+  let inCodeSpan = false;
 
   for (const char of row) {
     if (escaped) {
@@ -28,7 +29,13 @@ function splitMarkdownTableRow(row: string): string[] {
       continue;
     }
 
-    if (char === "|") {
+    if (char === "`") {
+      inCodeSpan = !inCodeSpan;
+      current += char;
+      continue;
+    }
+
+    if (char === "|" && !inCodeSpan) {
       columns.push(current.trim());
       current = "";
       continue;
