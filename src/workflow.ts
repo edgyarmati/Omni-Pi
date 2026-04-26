@@ -235,6 +235,27 @@ function hasKeyword(text: string, pattern: RegExp): boolean {
   return pattern.test(text.toLowerCase());
 }
 
+// Repo-derived hints (package.json description, README summary, doc
+// filenames) flow into the brain prompt verbatim. A README that
+// contains "## " headings, "---" front-matter terminators, or
+// backticked instructions could redirect the brain prompt itself.
+// Keep each hint to a single short line, drop control chars and
+// backticks, and refuse content that starts with markdown headings
+// or a front-matter marker.
+function sanitizeKickoffHint(value: string, maxLen = 200): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from repo-derived hints is the point.
+  const collapsed = value
+    .replace(/[\u0000-\u001f\u007f]/gu, " ")
+    .replace(/`/gu, "'")
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, maxLen);
+  if (/^---\s*$/u.test(collapsed) || /^#{1,6}\s/u.test(collapsed)) {
+    return "";
+  }
+  return collapsed;
+}
+
 async function assessInitialProjectClarity(rootDir: string): Promise<{
   onboardingInterviewNeeded: boolean;
   onboardingReason: string;
@@ -290,14 +311,18 @@ async function assessInitialProjectClarity(rootDir: string): Promise<{
 
   const hints: string[] = [];
   if (packageDescription) {
-    hints.push(`Package description: ${packageDescription}`);
+    hints.push(`Package description: ${sanitizeKickoffHint(packageDescription)}`);
   }
   if (readmeSummary) {
-    hints.push(`README summary: ${readmeSummary}`);
+    hints.push(`README summary: ${sanitizeKickoffHint(readmeSummary)}`);
   }
   if (docFiles.length > 0) {
+    const safeFiles = docFiles
+      .slice(0, 5)
+      .map((file) => sanitizeKickoffHint(file, 80))
+      .filter((file) => file.length > 0);
     hints.push(
-      `Docs files: ${docFiles.slice(0, 5).join(", ")}${docFiles.length > 5 ? ", ..." : ""}`,
+      `Docs files: ${safeFiles.join(", ")}${docFiles.length > 5 ? ", ..." : ""}`,
     );
   }
 

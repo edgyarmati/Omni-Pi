@@ -9,6 +9,24 @@ export interface SyncRequest {
   nextHandoffNotes?: string[];
 }
 
+// Sync inputs (summary, decisions, handoff notes) come from the user
+// or the brain at runtime. Bullets are nested under markdown headings
+// so a decision containing newlines, an indented "- " line, or a "## "
+// could quietly close out the active section or invent fake bullets.
+// Collapse to one line, strip control chars, drop leading "##/-/+" so
+// the rendered bullet stays well-formed.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars from runtime-provided bullets is the point.
+const BULLET_CONTROL = /[\u0000-\u001f\u007f]/gu;
+
+function sanitizeBulletLine(value: string, maxLen = 800): string {
+  return value
+    .replace(BULLET_CONTROL, " ")
+    .replace(/\s+/gu, " ")
+    .replace(/^[-+#*]+\s*/u, "")
+    .trim()
+    .slice(0, maxLen);
+}
+
 async function appendBullets(
   filePath: string,
   heading: string,
@@ -51,15 +69,21 @@ export async function syncOmniMemory(
   const sessionPath = path.join(rootDir, ".omni", "SESSION-SUMMARY.md");
   const decisionsPath = path.join(rootDir, ".omni", "DECISIONS.md");
 
-  await appendBullets(sessionPath, "## Recent progress", [request.summary]);
-  await appendBullets(
-    sessionPath,
-    "## Next handoff notes",
-    request.nextHandoffNotes ?? [],
-  );
+  const safeSummary = sanitizeBulletLine(request.summary);
+  if (safeSummary) {
+    await appendBullets(sessionPath, "## Recent progress", [safeSummary]);
+  }
+  const safeHandoff = (request.nextHandoffNotes ?? [])
+    .map((note) => sanitizeBulletLine(note))
+    .filter((note) => note.length > 0);
+  await appendBullets(sessionPath, "## Next handoff notes", safeHandoff);
 
-  if (request.decisions && request.decisions.length > 0) {
-    const decisionLines = request.decisions.map(
+  const safeDecisions = (request.decisions ?? [])
+    .map((decision) => sanitizeBulletLine(decision))
+    .filter((decision) => decision.length > 0);
+
+  if (safeDecisions.length > 0) {
+    const decisionLines = safeDecisions.map(
       (decision) =>
         `Date: pending\n  - Decision: ${decision}\n  - Why: Captured during sync.\n  - Impact: To be refined.`,
     );
