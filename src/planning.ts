@@ -162,6 +162,9 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
   return tasks;
 }
 
+const RELATION_OVERLAP_THRESHOLD = 0.34;
+const RELATION_SMALL_SET_LIMIT = 3;
+
 const RELATION_STOPWORDS = new Set([
   "a",
   "an",
@@ -245,13 +248,20 @@ export function isRequestRelated(
   const overlap = [...currentTokens].filter((token) =>
     previousTokens.has(token),
   );
-  if (overlap.length >= 1) {
-    return true;
+  if (overlap.length === 0) {
+    return false;
   }
 
-  return (
-    overlap.length / Math.min(previousTokens.size, currentTokens.size) >= 0.34
-  );
+  // Compare against the smaller token set: short follow-up summaries
+  // ("auth bug fix") have very few tokens, so even one match is meaningful
+  // there. With more text on either side, demand a real overlap ratio so a
+  // single incidental shared word ("users", "config") doesn't keep an
+  // unrelated plan alive.
+  const smaller = Math.min(previousTokens.size, currentTokens.size);
+  if (smaller <= RELATION_SMALL_SET_LIMIT) {
+    return true;
+  }
+  return overlap.length / smaller >= RELATION_OVERLAP_THRESHOLD;
 }
 
 export function createInitialSpec(
