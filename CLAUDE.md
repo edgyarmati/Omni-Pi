@@ -21,11 +21,13 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 **Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Custom entrypoints live in `extensions/`. Third-party extensions are referenced via `./node_modules/` paths.
 
 **Bundled extensions** (loaded in order):
-- `omni-providers` — model provider wiring
 - `omni-core` — brain workflow, themed UI, header, shortcuts, updater
 - `omni-memory` — `.omni/` durable memory bootstrap
+- `glimpseui` — native micro-UI windows and floating companion widget
 - `pi-web-access` — web search and fetch tools
 - `pi-interview` — guided Q&A for clarification
+- `pi-diff-review` — diff review surface
+- `pi-prompt-template-model` — prompt template / model wiring
 - `pi-extension-settings` — settings persistence
 - `pi-powerbar` — powerline-style status bar
 
@@ -37,7 +39,6 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 - `src/theme.ts` — color presets, ANSI helpers, theme constructor
 - `src/todo-shortcut.ts` — Ctrl+Shift+T task list widget
 - `src/updater.ts` — auto-update checker for omni-pi
-- `src/model-command.ts` — `/model-setup` command
 - `src/theme-command.ts` — `/theme` command
 - `src/pi.ts` — message renderers and command registration
 
