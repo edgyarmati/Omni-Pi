@@ -52,26 +52,71 @@ async function writeCache(cache: UpdateCache): Promise<void> {
   writeFileAtomicSync(CACHE_PATH, JSON.stringify(cache, null, 2));
 }
 
-function parseVersion(version: string): [number, number, number] | null {
-  // Accept "X.Y.Z" optionally followed by a prerelease/build suffix like
-  // "-beta.1" or "+sha". Anything else (NaN segments, missing pieces) is
-  // treated as unparseable so we don't prompt with garbage comparisons.
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/u.exec(version.trim());
+interface ParsedVersion {
+  release: [number, number, number];
+  prerelease: string | null;
+}
+
+function parseVersion(version: string): ParsedVersion | null {
+  // Accept "X.Y.Z" optionally followed by a prerelease tag ("-beta.1") and/or
+  // build metadata ("+sha"). Anything else is treated as unparseable so we
+  // don't prompt with garbage comparisons. Build metadata is stripped — semver
+  // says it must not affect precedence.
+  const match =
+    /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/u.exec(
+      version.trim(),
+    );
   if (!match) return null;
   const major = Number(match[1]);
   const minor = Number(match[2]);
   const patch = Number(match[3]);
   if (![major, minor, patch].every(Number.isFinite)) return null;
-  return [major, minor, patch];
+  return {
+    release: [major, minor, patch],
+    prerelease: match[4] ?? null,
+  };
+}
+
+function comparePrereleaseIdentifier(a: string, b: string): number {
+  const aNum = /^\d+$/u.test(a) ? Number(a) : null;
+  const bNum = /^\d+$/u.test(b) ? Number(b) : null;
+  // Numeric identifiers always have lower precedence than non-numeric ones.
+  if (aNum !== null && bNum !== null) {
+    return aNum === bNum ? 0 : aNum < bNum ? -1 : 1;
+  }
+  if (aNum !== null) return -1;
+  if (bNum !== null) return 1;
+  return a === b ? 0 : a < b ? -1 : 1;
+}
+
+function comparePrerelease(a: string | null, b: string | null): number {
+  // Per semver: a release version (no prerelease) outranks any prerelease,
+  // and two prereleases compare identifier-by-identifier with numeric
+  // identifiers ranking lower than alphanumeric ones.
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const aParts = a.split(".");
+  const bParts = b.split(".");
+  for (let index = 0; index < Math.max(aParts.length, bParts.length); index++) {
+    const ap = aParts[index];
+    const bp = bParts[index];
+    if (ap === undefined) return -1;
+    if (bp === undefined) return 1;
+    const cmp = comparePrereleaseIdentifier(ap, bp);
+    if (cmp !== 0) return cmp;
+  }
+  return 0;
 }
 
 export function isNewer(latest: string, current: string): boolean {
   const l = parseVersion(latest);
   const c = parseVersion(current);
   if (!l || !c) return false;
-  if (l[0] !== c[0]) return l[0] > c[0];
-  if (l[1] !== c[1]) return l[1] > c[1];
-  return l[2] > c[2];
+  if (l.release[0] !== c.release[0]) return l.release[0] > c.release[0];
+  if (l.release[1] !== c.release[1]) return l.release[1] > c.release[1];
+  if (l.release[2] !== c.release[2]) return l.release[2] > c.release[2];
+  return comparePrerelease(l.prerelease, c.prerelease) > 0;
 }
 
 async function fetchLatestVersion(): Promise<string | null> {
