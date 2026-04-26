@@ -16,8 +16,7 @@ describe("parseTaskRow", () => {
   });
 
   it("treats pipes inside backtick code spans as literal characters", () => {
-    const row =
-      "| T2 | Parse `a | b` tokens | T1 | todo | tests pass | foo |";
+    const row = "| T2 | Parse `a | b` tokens | T1 | todo | tests pass | foo |";
     const task = parseTaskRow(row);
     expect(task).not.toBeNull();
     expect(task?.id).toBe("T2");
