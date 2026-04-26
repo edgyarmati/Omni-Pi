@@ -108,7 +108,9 @@ function isIgnored(
       return false;
     }
     if (rule.pattern.includes("/")) {
-      const target = rule.anchored ? normalized : normalized;
+      // Both anchored and non-anchored rules match against the full
+      // normalized path; anchoring is expressed in the regex / string
+      // comparison shape below, not in the target.
       if (rule.pattern.includes("*")) {
         const escaped = rule.pattern
           .replace(/[.+^${}()|[\]\\]/gu, "\\$&")
@@ -116,13 +118,14 @@ function isIgnored(
         const regex = rule.anchored
           ? new RegExp(`^${escaped}(?:/.*)?$`, "u")
           : new RegExp(`(?:^|/)${escaped}(?:/.*)?$`, "u");
-        return regex.test(target);
+        return regex.test(normalized);
       }
       return rule.anchored
-        ? target === rule.pattern || target.startsWith(`${rule.pattern}/`)
-        : target === rule.pattern ||
-            target.includes(`/${rule.pattern}`) ||
-            target.startsWith(`${rule.pattern}/`);
+        ? normalized === rule.pattern ||
+            normalized.startsWith(`${rule.pattern}/`)
+        : normalized === rule.pattern ||
+            normalized.includes(`/${rule.pattern}`) ||
+            normalized.startsWith(`${rule.pattern}/`);
     }
     return segments.some((segment) =>
       matchSingleSegment(rule.pattern, segment),
