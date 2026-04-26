@@ -49,11 +49,15 @@ export function warmRepoMap(rootDir: string): Promise<RepoMapRefreshResult> {
   if (existing) {
     return existing;
   }
-  const task = refreshRepoMapState(
-    rootDir,
-    getSessionState(rootDir).dirtyPaths,
-  ).finally(() => {
-    getSessionState(rootDir).dirtyPaths.clear();
+  // Snapshot dirty paths up front. New edits arriving during the refresh
+  // stay in the live Set so they kick off the next refresh — without the
+  // snapshot, .finally().clear() would also drop those concurrent edits.
+  const snapshot = new Set(getSessionState(rootDir).dirtyPaths);
+  const task = refreshRepoMapState(rootDir, snapshot).finally(() => {
+    const live = getSessionState(rootDir).dirtyPaths;
+    for (const dirty of snapshot) {
+      live.delete(dirty);
+    }
     warmups.delete(rootDir);
   });
   warmups.set(rootDir, task);

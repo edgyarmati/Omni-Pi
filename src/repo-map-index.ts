@@ -267,8 +267,12 @@ function parseModuleFile(
   }
 
   const imports: RepoMapImport[] = [];
+  // Use [^;]*? rather than [\s\S]*? so a missing `from` on one statement
+  // can't lazily expand into the next one and merge two imports into a
+  // single match. Multi-line imports are still allowed because they don't
+  // contain semicolons until the terminating one.
   const importRegex =
-    /^(?:import\s+[\s\S]*?\s+from\s+|export\s+[\s\S]*?\s+from\s+)["']([^"']+)["'];?/gmu;
+    /^(?:import\s+[^;]*?\s+from\s+|export\s+[^;]*?\s+from\s+)["']([^"']+)["'];?/gmu;
   for (const match of content.matchAll(importRegex)) {
     const specifier = match[1]?.trim();
     if (!specifier) continue;
@@ -357,7 +361,7 @@ export async function indexRepoMapFile(
     parserStatus: parsed.parserStatus,
     size: stats.size,
     mtimeMs: stats.mtimeMs,
-    fingerprint: hashContent(content),
+    fingerprint: { kind: "hash", value: hashContent(content) },
     indexedAt: now,
     firstIndexedAt: previous?.firstIndexedAt ?? now,
     symbols: parsed.symbols,
@@ -387,6 +391,34 @@ function rebuildIncomingPaths(files: Record<string, RepoMapFileRecord>): void {
   }
 }
 
+const STAT_CONCURRENCY = 32;
+
+async function statInPool(
+  rootDir: string,
+  filePaths: readonly string[],
+): Promise<Map<string, { size: number; mtimeMs: number } | null>> {
+  const results = new Map<string, { size: number; mtimeMs: number } | null>();
+  let cursor = 0;
+
+  async function worker(): Promise<void> {
+    while (cursor < filePaths.length) {
+      const index = cursor;
+      cursor += 1;
+      const filePath = filePaths[index];
+      try {
+        const stats = await stat(path.join(rootDir, filePath));
+        results.set(filePath, { size: stats.size, mtimeMs: stats.mtimeMs });
+      } catch {
+        results.set(filePath, null);
+      }
+    }
+  }
+
+  const workerCount = Math.min(STAT_CONCURRENCY, filePaths.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 export async function refreshRepoMapState(
   rootDir: string,
   dirtyPaths: Iterable<string> = [],
@@ -398,11 +430,15 @@ export async function refreshRepoMapState(
   const nextFiles: Record<string, RepoMapFileRecord> = {};
   const indexedPaths: string[] = [];
   const reusedPaths: string[] = [];
+  const statResults = await statInPool(rootDir, discovered);
 
   for (const filePath of discovered) {
     const previousRecord = previous.files[filePath];
-    const absolutePath = path.join(rootDir, filePath);
-    const stats = await stat(absolutePath);
+    const stats = statResults.get(filePath);
+    if (!stats) {
+      // File disappeared between discovery and stat — treat as removed.
+      continue;
+    }
     const unchanged =
       previousRecord &&
       previousRecord.mtimeMs === stats.mtimeMs &&
@@ -436,7 +472,10 @@ export async function refreshRepoMapState(
         parserStatus: "parse-fallback",
         size: stats.size,
         mtimeMs: stats.mtimeMs,
-        fingerprint: `${stats.size}:${stats.mtimeMs}`,
+        fingerprint: {
+          kind: "stat",
+          value: `${stats.size}:${stats.mtimeMs}`,
+        },
         indexedAt: new Date().toISOString(),
         firstIndexedAt:
           previousRecord?.firstIndexedAt ?? new Date().toISOString(),
