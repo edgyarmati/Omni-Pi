@@ -15,7 +15,7 @@ export function buildPiProcessSpec(
 export function runOmni(
   argv?: string[],
   options?: { cwd?: string; env?: NodeJS.ProcessEnv },
-): Promise<void>;
+): Promise<number>;
 export function isOmniEntrypointInvocation(
   argvPath?: string,
   moduleUrl?: string,

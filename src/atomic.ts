@@ -1,6 +1,19 @@
 import { randomBytes } from "node:crypto";
-import { renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import {
+  chmodSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import {
+  chmod,
+  mkdir,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 
 // Atomic write helpers. Writes to a sibling temp file in the same
@@ -17,14 +30,34 @@ function tempPathFor(filePath: string): string {
   return `${filePath}.${randomBytes(6).toString("hex")}.tmp`;
 }
 
+async function existingMode(filePath: string): Promise<number | undefined> {
+  try {
+    return (await stat(filePath)).mode & 0o777;
+  } catch {
+    return undefined;
+  }
+}
+
+function existingModeSync(filePath: string): number | undefined {
+  try {
+    return statSync(filePath).mode & 0o777;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function writeFileAtomic(
   filePath: string,
   content: string | Uint8Array,
 ): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = tempPathFor(filePath);
+  const mode = await existingMode(filePath);
   try {
     await writeFile(tempPath, content, "utf8");
+    if (mode !== undefined) {
+      await chmod(tempPath, mode);
+    }
     await rename(tempPath, filePath);
   } catch (error) {
     // Best-effort cleanup of the orphaned temp file; ignore failure
@@ -43,8 +76,12 @@ export function writeFileAtomicSync(
   content: string | Uint8Array,
 ): void {
   const tempPath = tempPathFor(filePath);
+  const mode = existingModeSync(filePath);
   try {
     writeFileSync(tempPath, content, "utf8");
+    if (mode !== undefined) {
+      chmodSync(tempPath, mode);
+    }
     renameSync(tempPath, filePath);
   } catch (error) {
     try {

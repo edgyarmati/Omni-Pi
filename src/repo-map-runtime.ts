@@ -20,7 +20,7 @@ const sessionState = new Map<string, RepoMapSessionState>();
 function getSessionState(rootDir: string): RepoMapSessionState {
   let state = sessionState.get(rootDir);
   if (!state) {
-    state = { signals: [], dirtyPaths: new Set<string>() };
+    state = { signals: [], dirtyPaths: new Map<string, number>() };
     sessionState.set(rootDir, state);
   }
   return state;
@@ -40,7 +40,10 @@ export function recordRepoMapSignal(
   state.signals.unshift({ type, path: normalized, timestamp: Date.now() });
   state.signals = state.signals.slice(0, SESSION_RETENTION);
   if (type === "edit" || type === "write") {
-    state.dirtyPaths.add(normalized);
+    state.dirtyPaths.set(
+      normalized,
+      (state.dirtyPaths.get(normalized) ?? 0) + 1,
+    );
   }
 }
 
@@ -52,11 +55,13 @@ export function warmRepoMap(rootDir: string): Promise<RepoMapRefreshResult> {
   // Snapshot dirty paths up front. New edits arriving during the refresh
   // stay in the live Set so they kick off the next refresh — without the
   // snapshot, .finally().clear() would also drop those concurrent edits.
-  const snapshot = new Set(getSessionState(rootDir).dirtyPaths);
-  const task = refreshRepoMapState(rootDir, snapshot).finally(() => {
+  const snapshot = new Map(getSessionState(rootDir).dirtyPaths);
+  const task = refreshRepoMapState(rootDir, snapshot.keys()).finally(() => {
     const live = getSessionState(rootDir).dirtyPaths;
-    for (const dirty of snapshot) {
-      live.delete(dirty);
+    for (const [dirty, generation] of snapshot) {
+      if (live.get(dirty) === generation) {
+        live.delete(dirty);
+      }
     }
     warmups.delete(rootDir);
   });

@@ -75,7 +75,7 @@ export interface RepoMapSignal {
 
 export interface RepoMapSessionState {
   signals: RepoMapSignal[];
-  dirtyPaths: Set<string>;
+  dirtyPaths: Map<string, number>;
 }
 
 export interface RepoMapRenderOptions {

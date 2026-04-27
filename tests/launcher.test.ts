@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -11,7 +19,12 @@ import {
   getOmniPackageDir,
   isOmniEntrypointInvocation,
   resolvePiCliPath,
+  runOmni,
 } from "../bin/omni.js";
+
+function modeBits(mode: number): number {
+  return mode & 0o777;
+}
 
 describe("omni launcher", () => {
   test("getOmniPackageDir points at the repository root", () => {
@@ -71,6 +84,29 @@ describe("omni launcher", () => {
 
     expect(settings.quietStartup).toBe(false);
     expect(settings.theme).toBe("rose");
+  });
+
+  test("ensureQuietStartupDefault preserves existing settings file permissions", async () => {
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), "omni-agent-mode-"));
+    const agentDir = path.join(tempDir, "agent");
+    const settingsPath = path.join(agentDir, "settings.json");
+    await mkdir(agentDir, { recursive: true });
+    await writeFile(
+      settingsPath,
+      `${JSON.stringify({ theme: "rose" }, null, 2)}\n`,
+      "utf8",
+    );
+    await chmod(settingsPath, 0o600);
+
+    ensureQuietStartupDefault({ PI_CODING_AGENT_DIR: agentDir });
+
+    expect(modeBits((await stat(settingsPath)).mode)).toBe(0o600);
+  });
+
+  test("runOmni is typed as resolving the child exit code", () => {
+    const typedRunOmni: typeof runOmni = runOmni;
+
+    expect(typeof typedRunOmni).toBe("function");
   });
 
   test("isOmniEntrypointInvocation resolves symlinked global bins", async () => {

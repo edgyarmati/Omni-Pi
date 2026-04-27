@@ -434,10 +434,27 @@ export async function refreshRepoMapState(
 
   for (const filePath of discovered) {
     const previousRecord = previous.files[filePath];
-    const stats = statResults.get(filePath);
+    let stats = statResults.get(filePath);
     if (!stats) {
       // File disappeared between discovery and stat — treat as removed.
       continue;
+    }
+    if (
+      previousRecord &&
+      previous.schemaVersion === REPO_MAP_SCHEMA_VERSION &&
+      !dirtySet.has(filePath) &&
+      previousRecord.mtimeMs === stats.mtimeMs &&
+      previousRecord.size === stats.size
+    ) {
+      try {
+        // The pooled stat pass is intentionally early for throughput. Re-stat
+        // cache-hit candidates immediately before reuse so edits that land
+        // during the pool window don't keep stale repo-map records alive.
+        const freshStats = await stat(path.join(rootDir, filePath));
+        stats = { size: freshStats.size, mtimeMs: freshStats.mtimeMs };
+      } catch {
+        continue;
+      }
     }
     const unchanged =
       previousRecord &&

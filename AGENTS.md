@@ -2,6 +2,8 @@
 
 This file provides guidance to Codex and other AI agents when working with code in this repository.
 
+`AGENTS.md` is the canonical agent guidance for this repository. Keep harness-specific files such as `CLAUDE.md` as thin pointers to this file instead of duplicating the full instructions; if guidance changes, update this file first.
+
 ## Commands
 
 - `npm test` — run the test suite (Vitest)
@@ -51,7 +53,7 @@ When Omni mode is turned on for a project:
 - automatically install matching task skills into `.omni/project-skills/`, create a project skill when none exists, track skill dependencies per task, and remove project-scoped skills once no open task still depends on them
 - ensure `.pi/` is ignored in `.gitignore` when the project is a Git repo
 
-**Commits**: Use conventional commit format (`feat:`, `fix:`, `refactor:`, etc.).
+**Commits**: After implementing a feature, completing a phase, or finishing a requested cleanup slice, create a git commit to snapshot the work. Use conventional commit format (`feat:`, `fix:`, `refactor:`, etc.).
 
 ## TypeScript
 
