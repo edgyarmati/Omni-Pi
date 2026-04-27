@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.12.0 - 2026-04-27
+
+### Security and robustness
+
+- Sanitized untrusted text before it reaches brain prompts and `DECISIONS.md`
+- Sanitized generated `SKILL.md` files and fixed `Set` mutation in loop
+- Added atomic writes for `.omni/` and `.pi/` state files
+- Hardened version parsing in the self-updater
+
+### Bug fixes
+
+- Fixed `isRequestRelated` to actually use the overlap ratio for planning continuity
+- Fixed repo-map indexing, fingerprints, and dirty-path tracking
+- Fixed backtick code span tracking in the task table parser
+- Fixed prerelease ordering so pre-releases sort below their matching release in the updater
+- Used `os.homedir()` for reliable home directory resolution in the updater
+- Cached package version at module load to avoid repeated filesystem reads in the header
+
+### Dependencies
+
+- Upgraded `@mariozechner/pi-coding-agent` to `0.70.2`
+- Upgraded `@anthropic-ai/claude-agent-sdk` to `0.2.119`
+- Upgraded `@juanibiapina/pi-powerbar` to `0.9.1`
+- Upgraded `pi-interview` to `0.8.6`
+- Upgraded `pi-prompt-template-model` to `0.9.1`
+- Upgraded `glimpseui` to `0.8.0`
+- Upgraded `@biomejs/biome` to `2.4.13`
+- Upgraded `typescript` to `6.0.3`
+- Upgraded `vitest` to `4.1.5`
+- Upgraded `@types/node` to `25.6.0`
+
+### Housekeeping
+
+- Hoisted control-char regexes and applied Biome formatting
+- Included tests in `tsc` check and added launcher type declarations
+- Added `tsbuildinfo` and coverage artifacts to `.gitignore`
+- Enforced commit-after-every-task rule in `AGENTS.md`
+
 ## 0.11.0 - 2026-04-24
 
 ### Removed
