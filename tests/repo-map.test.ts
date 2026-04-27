@@ -323,4 +323,26 @@ describe("repo map", () => {
     expect(result.indexedPaths).toContain("src/b.ts");
     expect(result.indexedPaths).not.toContain("src/a.ts");
   });
+
+  test("warmRepoMap preserves repeated edits to the same path during a refresh", async () => {
+    const rootDir = await createTempProject("repo-map-dirty-generation-");
+    await mkdir(path.join(rootDir, "src"), { recursive: true });
+    await writeFile(
+      path.join(rootDir, "src", "a.ts"),
+      "export const a = 1;\n",
+      "utf8",
+    );
+
+    await refreshRepoMapState(rootDir);
+
+    recordRepoMapSignal(rootDir, "edit", "src/a.ts");
+    const refresh = warmRepoMap(rootDir);
+    // Same path, newer edit: this must survive snapshot cleanup so the next
+    // refresh can index the post-snapshot generation.
+    recordRepoMapSignal(rootDir, "edit", "src/a.ts");
+    await refresh;
+
+    const result = await warmRepoMap(rootDir);
+    expect(result.indexedPaths).toContain("src/a.ts");
+  });
 });

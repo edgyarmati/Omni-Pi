@@ -3,10 +3,12 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
+  chmodSync,
   mkdirSync,
   readFileSync,
   realpathSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -16,8 +18,17 @@ import { fileURLToPath } from "node:url";
 
 function writeFileAtomicSync(filePath, content) {
   const tempPath = `${filePath}.${randomBytes(6).toString("hex")}.tmp`;
+  let mode;
+  try {
+    mode = statSync(filePath).mode & 0o777;
+  } catch {
+    // New file: keep Node's default creation mode.
+  }
   try {
     writeFileSync(tempPath, content, "utf8");
+    if (mode !== undefined) {
+      chmodSync(tempPath, mode);
+    }
     renameSync(tempPath, filePath);
   } catch (error) {
     try {
@@ -121,7 +132,7 @@ export async function runOmni(argv = process.argv.slice(2), options = {}) {
   ensureQuietStartupDefault(options.env);
   const spec = buildPiProcessSpec(argv, options.env);
 
-  await new Promise((resolve, reject) => {
+  return await new Promise((resolve, reject) => {
     const child = spawn(spec.command, spec.args, {
       cwd: options.cwd ?? process.cwd(),
       env: spec.env,

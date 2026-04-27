@@ -526,6 +526,10 @@ function sanitizeYamlInline(value: string, maxLen = 200): string {
     .slice(0, maxLen);
 }
 
+function yamlSingleQuoted(value: string): string {
+  return `'${value.replace(/'/gu, "''")}'`;
+}
+
 // Single-line markdown bullet content. Collapses all whitespace
 // (including newlines, since each interpolation site is a one-line
 // bullet) and refuses a literal "---" so a sanitized value can't
@@ -558,8 +562,8 @@ function buildGeneratedSkill(task: TaskBrief, name: string): string {
       : `"${sanitizeYamlInline(task.id.toLowerCase(), 40)}"`;
 
   return `---
-name: ${safeName}
-description: Project-specific skill for ${safeTitle}. Triggers include ${triggerText}
+name: ${yamlSingleQuoted(safeName)}
+description: ${yamlSingleQuoted(`Project-specific skill for ${safeTitle}. Triggers include ${triggerText}`)}
 ---
 
 # ${safeName}
