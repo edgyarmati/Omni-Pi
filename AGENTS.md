@@ -17,6 +17,8 @@ Omni-Pi is a batteries-included Pi package built around a single conversational 
 
 **Agent flow**: Omni now starts in normal Pi behavior by default. When `/omni-mode` is enabled, one brain interviews the user, writes the spec into `.omni/`, breaks work into bounded slices, implements them, and records verification/results in durable memory.
 
+Future orchestration work should follow `docs/single-writer-intelligence-orchestration.md`: keep the primary Omni brain as the default writer and decision owner, use additional agents/model calls as read-only scouts, smart friends, or clean-context reviewers, and only allow writer workers through explicit branch/worktree-backed isolation. Do not reintroduce unstructured multi-agent writer swarms.
+
 **Memory**: `.omni/` files hold durable project standards, context, and Omni workflow state — not source code. When Omni mode is off, only the durable standards/context should be treated as active guidance. `.pi/` is Pi-runtime-local state and should stay out of Git.
 
 **Extensions**: Pi loads extensions listed in `package.json` under `pi.extensions`. Custom entrypoints live in `extensions/`. Third-party extensions are referenced via `./node_modules/` paths.

@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+import { syncOmniSubagentRuntimeConfig } from "../../src/agent-settings.js";
 import {
   buildPassiveOmniPromptSuffix,
   buildWorkflowPromptSuffix,
@@ -48,6 +49,7 @@ export default function omniCoreExtension(api: ExtensionAPI): void {
 
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
+    await syncOmniSubagentRuntimeConfig(ctx.cwd);
     ensureBundledPromptTemplates(
       fileURLToPath(
         new URL("../../templates/managed-prompts", import.meta.url),

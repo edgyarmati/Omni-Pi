@@ -6,6 +6,10 @@ import { describe, expect, test } from "vitest";
 import omniCoreExtension from "../extensions/omni-core/index.js";
 import omniSkillsExtension from "../extensions/omni-skills/index.js";
 import omniStatusExtension from "../extensions/omni-status/index.js";
+import {
+  projectOmniSettingsPath,
+  writeOmniAgentsSettings,
+} from "../src/agent-settings.js";
 import { createOmniCommands } from "../src/commands.js";
 import { rewriteCommandWithRtk } from "../src/rtk.js";
 import { readOmniMode } from "../src/theme.js";
@@ -15,6 +19,7 @@ describe("Omni command surface", () => {
     expect(createOmniCommands().map((command) => command.name)).toEqual([
       "omni-mode",
       "omni-rtk",
+      "omni-agents",
     ]);
   });
 
@@ -37,7 +42,13 @@ describe("Omni command surface", () => {
     } as never);
 
     expect(rendererRegistrations).toBeGreaterThan(0);
-    expect(commands).toEqual(["omni-mode", "omni-rtk", "theme", "update"]);
+    expect(commands).toEqual([
+      "omni-mode",
+      "omni-rtk",
+      "omni-agents",
+      "theme",
+      "update",
+    ]);
     expect(events).toContain("session_start");
     expect(events).toContain("before_agent_start");
     expect(events).toContain("tool_call");
@@ -121,5 +132,39 @@ describe("Omni command surface", () => {
         code: 1,
       })),
     ).resolves.toBeNull();
+  });
+
+  test("omni-agents status reports read-only role contract", async () => {
+    const command = createOmniCommands().find(
+      (candidate) => candidate.name === "omni-agents",
+    );
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-agents-command-"));
+
+    const result = await command?.execute({ cwd, args: ["status"] });
+
+    expect(result).toMatch(/Subagents: (enabled|disabled)/u);
+    expect(result).toContain("omni-explorer");
+    expect(result).toContain("omni-planner");
+    expect(result).toContain("omni-verifier");
+    expect(result).toContain("Writer roles: disabled/not registered");
+  });
+
+  test("omni-agents project toggles preserve configured models", async () => {
+    const command = createOmniCommands().find(
+      (candidate) => candidate.name === "omni-agents",
+    );
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-agents-command-"));
+    await writeOmniAgentsSettings(projectOmniSettingsPath(cwd), {
+      enabled: false,
+      defaultModel: "openai/gpt-5-mini",
+      models: { "omni-planner": "openai/gpt-5.5" },
+    });
+
+    await command?.execute({ cwd, args: ["on", "--project"] });
+    const status = await command?.execute({ cwd, args: ["status"] });
+
+    expect(status).toContain("Subagents: enabled");
+    expect(status).toContain("Default model: openai/gpt-5-mini");
+    expect(status).toContain("- omni-planner: openai/gpt-5.5");
   });
 });
