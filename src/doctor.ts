@@ -28,12 +28,8 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function checkGedInitialized(
-  rootDir: string,
-): Promise<DiagnosticResult> {
-  const stateExists = await fileExists(
-    path.join(rootDir, GED_DIR, "STATE.md"),
-  );
+async function checkGedInitialized(rootDir: string): Promise<DiagnosticResult> {
+  const stateExists = await fileExists(path.join(rootDir, GED_DIR, "STATE.md"));
   if (!stateExists) {
     return {
       name: "ged-init",

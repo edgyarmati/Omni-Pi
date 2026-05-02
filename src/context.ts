@@ -118,12 +118,7 @@ export async function gatherTaskContext(
   }
 
   // Task brief
-  const briefPath = path.join(
-    rootDir,
-    GED_DIR,
-    "tasks",
-    `${task.id}-BRIEF.md`,
-  );
+  const briefPath = path.join(rootDir, GED_DIR, "tasks", `${task.id}-BRIEF.md`);
   const briefContent = await safeReadFile(briefPath);
   if (briefContent && fitsInBudget(budget, briefContent)) {
     budget = consumeBudget(budget, briefContent);

@@ -65,13 +65,7 @@ describe("ensureBundledPromptTemplates", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "ged-prompt-sync-"));
     const sourceDir = path.join(root, "source-prompts");
     const homeDir = path.join(root, "home");
-    const legacyDir = path.join(
-      homeDir,
-      ".pi",
-      "agent",
-      "prompts",
-      "zz-gedpi",
-    );
+    const legacyDir = path.join(homeDir, ".pi", "agent", "prompts", "zz-gedpi");
     const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "gedpi");
 
     mkdirSync(sourceDir, { recursive: true });
