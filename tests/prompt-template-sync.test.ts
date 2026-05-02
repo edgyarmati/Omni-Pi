@@ -14,7 +14,7 @@ import { ensureBundledPromptTemplates } from "../src/prompt-template-sync.js";
 
 describe("ensureBundledPromptTemplates", () => {
   test("copies managed prompt templates into the global prompt directory", () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "omni-prompt-sync-"));
+    const root = mkdtempSync(path.join(os.tmpdir(), "ged-prompt-sync-"));
     const sourceDir = path.join(root, "source-prompts");
     const homeDir = path.join(root, "home");
 
@@ -23,7 +23,7 @@ describe("ensureBundledPromptTemplates", () => {
     writeFileSync(path.join(sourceDir, "push.md"), "push prompt\n", "utf8");
 
     const written = ensureBundledPromptTemplates(sourceDir, { homeDir });
-    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "gedpi");
 
     expect(written).toEqual([
       path.join(targetDir, "commit.md"),
@@ -38,10 +38,10 @@ describe("ensureBundledPromptTemplates", () => {
   });
 
   test("skips unchanged prompts and rewrites changed managed prompts", () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "omni-prompt-sync-"));
+    const root = mkdtempSync(path.join(os.tmpdir(), "ged-prompt-sync-"));
     const sourceDir = path.join(root, "source-prompts");
     const homeDir = path.join(root, "home");
-    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "gedpi");
 
     mkdirSync(sourceDir, { recursive: true });
     mkdirSync(targetDir, { recursive: true });
@@ -62,7 +62,7 @@ describe("ensureBundledPromptTemplates", () => {
   });
 
   test("removes the legacy managed prompt directory", () => {
-    const root = mkdtempSync(path.join(os.tmpdir(), "omni-prompt-sync-"));
+    const root = mkdtempSync(path.join(os.tmpdir(), "ged-prompt-sync-"));
     const sourceDir = path.join(root, "source-prompts");
     const homeDir = path.join(root, "home");
     const legacyDir = path.join(
@@ -70,9 +70,9 @@ describe("ensureBundledPromptTemplates", () => {
       ".pi",
       "agent",
       "prompts",
-      "zz-omni-pi",
+      "zz-gedpi",
     );
-    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "omni-pi");
+    const targetDir = path.join(homeDir, ".pi", "agent", "prompts", "gedpi");
 
     mkdirSync(sourceDir, { recursive: true });
     mkdirSync(legacyDir, { recursive: true });

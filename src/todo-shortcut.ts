@@ -7,7 +7,7 @@ import type {
   Theme,
 } from "@mariozechner/pi-coding-agent";
 import { Box, Text } from "@mariozechner/pi-tui";
-import { readOmniMode } from "./theme.js";
+import { readGedMode } from "./theme.js";
 
 async function readOptional(filePath: string): Promise<string | null> {
   try {
@@ -204,36 +204,36 @@ function countTasks(raw: string): { done: number; total: number } {
 let widgetVisible = false;
 
 async function renderTodoWidget(ctx: ExtensionContext): Promise<void> {
-  if (!readOmniMode(ctx.cwd)) {
+  if (!readGedMode(ctx.cwd)) {
     ctx.ui.notify(
-      "Omni task widgets are only available while Omni mode is ON.",
+      "Ged task widgets are only available while Ged mode is ON.",
       "info",
     );
-    ctx.ui.setWidget("omni-todos", undefined);
+    ctx.ui.setWidget("ged-todos", undefined);
     widgetVisible = false;
     return;
   }
 
   const tasksContent = await readOptional(
-    path.join(ctx.cwd, ".omni", "TASKS.md"),
+    path.join(ctx.cwd, ".ged", "TASKS.md"),
   );
   const stateContent = await readOptional(
-    path.join(ctx.cwd, ".omni", "STATE.md"),
+    path.join(ctx.cwd, ".ged", "STATE.md"),
   );
 
   if (!tasksContent && !stateContent) {
-    ctx.ui.notify("No tasks or state found in .omni/", "info");
+    ctx.ui.notify("No tasks or state found in .ged/", "info");
     widgetVisible = false;
     return;
   }
 
   ctx.ui.setWidget(
-    "omni-todos",
+    "ged-todos",
     (_tui, theme) => {
       const sections: string[] = [];
 
       // Title bar
-      const titleParts = [theme.fg("accent", theme.bold("📋 Omni-Pi Tasks"))];
+      const titleParts = [theme.fg("accent", theme.bold("📋 GedPi Tasks"))];
       if (tasksContent) {
         const { done, total } = countTasks(tasksContent);
         if (total > 0) {
@@ -276,12 +276,12 @@ async function renderTodoWidget(ctx: ExtensionContext): Promise<void> {
 }
 
 function hideTodoWidget(ctx: ExtensionContext): void {
-  ctx.ui.setWidget("omni-todos", undefined);
+  ctx.ui.setWidget("ged-todos", undefined);
 }
 
 export function registerTodoShortcut(api: ExtensionAPI): void {
   api.registerShortcut("ctrl+shift+t", {
-    description: "Toggle Omni-Pi task list",
+    description: "Toggle GedPi task list",
     async handler(ctx: ExtensionContext) {
       widgetVisible = !widgetVisible;
       if (widgetVisible) {

@@ -2,7 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { readConfig } from "./config.js";
-import { OMNI_DIR } from "./contracts.js";
+import { GED_DIR } from "./contracts.js";
 import { detectRepoSignals } from "./repo.js";
 import { readTasks } from "./tasks.js";
 
@@ -28,21 +28,21 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function checkOmniInitialized(
+async function checkGedInitialized(
   rootDir: string,
 ): Promise<DiagnosticResult> {
   const stateExists = await fileExists(
-    path.join(rootDir, OMNI_DIR, "STATE.md"),
+    path.join(rootDir, GED_DIR, "STATE.md"),
   );
   if (!stateExists) {
     return {
-      name: "omni-init",
+      name: "ged-init",
       level: "red",
       message:
-        ".omni/ directory not found. Run /omni-init to initialize the project.",
+        ".ged/ directory not found. Run /ged-init to initialize the project.",
     };
   }
-  return { name: "omni-init", level: "green", message: "Omni-Pi initialized." };
+  return { name: "ged-init", level: "green", message: "GedPi initialized." };
 }
 
 async function checkConfigParseable(
@@ -86,7 +86,7 @@ async function checkRepoSignals(rootDir: string): Promise<DiagnosticResult> {
 
 async function checkOrphanedTasks(rootDir: string): Promise<DiagnosticResult> {
   try {
-    const tasksPath = path.join(rootDir, OMNI_DIR, "TASKS.md");
+    const tasksPath = path.join(rootDir, GED_DIR, "TASKS.md");
     const tasks = await readTasks(tasksPath);
     const inProgress = tasks.filter((t) => t.status === "in_progress");
     const blocked = tasks.filter((t) => t.status === "blocked");
@@ -126,9 +126,9 @@ export interface StuckSignal {
 }
 
 export async function detectStuck(rootDir: string): Promise<StuckSignal> {
-  const taskDir = path.join(rootDir, OMNI_DIR, "tasks");
+  const taskDir = path.join(rootDir, GED_DIR, "tasks");
   try {
-    const tasksPath = path.join(rootDir, OMNI_DIR, "TASKS.md");
+    const tasksPath = path.join(rootDir, GED_DIR, "TASKS.md");
     const tasks = await readTasks(tasksPath);
     const inProgressOrTodo = tasks.filter(
       (t) => t.status === "in_progress" || t.status === "todo",
@@ -187,7 +187,7 @@ function worstLevel(checks: DiagnosticResult[]): HealthLevel {
 
 export async function runDoctor(rootDir: string): Promise<DoctorReport> {
   const checks = await Promise.all([
-    checkOmniInitialized(rootDir),
+    checkGedInitialized(rootDir),
     checkConfigParseable(rootDir),
     checkRepoSignals(rootDir),
     checkOrphanedTasks(rootDir),

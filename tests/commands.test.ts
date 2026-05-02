@@ -3,32 +3,32 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
-import omniCoreExtension from "../extensions/omni-core/index.js";
-import omniSkillsExtension from "../extensions/omni-skills/index.js";
-import omniStatusExtension from "../extensions/omni-status/index.js";
+import gedCoreExtension from "../extensions/ged-core/index.js";
+import gedSkillsExtension from "../extensions/ged-skills/index.js";
+import gedStatusExtension from "../extensions/ged-status/index.js";
 import {
-  projectOmniSettingsPath,
-  writeOmniAgentsSettings,
+  projectGedSettingsPath,
+  writeGedAgentsSettings,
 } from "../src/agent-settings.js";
-import { createOmniCommands } from "../src/commands.js";
+import { createGedCommands } from "../src/commands.js";
 import { rewriteCommandWithRtk } from "../src/rtk.js";
-import { readOmniMode } from "../src/theme.js";
+import { readGedMode } from "../src/theme.js";
 
-describe("Omni command surface", () => {
-  test("createOmniCommands exposes Omni-Pi commands", () => {
-    expect(createOmniCommands().map((command) => command.name)).toEqual([
-      "omni-mode",
-      "omni-rtk",
-      "omni-agents",
+describe("Ged command surface", () => {
+  test("createGedCommands exposes GedPi commands", () => {
+    expect(createGedCommands().map((command) => command.name)).toEqual([
+      "ged-mode",
+      "ged-rtk",
+      "ged-agents",
     ]);
   });
 
-  test("omniCoreExtension registers the Omni-Pi commands", () => {
+  test("gedCoreExtension registers the GedPi commands", () => {
     let rendererRegistrations = 0;
     const commands: string[] = [];
     const events: string[] = [];
 
-    omniCoreExtension({
+    gedCoreExtension({
       registerMessageRenderer() {
         rendererRegistrations += 1;
       },
@@ -43,9 +43,9 @@ describe("Omni command surface", () => {
 
     expect(rendererRegistrations).toBeGreaterThan(0);
     expect(commands).toEqual([
-      "omni-mode",
-      "omni-rtk",
-      "omni-agents",
+      "ged-mode",
+      "ged-rtk",
+      "ged-agents",
       "theme",
       "update",
     ]);
@@ -59,12 +59,12 @@ describe("Omni command surface", () => {
     const statusRegistrations: string[] = [];
     const skillsRegistrations: string[] = [];
 
-    omniStatusExtension({
+    gedStatusExtension({
       registerCommand(name: string) {
         statusRegistrations.push(name);
       },
     } as never);
-    omniSkillsExtension({
+    gedSkillsExtension({
       registerCommand(name: string) {
         skillsRegistrations.push(name);
       },
@@ -74,9 +74,9 @@ describe("Omni command surface", () => {
     expect(skillsRegistrations).toEqual([]);
   });
 
-  test("omni-mode command toggles the persisted mode flag", async () => {
-    const command = createOmniCommands()[0];
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-mode-command-"));
+  test("ged-mode command toggles the persisted mode flag", async () => {
+    const command = createGedCommands()[0];
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "ged-mode-command-"));
     const statuses: string[] = [];
 
     const first = await command.execute({
@@ -95,7 +95,7 @@ describe("Omni command surface", () => {
     });
 
     expect(typeof first).toBe("string");
-    expect(readOmniMode(cwd)).toBe(true);
+    expect(readGedMode(cwd)).toBe(true);
 
     await command.execute({
       cwd,
@@ -112,7 +112,7 @@ describe("Omni command surface", () => {
       },
     });
 
-    expect(readOmniMode(cwd)).toBe(false);
+    expect(readGedMode(cwd)).toBe(false);
     expect(statuses).toHaveLength(2);
   });
 
@@ -134,30 +134,30 @@ describe("Omni command surface", () => {
     ).resolves.toBeNull();
   });
 
-  test("omni-agents status reports read-only role contract", async () => {
-    const command = createOmniCommands().find(
-      (candidate) => candidate.name === "omni-agents",
+  test("ged-agents status reports read-only role contract", async () => {
+    const command = createGedCommands().find(
+      (candidate) => candidate.name === "ged-agents",
     );
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-agents-command-"));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "ged-agents-command-"));
 
     const result = await command?.execute({ cwd, args: ["status"] });
 
     expect(result).toMatch(/Subagents: (enabled|disabled)/u);
-    expect(result).toContain("omni-explorer");
-    expect(result).toContain("omni-planner");
-    expect(result).toContain("omni-verifier");
+    expect(result).toContain("ged-explorer");
+    expect(result).toContain("ged-planner");
+    expect(result).toContain("ged-verifier");
     expect(result).toContain("Writer roles: disabled/not registered");
   });
 
-  test("omni-agents project toggles preserve configured models", async () => {
-    const command = createOmniCommands().find(
-      (candidate) => candidate.name === "omni-agents",
+  test("ged-agents project toggles preserve configured models", async () => {
+    const command = createGedCommands().find(
+      (candidate) => candidate.name === "ged-agents",
     );
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-agents-command-"));
-    await writeOmniAgentsSettings(projectOmniSettingsPath(cwd), {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "ged-agents-command-"));
+    await writeGedAgentsSettings(projectGedSettingsPath(cwd), {
       enabled: false,
       defaultModel: "openai/gpt-5-mini",
-      models: { "omni-planner": "openai/gpt-5.5" },
+      models: { "ged-planner": "openai/gpt-5.5" },
     });
 
     await command?.execute({ cwd, args: ["on", "--project"] });
@@ -165,6 +165,6 @@ describe("Omni command surface", () => {
 
     expect(status).toContain("Subagents: enabled");
     expect(status).toContain("Default model: openai/gpt-5-mini");
-    expect(status).toContain("- omni-planner: openai/gpt-5.5");
+    expect(status).toContain("- ged-planner: openai/gpt-5.5");
   });
 });

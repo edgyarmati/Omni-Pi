@@ -1,9 +1,9 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
-import type { OmniPhase, OmniState } from "./contracts.js";
+import type { GedPhase, GedState } from "./contracts.js";
 import type { HealthLevel } from "./doctor.js";
 
-const phaseLabels: Record<OmniPhase, string> = {
+const phaseLabels: Record<GedPhase, string> = {
   understand: "Understanding",
   plan: "Planning",
   build: "Implementing",
@@ -11,8 +11,8 @@ const phaseLabels: Record<OmniPhase, string> = {
   escalate: "Recovering",
 };
 
-function normalizePhase(phase: string): OmniPhase | null {
-  return phase in phaseLabels ? (phase as OmniPhase) : null;
+function normalizePhase(phase: string): GedPhase | null {
+  return phase in phaseLabels ? (phase as GedPhase) : null;
 }
 
 function healthColor(health?: HealthLevel): "success" | "warning" | "error" {
@@ -21,7 +21,7 @@ function healthColor(health?: HealthLevel): "success" | "warning" | "error" {
   return "success";
 }
 
-function isAwaitingUserInput(state: OmniState): boolean {
+function isAwaitingUserInput(state: GedState): boolean {
   const combined =
     `${state.statusSummary} ${state.nextStep} ${state.activeTask}`.toLowerCase();
   return (
@@ -34,7 +34,7 @@ function isAwaitingUserInput(state: OmniState): boolean {
 }
 
 function compactBadge(
-  state: OmniState,
+  state: GedState,
   health?: HealthLevel,
 ): { label: string; color: "success" | "warning" | "error" } | null {
   if (state.blockers.length > 0 || health === "red") {
@@ -52,11 +52,11 @@ export function formatPhase(phase: string): string {
 }
 
 export function renderCompactStatus(
-  state: OmniState,
+  state: GedState,
   health?: HealthLevel,
 ): string[] {
   const badge = compactBadge(state, health);
-  const header = badge ? `Omni-Pi Brain [${badge.label}]` : "Omni-Pi Brain";
+  const header = badge ? `GedPi Brain [${badge.label}]` : "GedPi Brain";
   const lines = [header];
   if (state.activeTask && state.activeTask !== "None") {
     lines.push(`  Focus: ${state.activeTask}`);
@@ -69,7 +69,7 @@ export function renderCompactStatus(
 }
 
 export function renderCompactStatusWidget(
-  state: OmniState,
+  state: GedState,
   theme: Theme,
   health?: HealthLevel,
 ): Text {
@@ -83,8 +83,8 @@ export function renderCompactStatusWidget(
       : undefined;
 
   const header = badge
-    ? `${theme.fg("accent", theme.bold("Omni-Pi Brain"))} ${theme.fg(badge.color, `[${badge.label}]`)}`
-    : theme.fg("accent", theme.bold("Omni-Pi Brain"));
+    ? `${theme.fg("accent", theme.bold("GedPi Brain"))} ${theme.fg(badge.color, `[${badge.label}]`)}`
+    : theme.fg("accent", theme.bold("GedPi Brain"));
   const lines = [header];
   if (focus) {
     lines.push(`${theme.fg("muted", "Focus")} ${focus}`);
@@ -100,7 +100,7 @@ export function renderCompactStatusWidget(
   return new Text(lines.join("\n"), 0, 0);
 }
 
-export function renderPlainStatus(state: OmniState): string {
+export function renderPlainStatus(state: GedState): string {
   const blockers =
     state.blockers.length > 0 ? state.blockers.join("; ") : "None";
   const lines = [

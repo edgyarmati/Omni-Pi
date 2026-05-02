@@ -5,7 +5,7 @@ Status: proposed
 
 ## Summary
 
-Add a SoulForge-style repo map to Omni-Pi so the agent gets better codebase awareness from a ranked, context-adaptive graph of files and symbols instead of relying only on flat file listings and ad hoc reads.
+Add a SoulForge-style repo map to GedPi so the agent gets better codebase awareness from a ranked, context-adaptive graph of files and symbols instead of relying only on flat file listings and ad hoc reads.
 
 The product direction targets broad SoulForge-style parity over time, but the delivery shape is hybrid:
 - ship a core repo map first
@@ -15,23 +15,23 @@ The shipped feature must be documented clearly in the README, and deferred parit
 
 ## Goals
 
-- Build a primary codebase-awareness mechanism for Omni-Pi
+- Build a primary codebase-awareness mechanism for GedPi
 - Index source files incrementally while respecting `.gitignore`
 - Extract file- and symbol-level structure useful for ranking and prompt rendering
 - Rank files using both structural importance and current-turn context
-- Render a compact repo-map block into Omni's prompt within a bounded token budget
+- Render a compact repo-map block into Ged's prompt within a bounded token budget
 - Refresh affected files after edits without rescanning the whole repository
 
 ## Non-Goals for the First Ship
 
 - Full guaranteed parity with every SoulForge analysis feature on day one
 - Blocking session startup on a complete repo scan in large repositories
-- Treating repo-map cache data as durable `.omni/` memory
+- Treating repo-map cache data as durable `.ged/` memory
 - Hiding deferred work; roadmap items should stay documented
 
 ## User Value
 
-Primary users are developers using Omni-Pi on medium-to-large codebases who want the agent to understand project structure faster and choose better context. Secondary users are maintainers extending Omni-Pi's prompt/context pipeline and users working in repositories where dependency relationships and blast radius matter.
+Primary users are developers using GedPi on medium-to-large codebases who want the agent to understand project structure faster and choose better context. Secondary users are maintainers extending GedPi's prompt/context pipeline and users working in repositories where dependency relationships and blast radius matter.
 
 ## Architecture
 
@@ -44,22 +44,22 @@ The repo map should be implemented as a dedicated subsystem in `src/` with clear
 2. **Indexer**
    - walks the repository, respects `.gitignore`, detects eligible files, extracts symbols/imports/references, and produces normalized records
 3. **Store**
-   - persists repo-map state under `.pi/` as runtime cache data, not `.omni/`
+   - persists repo-map state under `.pi/` as runtime cache data, not `.ged/`
    - stores indexed files, symbols, edges, rank metadata, schema versions, and freshness/dirty state
 4. **Ranker**
    - computes stable base importance and applies current-turn personalization
 5. **Renderer**
    - converts ranked entries into a compact prompt block under a configurable token budget
 6. **Runtime/coordinator**
-   - manages startup loading, partial refreshes, dirty-file handling, and lifecycle integration with Omni's agent hooks
+   - manages startup loading, partial refreshes, dirty-file handling, and lifecycle integration with Ged's agent hooks
 
 ### Integration Points
 
-- `extensions/omni-core/index.ts`
+- `extensions/ged-core/index.ts`
   - load or warm repo-map state on startup
   - inject a rendered repo-map block into prompt assembly before agent start
 - prompt/context code
-  - treat repo-map output as an additional context block, not a replacement for `.omni/` context
+  - treat repo-map output as an additional context block, not a replacement for `.ged/` context
 - edit/read lifecycle hooks
   - mark touched files as recent and dirty so the next turn can boost and refresh them
 
@@ -112,7 +112,7 @@ On session start:
 
 Re-index a file when:
 - its contents changed
-- Omni edited it
+- Ged edited it
 - schema/parser versions changed
 - nearby path/import resolution changes require edge repair
 
@@ -136,11 +136,11 @@ Stable structural importance derived from the code graph, including:
 ### Turn personalization
 
 Temporary boosts derived from current activity, including:
-- files recently edited by Omni
+- files recently edited by Ged
 - files recently read
 - files explicitly mentioned by the user or agent
 - graph neighbors of those files
-- optionally active task context files when Omni workflow data makes that helpful
+- optionally active task context files when Ged workflow data makes that helpful
 
 ### Deferred pluggable ranking signals
 
@@ -168,7 +168,7 @@ Rendering behavior:
 
 ## Real-Time Update Behavior
 
-After Omni edits a file, the runtime should immediately:
+After Ged edits a file, the runtime should immediately:
 - mark that file hot for ranking
 - mark index data dirty if needed
 - refresh that file and affected graph neighbors on the next update cycle
@@ -204,7 +204,7 @@ Testing should cover both core behavior and integration points.
 - startup with partially fresh cache
 - prompt assembly includes repo-map output when available
 - post-edit flow updates ranking inputs for the next turn
-- repo-map cache remains under `.pi/`, not `.omni/`
+- repo-map cache remains under `.pi/`, not `.ged/`
 
 ## Documentation
 

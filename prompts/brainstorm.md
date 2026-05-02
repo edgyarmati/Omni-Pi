@@ -12,4 +12,4 @@ Help the user turn rough ideas into a clear project direction.
 
 ## Output
 
-Write concise updates into `.omni/PROJECT.md`, `.omni/IDEAS.md`, and `.omni/SESSION-SUMMARY.md`.
+Write concise updates into `.ged/PROJECT.md`, `.ged/IDEAS.md`, and `.ged/SESSION-SUMMARY.md`.

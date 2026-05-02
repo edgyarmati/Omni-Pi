@@ -5,13 +5,13 @@ import path from "node:path";
 import { describe, expect, test } from "vitest";
 import packageJson from "../package.json" with { type: "json" };
 import { prepareNextTaskDispatch } from "../src/work.js";
-import { initializeOmniProject, planOmniProject } from "../src/workflow.js";
+import { initializeGedProject, planGedProject } from "../src/workflow.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-describe("Omni runtime flow", () => {
+describe("Ged runtime flow", () => {
   test("bundles pi-subagents and pi-intercom extensions and skills", () => {
     expect(packageJson.dependencies).toMatchObject({
       "pi-intercom": expect.any(String),
@@ -42,9 +42,9 @@ describe("Omni runtime flow", () => {
   });
 
   test("prepareNextTaskDispatch creates a task brief and marks the task in progress", async () => {
-    const rootDir = await createTempProject("omni-runtime-dispatch-");
-    await initializeOmniProject(rootDir);
-    await planOmniProject(rootDir, {
+    const rootDir = await createTempProject("ged-runtime-dispatch-");
+    await initializeGedProject(rootDir);
+    await planGedProject(rootDir, {
       summary: "Build the first slice.",
       desiredOutcome: "Build the first slice.",
       constraints: [],
@@ -53,7 +53,7 @@ describe("Omni runtime flow", () => {
 
     const dispatch = await prepareNextTaskDispatch(rootDir);
     const tasks = await readFile(
-      path.join(rootDir, ".omni", "TASKS.md"),
+      path.join(rootDir, ".ged", "TASKS.md"),
       "utf8",
     );
 
@@ -65,7 +65,7 @@ describe("Omni runtime flow", () => {
     expect(tasks).toContain(
       "| T01 | Lock the exact user requirements | - | in_progress |",
     );
-    expect(tasks).toContain("omni-planning, brainstorming");
+    expect(tasks).toContain("ged-planning, brainstorming");
     expect(tasks).toContain("brainstorming");
   });
 });

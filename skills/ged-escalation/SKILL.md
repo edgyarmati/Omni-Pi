@@ -1,9 +1,9 @@
 ---
-name: omni-escalation
+name: ged-escalation
 description: Expert takeover for tasks that have failed repeatedly or need the strongest reasoning to unblock. Triggers include "stuck", "blocked", "tried multiple times", "keeps failing", or when normal execution cannot make progress.
 ---
 
-# Omni Escalation
+# Ged Escalation
 
 ## Goals
 

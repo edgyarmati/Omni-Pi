@@ -19,7 +19,7 @@ export interface CommitPlan {
 }
 
 export function buildBranchName(taskId: string): string {
-  return `omni/${taskId.toLowerCase().replace(/[^a-z0-9-]/gu, "-")}`;
+  return `ged/${taskId.toLowerCase().replace(/[^a-z0-9-]/gu, "-")}`;
 }
 
 export function buildCommitMessage(task: TaskBrief): string {
@@ -53,7 +53,7 @@ export async function readLastCompletedTask(
 ): Promise<{ taskId: string; task: TaskBrief } | null> {
   try {
     const tasksContent = await readFile(
-      path.join(rootDir, ".omni", "TASKS.md"),
+      path.join(rootDir, ".ged", "TASKS.md"),
       "utf8",
     );
     const doneRows = tasksContent
@@ -77,7 +77,7 @@ export async function readModifiedFilesFromHistory(
   try {
     const historyPath = path.join(
       rootDir,
-      ".omni",
+      ".ged",
       "tasks",
       `${taskId}.history.json`,
     );

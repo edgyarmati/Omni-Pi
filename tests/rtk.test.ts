@@ -50,7 +50,7 @@ describe("RTK integration", () => {
   });
 
   test("executeRtkCommand enables auto mode when RTK is installed", async () => {
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-on-"));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "ged-rtk-on-"));
 
     const message = await executeRtkCommand(
       ["on"],
@@ -76,7 +76,7 @@ describe("RTK integration", () => {
   });
 
   test("registerRtkBashRouting rewrites bash commands only in auto mode", async () => {
-    const cwd = await mkdtemp(path.join(os.tmpdir(), "omni-rtk-rewrite-"));
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "ged-rtk-rewrite-"));
     const handlers = new Map<
       string,
       (event: unknown, ctx: { cwd: string }) => Promise<void>

@@ -1,5 +1,5 @@
 {
-  "name": "omni-pi",
+  "name": "gedpi",
   "version": "0.12.0",
   "description": "Single-agent Pi package that interviews the user, documents the spec, and implements work in bounded slices.",
   "type": "module",
@@ -7,17 +7,17 @@
   "author": "Eduard-David Gyarmati",
   "repository": {
     "type": "git",
-    "url": "https://github.com/edgyarmati/Omni-Pi"
+    "url": "https://github.com/edgyarmati/GedPi"
   },
-  "homepage": "https://github.com/edgyarmati/Omni-Pi#readme",
+  "homepage": "https://github.com/edgyarmati/GedPi#readme",
   "bugs": {
-    "url": "https://github.com/edgyarmati/Omni-Pi/issues"
+    "url": "https://github.com/edgyarmati/GedPi/issues"
   },
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "omni": "bin/omni.js"
+    "gedpi": "bin/gedpi.js"
   },
   "keywords": [
     "pi-package",
@@ -41,7 +41,7 @@
     "CREDITS.md"
   ],
   "scripts": {
-    "chat": "node ./bin/omni.js",
+    "chat": "node ./bin/gedpi.js",
     "check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -58,8 +58,8 @@
   },
   "pi": {
     "extensions": [
-      "./extensions/omni-core/index.ts",
-      "./extensions/omni-memory/index.ts",
+      "./extensions/ged-core/index.ts",
+      "./extensions/ged-memory/index.ts",
       "./node_modules/glimpseui/pi-extension/index.ts",
       "./node_modules/pi-web-access/index.ts",
       "./node_modules/pi-intercom/index.ts",

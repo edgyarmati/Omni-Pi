@@ -1,87 +1,87 @@
 import {
-  formatOmniAgentsStatus,
-  globalOmniSettingsPath,
-  projectOmniSettingsPath,
-  readEffectiveOmniAgentsSettings,
-  readOmniRuntimeSettings,
-  syncOmniSubagentRuntimeConfig,
-  writeOmniAgentsSettings,
+  formatGedAgentsStatus,
+  globalGedSettingsPath,
+  projectGedSettingsPath,
+  readEffectiveGedAgentsSettings,
+  readGedRuntimeSettings,
+  syncGedSubagentRuntimeConfig,
+  writeGedAgentsSettings,
 } from "./agent-settings.js";
 import type { AppCommandDefinition } from "./pi.js";
 import { executeRtkCommand } from "./rtk.js";
-import { formatOmniModeStatus, readOmniMode, saveOmniMode } from "./theme.js";
+import { formatGedModeStatus, readGedMode, saveGedMode } from "./theme.js";
 
-async function executeOmniAgentsCommand(
+async function executeGedAgentsCommand(
   cwd: string,
   args: string[] = [],
 ): Promise<string> {
   const [action = "status", scopeFlag] = args;
   const projectScope = scopeFlag === "--project";
   const targetPath = projectScope
-    ? projectOmniSettingsPath(cwd)
-    : globalOmniSettingsPath();
+    ? projectGedSettingsPath(cwd)
+    : globalGedSettingsPath();
 
   if (action === "status") {
-    return formatOmniAgentsStatus(await readEffectiveOmniAgentsSettings(cwd));
+    return formatGedAgentsStatus(await readEffectiveGedAgentsSettings(cwd));
   }
   if (action === "on" || action === "off") {
-    const existing = await readOmniRuntimeSettings(targetPath);
-    await writeOmniAgentsSettings(targetPath, {
+    const existing = await readGedRuntimeSettings(targetPath);
+    await writeGedAgentsSettings(targetPath, {
       ...(existing.agents ?? {}),
       enabled: action === "on",
     });
-    await syncOmniSubagentRuntimeConfig(cwd);
+    await syncGedSubagentRuntimeConfig(cwd);
     const scope = projectScope ? "project" : "global";
-    return `Omni optional subagents are now ${action === "on" ? "enabled" : "disabled"} in ${scope} settings. Restart or reload Pi for extension-level settings changes to take effect.`;
+    return `Ged optional subagents are now ${action === "on" ? "enabled" : "disabled"} in ${scope} settings. Restart or reload Pi for extension-level settings changes to take effect.`;
   }
   if (action === "setup") {
     return [
-      "Omni optional subagents follow the single-writer invariant: the primary Omni brain writes code, decides scope, adjudicates reviews, commits, pushes, and opens PRs.",
-      "Use `/omni-agents on` for global enablement or `/omni-agents on --project` for this project only.",
-      "Configure models in ~/.omnicode/settings.json or .omnicode/settings.json under agents.defaultModel and agents.models for omni-explorer, omni-planner, and omni-verifier.",
+      "Ged optional subagents follow the single-writer invariant: the primary Ged brain writes code, decides scope, adjudicates reviews, commits, pushes, and opens PRs.",
+      "Use `/ged-agents on` for global enablement or `/ged-agents on --project` for this project only.",
+      "Configure models in ~/.gedcode/settings.json or .gedcode/settings.json under agents.defaultModel and agents.models for ged-explorer, ged-planner, and ged-verifier.",
     ].join("\n");
   }
-  return "Usage: /omni-agents [status|on|off|setup] [--project]";
+  return "Usage: /ged-agents [status|on|off|setup] [--project]";
 }
 
-export function createOmniCommands(): AppCommandDefinition[] {
+export function createGedCommands(): AppCommandDefinition[] {
   return [
     {
-      name: "omni-mode",
-      description: "Toggle Omni mode on or off for this project",
+      name: "ged-mode",
+      description: "Toggle Ged mode on or off for this project",
       async execute(context) {
-        const enabled = !readOmniMode(context.cwd);
-        saveOmniMode(context.cwd, enabled);
+        const enabled = !readGedMode(context.cwd);
+        saveGedMode(context.cwd, enabled);
         context.runtime?.ctx.ui.setStatus(
-          "omni",
-          formatOmniModeStatus(enabled),
+          "gedpi",
+          formatGedModeStatus(enabled),
         );
         if (!enabled) {
-          context.runtime?.ctx.ui.setWidget("omni-dashboard", undefined);
-          context.runtime?.ctx.ui.setWidget("omni-todos", undefined);
+          context.runtime?.ctx.ui.setWidget("ged-dashboard", undefined);
+          context.runtime?.ctx.ui.setWidget("ged-todos", undefined);
         }
         return enabled
-          ? "Omni mode is now ON. The next agent turn will initialize or refresh .omni/ and use the full Omni workflow."
-          : "Omni mode is now OFF. Omni will keep using durable standards from .omni/ when present, but task workflow state is disabled.";
+          ? "Ged mode is now ON. The next agent turn will initialize or refresh .ged/ and use the full Ged workflow."
+          : "Ged mode is now OFF. Ged will keep using durable standards from .ged/ when present, but task workflow state is disabled.";
       },
     },
     {
-      name: "omni-rtk",
+      name: "ged-rtk",
       description:
-        "Install RTK and control Omni's bash-side RTK routing (status, install, on, off)",
+        "Install RTK and control Ged's bash-side RTK routing (status, install, on, off)",
       async execute(context) {
         if (!context.runtime) {
-          return "The /omni-rtk command is only available inside Omni-Pi interactive sessions.";
+          return "The /ged-rtk command is only available inside GedPi interactive sessions.";
         }
         return await executeRtkCommand(context.args, context.runtime.ctx);
       },
     },
     {
-      name: "omni-agents",
+      name: "ged-agents",
       description:
-        "Configure optional read-only Omni subagents (status, setup, on, off)",
+        "Configure optional read-only Ged subagents (status, setup, on, off)",
       async execute(context) {
-        return await executeOmniAgentsCommand(context.cwd, context.args);
+        return await executeGedAgentsCommand(context.cwd, context.args);
       },
     },
   ];

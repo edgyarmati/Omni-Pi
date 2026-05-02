@@ -1,6 +1,6 @@
 # Credits
 
-Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
+GedPi exists because of the Pi ecosystem and the work of earlier authors.
 
 ## Core upstream foundations
 
@@ -32,8 +32,8 @@ Omni-Pi exists because of the Pi ecosystem and the work of earlier authors.
 - [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents) by Nico Bailon
   - Isolated worker/expert execution substrate (direct dependency) and broader subagent and extension ecosystem inspiration
 - The broader Pi community
-  - Package, skill, and workflow ideas that shaped the Omni-Pi direction
+  - Package, skill, and workflow ideas that shaped the GedPi direction
 
 ## Attribution intent
 
-Omni-Pi is an original project, but it is intentionally built in conversation with upstream Pi work. This file is the canonical source for attribution and should be kept up to date as the project evolves.
+GedPi is an original project, but it is intentionally built in conversation with upstream Pi work. This file is the canonical source for attribution and should be kept up to date as the project evolves.

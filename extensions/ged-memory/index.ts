@@ -6,14 +6,14 @@ import type {
   ExtensionContext,
 } from "@mariozechner/pi-coding-agent";
 
-import type { OmniState } from "../../src/contracts.js";
+import type { GedState } from "../../src/contracts.js";
 import { runDoctor } from "../../src/doctor.js";
 import { renderCompactStatusWidget } from "../../src/status.js";
-import { readOmniMode } from "../../src/theme.js";
+import { readGedMode } from "../../src/theme.js";
 
-async function readState(cwd: string): Promise<OmniState | null> {
+async function readState(cwd: string): Promise<GedState | null> {
   try {
-    const content = await readFile(path.join(cwd, ".omni", "STATE.md"), "utf8");
+    const content = await readFile(path.join(cwd, ".ged", "STATE.md"), "utf8");
     const matchValue = (label: string): string => {
       const regex = new RegExp(`^${label}:\\s*(.*)$`, "mu");
       return content.match(regex)?.[1]?.trim() ?? "";
@@ -29,7 +29,7 @@ async function readState(cwd: string): Promise<OmniState | null> {
     return {
       currentPhase: matchValue(
         "Current Phase",
-      ).toLowerCase() as OmniState["currentPhase"],
+      ).toLowerCase() as GedState["currentPhase"],
       activeTask: matchValue("Active Task"),
       statusSummary: matchValue("Status Summary"),
       blockers:
@@ -45,24 +45,24 @@ async function readState(cwd: string): Promise<OmniState | null> {
 }
 
 async function updateWidget(ctx: ExtensionContext): Promise<void> {
-  if (!readOmniMode(ctx.cwd)) {
-    ctx.ui.setWidget("omni-dashboard", undefined);
+  if (!readGedMode(ctx.cwd)) {
+    ctx.ui.setWidget("ged-dashboard", undefined);
     return;
   }
   const state = await readState(ctx.cwd);
   if (state) {
     const report = await runDoctor(ctx.cwd);
     ctx.ui.setWidget(
-      "omni-dashboard",
+      "ged-dashboard",
       (_tui, theme) => renderCompactStatusWidget(state, theme, report.overall),
       { placement: "aboveEditor" },
     );
   } else {
-    ctx.ui.setWidget("omni-dashboard", undefined);
+    ctx.ui.setWidget("ged-dashboard", undefined);
   }
 }
 
-export default function omniMemoryExtension(api: ExtensionAPI): void {
+export default function gedMemoryExtension(api: ExtensionAPI): void {
   api.on("session_start", async (_event, ctx) => {
     await updateWidget(ctx);
   });

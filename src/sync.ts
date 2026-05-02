@@ -62,12 +62,12 @@ async function appendBullets(
   );
 }
 
-export async function syncOmniMemory(
+export async function syncGedMemory(
   rootDir: string,
   request: SyncRequest,
 ): Promise<void> {
-  const sessionPath = path.join(rootDir, ".omni", "SESSION-SUMMARY.md");
-  const decisionsPath = path.join(rootDir, ".omni", "DECISIONS.md");
+  const sessionPath = path.join(rootDir, ".ged", "SESSION-SUMMARY.md");
+  const decisionsPath = path.join(rootDir, ".ged", "DECISIONS.md");
 
   const safeSummary = sanitizeBulletLine(request.summary);
   if (safeSummary) {

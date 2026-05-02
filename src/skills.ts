@@ -22,13 +22,13 @@ export const defaultSkillSignals: SkillSignal[] = [
   {
     label: "skill-creator",
     reason:
-      "Create project-specific skills when Omni cannot find one that fits.",
+      "Create project-specific skills when Ged cannot find one that fits.",
     policy: "auto-install",
   },
   {
     label: "brainstorming",
     reason:
-      "Useful when Omni is designing or decomposing task slices before implementation.",
+      "Useful when Ged is designing or decomposing task slices before implementation.",
     policy: "recommend-only",
   },
   {
@@ -43,7 +43,7 @@ export const BUNDLED_FOUNDATION_SKILLS = new Set([
   "find-skills",
   "skill-creator",
 ]);
-export const BUNDLED_OMNI_SKILLS = new Set([
+export const BUNDLED_GED_SKILLS = new Set([
   ...BUNDLED_FOUNDATION_SKILLS,
   "brainstorming",
 ]);
@@ -172,7 +172,7 @@ export function renderSkillRegistry(registry: SkillRegistry): string {
 export async function readSkillRegistry(
   rootDir: string,
 ): Promise<SkillRegistry> {
-  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  const skillPath = path.join(rootDir, ".ged", "SKILLS.md");
   return parseSkillRegistry(await readFile(skillPath, "utf8"));
 }
 
@@ -183,7 +183,7 @@ export function buildSkillInstallPlan(
     (candidate) => candidate.policy === "auto-install",
   );
   const steps = installed
-    .filter((candidate) => !BUNDLED_OMNI_SKILLS.has(candidate.name))
+    .filter((candidate) => !BUNDLED_GED_SKILLS.has(candidate.name))
     .map((candidate) => ({
       command: "npx",
       args: [
@@ -203,7 +203,7 @@ export async function appendSkillUsageNote(
   rootDir: string,
   note: string,
 ): Promise<void> {
-  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  const skillPath = path.join(rootDir, ".ged", "SKILLS.md");
   const content = await readFile(skillPath, "utf8");
   const next = content.replace(
     /## Usage Notes\n\n([\s\S]*)$/u,
@@ -232,7 +232,7 @@ export async function applyInstallResults(
   rootDir: string,
   results: SkillInstallResult[],
 ): Promise<{ deferred: string[]; installed: string[] }> {
-  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  const skillPath = path.join(rootDir, ".ged", "SKILLS.md");
   let content = await readFile(skillPath, "utf8");
   const registry = parseSkillRegistry(content);
 
@@ -311,11 +311,11 @@ function maybeUserSkillDirs(): string[] {
 }
 
 export function projectSkillsDir(rootDir: string): string {
-  return path.join(rootDir, ".omni", PROJECT_SKILLS_DIRNAME);
+  return path.join(rootDir, ".ged", PROJECT_SKILLS_DIRNAME);
 }
 
 function projectSkillStatePath(rootDir: string): string {
-  return path.join(rootDir, ".omni", PROJECT_SKILLS_STATE);
+  return path.join(rootDir, ".ged", PROJECT_SKILLS_STATE);
 }
 
 async function readProjectSkillState(
@@ -334,7 +334,7 @@ async function writeProjectSkillState(
   rootDir: string,
   state: ProjectSkillState,
 ): Promise<void> {
-  await mkdir(path.join(rootDir, ".omni"), { recursive: true });
+  await mkdir(path.join(rootDir, ".ged"), { recursive: true });
   await writeFileAtomic(
     projectSkillStatePath(rootDir),
     `${JSON.stringify(state, null, 2)}\n`,
@@ -348,7 +348,7 @@ async function updateInstalledRegistry(
   if (names.length === 0) {
     return;
   }
-  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  const skillPath = path.join(rootDir, ".ged", "SKILLS.md");
   let content = await readFile(skillPath, "utf8");
   const registry = parseSkillRegistry(content);
   const known = new Set(registry.installed.map((item) => item.name));
@@ -377,7 +377,7 @@ async function updateDeferredRegistry(
   name: string,
   reason: string,
 ): Promise<void> {
-  const skillPath = path.join(rootDir, ".omni", "SKILLS.md");
+  const skillPath = path.join(rootDir, ".ged", "SKILLS.md");
   let content = await readFile(skillPath, "utf8");
   const registry = parseSkillRegistry(content);
   if (!registry.deferred.some((item) => item.name === name)) {
@@ -577,7 +577,7 @@ Definition of done:
 ${safeDoneCriteria.map((item) => `- ${item}`).join("\n") || "- Follow the task brief."}
 
 Context:
-${safeContextFiles.map((item) => `- ${item}`).join("\n") || "- Refer to the active task brief and .omni files."}
+${safeContextFiles.map((item) => `- ${item}`).join("\n") || "- Refer to the active task brief and .ged files."}
 `;
 }
 

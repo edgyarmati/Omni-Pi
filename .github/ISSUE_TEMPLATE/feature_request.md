@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an improvement or new capability for Omni-Pi
+about: Suggest an improvement or new capability for GedPi
 title: "[Feature]: "
 labels: enhancement
 ---

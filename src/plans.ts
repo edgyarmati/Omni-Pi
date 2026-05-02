@@ -3,22 +3,22 @@ import path from "node:path";
 
 import { writeFileAtomic } from "./atomic.js";
 import type { PlanEntry, PlanStatus } from "./contracts.js";
-import { OMNI_DIR } from "./contracts.js";
+import { GED_DIR } from "./contracts.js";
 
 const PLANS_DIR = "plans";
 const INDEX_FILE = "INDEX.md";
 const PROGRESS_FILE = "PROGRESS.md";
 
 function plansDir(rootDir: string): string {
-  return path.join(rootDir, OMNI_DIR, PLANS_DIR);
+  return path.join(rootDir, GED_DIR, PLANS_DIR);
 }
 
 function indexPath(rootDir: string): string {
-  return path.join(rootDir, OMNI_DIR, PLANS_DIR, INDEX_FILE);
+  return path.join(rootDir, GED_DIR, PLANS_DIR, INDEX_FILE);
 }
 
 function progressPath(rootDir: string): string {
-  return path.join(rootDir, OMNI_DIR, PROGRESS_FILE);
+  return path.join(rootDir, GED_DIR, PROGRESS_FILE);
 }
 
 function planFilePath(rootDir: string, planId: string): string {

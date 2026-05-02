@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { OmniPhase, TaskBrief } from "./contracts.js";
-import { OMNI_DIR } from "./contracts.js";
+import type { GedPhase, TaskBrief } from "./contracts.js";
+import { GED_DIR } from "./contracts.js";
 
 const CHARS_PER_TOKEN = 4;
 
@@ -34,7 +34,7 @@ export function fitsInBudget(budget: TokenBudget, text: string): boolean {
   return estimateTokens(text) <= budget.remainingTokens;
 }
 
-const PHASE_FILES: Record<OmniPhase, string[]> = {
+const PHASE_FILES: Record<GedPhase, string[]> = {
   understand: ["PROJECT.md", "IDEAS.md", "SESSION-SUMMARY.md", "PROGRESS.md"],
   plan: [
     "PROJECT.md",
@@ -55,7 +55,7 @@ const PHASE_FILES: Record<OmniPhase, string[]> = {
   ],
 };
 
-export function getPhaseFiles(phase: OmniPhase): string[] {
+export function getPhaseFiles(phase: GedPhase): string[] {
   return PHASE_FILES[phase];
 }
 
@@ -75,7 +75,7 @@ export interface ContextBlock {
 
 export async function gatherPhaseContext(
   rootDir: string,
-  phase: OmniPhase,
+  phase: GedPhase,
   maxTokens: number,
 ): Promise<ContextBlock[]> {
   const files = getPhaseFiles(phase);
@@ -83,7 +83,7 @@ export async function gatherPhaseContext(
   const blocks: ContextBlock[] = [];
 
   for (const file of files) {
-    const content = await safeReadFile(path.join(rootDir, OMNI_DIR, file));
+    const content = await safeReadFile(path.join(rootDir, GED_DIR, file));
     if (!content) continue;
     if (!fitsInBudget(budget, content)) continue;
 
@@ -107,9 +107,9 @@ export async function gatherTaskContext(
   let budget = createBudget(maxTokens);
   const blocks: ContextBlock[] = [];
 
-  // Core omni files first
+  // Core ged files first
   for (const file of coreFiles) {
-    const content = await safeReadFile(path.join(rootDir, OMNI_DIR, file));
+    const content = await safeReadFile(path.join(rootDir, GED_DIR, file));
     if (!content) continue;
     if (!fitsInBudget(budget, content)) continue;
 
@@ -120,7 +120,7 @@ export async function gatherTaskContext(
   // Task brief
   const briefPath = path.join(
     rootDir,
-    OMNI_DIR,
+    GED_DIR,
     "tasks",
     `${task.id}-BRIEF.md`,
   );
