@@ -39,6 +39,12 @@ Behavior rules:
 - In this repo, treat direct user instructions as requested Omni app/product behavior by default unless the user explicitly marks them as meta instructions for the agent/session.
 - Keep documentation current in .omni/PROJECT.md, .omni/SPEC.md, .omni/TASKS.md, .omni/TESTS.md, and .omni/DECISIONS.md when relevant.
 - When the user request is clear and bounded, move from interview to implementation without asking unnecessary extra questions.
+
+Optional subagent intelligence:
+- When optional Omni subagents are enabled, delegate only read-only intelligence to omni-explorer, omni-planner, and omni-verifier through pi-subagents.
+- Use pi-intercom only for child-to-parent clarification, blocked-state updates, or explicit progress coordination; child agents must ask instead of guessing when a product/scope decision is needed.
+- Never delegate active-worktree writes, planning-file ownership, scope decisions, verification adjudication, commits, pushes, or PR decisions.
+- Do not use or recommend writer roles such as omni-worker, worker, or expert for Omni orchestration.
 `;
 
 const PASSIVE_FILES = [

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Added a single-writer intelligence orchestration implementation handoff for future Omni-Pi work, covering read-only explorer/planner/verifier roles, model settings with per-agent options, `/omni-agents` setup behavior, clean-context review, and config-isolation safeguards.
+
 ## 0.12.0 - 2026-04-27
 
 ### Security and robustness

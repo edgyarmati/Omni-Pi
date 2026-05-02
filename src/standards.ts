@@ -321,8 +321,9 @@ export async function writeOmniVersion(rootDir: string): Promise<void> {
   );
 }
 
-export async function ensurePiIgnoredInGitignore(
+export async function ensureIgnoredInGitignore(
   rootDir: string,
+  ignoredEntry: string,
 ): Promise<boolean> {
   if (!(await pathExists(path.join(rootDir, ".git")))) {
     return false;
@@ -335,12 +336,19 @@ export async function ensurePiIgnoredInGitignore(
     .map((line) => line.trim())
     .filter(Boolean);
 
-  if (entries.includes(".pi/")) {
+  if (entries.includes(ignoredEntry)) {
     return false;
   }
 
   const prefix = existing.trimEnd();
-  const next = prefix.length > 0 ? `${prefix}\n.pi/\n` : ".pi/\n";
+  const next =
+    prefix.length > 0 ? `${prefix}\n${ignoredEntry}\n` : `${ignoredEntry}\n`;
   await writeFileAtomic(gitignorePath, next);
   return true;
+}
+
+export async function ensurePiIgnoredInGitignore(
+  rootDir: string,
+): Promise<boolean> {
+  return ensureIgnoredInGitignore(rootDir, ".pi/");
 }

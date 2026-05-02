@@ -1,8 +1,9 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
+import packageJson from "../package.json" with { type: "json" };
 import { prepareNextTaskDispatch } from "../src/work.js";
 import { initializeOmniProject, planOmniProject } from "../src/workflow.js";
 
@@ -11,6 +12,35 @@ async function createTempProject(prefix: string): Promise<string> {
 }
 
 describe("Omni runtime flow", () => {
+  test("bundles pi-subagents and pi-intercom extensions and skills", () => {
+    expect(packageJson.dependencies).toMatchObject({
+      "pi-intercom": expect.any(String),
+      "pi-subagents": expect.any(String),
+    });
+    expect(packageJson.pi.extensions).toEqual(
+      expect.arrayContaining([
+        "./node_modules/pi-intercom/index.ts",
+        "./node_modules/pi-subagents/src/extension/index.ts",
+      ]),
+    );
+    expect(packageJson.pi.skills).toEqual(
+      expect.arrayContaining([
+        "./node_modules/pi-intercom/skills",
+        "./node_modules/pi-subagents/skills",
+      ]),
+    );
+  });
+
+  test("configured Pi extension paths exist", async () => {
+    await Promise.all(
+      packageJson.pi.extensions
+        .filter((extensionPath) => extensionPath.includes("pi-subagents"))
+        .map((extensionPath) =>
+          expect(access(path.resolve(extensionPath))).resolves.toBeUndefined(),
+        ),
+    );
+  });
+
   test("prepareNextTaskDispatch creates a task brief and marks the task in progress", async () => {
     const rootDir = await createTempProject("omni-runtime-dispatch-");
     await initializeOmniProject(rootDir);

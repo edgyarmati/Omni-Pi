@@ -1,12 +1,12 @@
 ---
 name: worker
 model: cheap-fast-model
-description: Archived implementation notes for Omni-Pi.
+description: Archived implementation notes for Omni-Pi. Not registered for Omni orchestration.
 ---
 
 # Implementation Notes
 
-This file is retained as implementation guidance, but Omni-Pi now exposes a single brain to the user instead of separate worker agents.
+This file is retained as implementation guidance, but Omni-Pi now exposes a single brain to the user instead of separate worker agents. Do not register this as an Omni subagent role.
 
 ## Responsibilities
 

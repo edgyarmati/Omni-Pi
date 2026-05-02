@@ -16,6 +16,7 @@ Requires Node.js 22 or newer.
 - Writes specs, tasks, and progress into `.omni/` once Omni mode is enabled.
 - Adds a repo map that indexes supported source files, ranks them by structure plus recent activity, and injects a compact codebase-awareness block into Omni prompts.
 - Bundles web search, guided interviews, themed UI, native micro-UI via Glimpse, native git diff review, prompt-template-powered workflow commands, a task viewer, a powerbar, and automatic updates out of the box.
+- Documents a future [single-writer intelligence orchestration](docs/single-writer-intelligence-orchestration.md) model: keep the Omni brain as the default writer while using scouts, smart friends, and clean-context reviewers for additional intelligence.
 
 ## Install
 
