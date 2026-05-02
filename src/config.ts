@@ -2,17 +2,17 @@ import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { writeFileAtomic } from "./atomic.js";
-import type { GedConfig } from "./contracts.js";
+import type { OmniConfig } from "./contracts.js";
 import { AVAILABLE_MODELS } from "./providers.js";
 
-export const DEFAULT_CONFIG: GedConfig = {
+export const DEFAULT_CONFIG: OmniConfig = {
   models: {
     brain: "anthropic/claude-opus-4-6",
   },
   cleanupCompletedPlans: false,
 };
 
-export const CONFIG_PATH = ".ged/CONFIG.md";
+export const CONFIG_PATH = ".omni/CONFIG.md";
 
 function parseModelTable(
   content: string,
@@ -47,7 +47,7 @@ function parseCleanupCompletedPlans(content: string): boolean {
   return match ? match[1] === "true" : DEFAULT_CONFIG.cleanupCompletedPlans;
 }
 
-export async function readConfig(rootDir: string): Promise<GedConfig> {
+export async function readConfig(rootDir: string): Promise<OmniConfig> {
   const configPath = path.join(rootDir, CONFIG_PATH);
   try {
     const content = await readFile(configPath, "utf8");
@@ -64,8 +64,8 @@ export async function readConfig(rootDir: string): Promise<GedConfig> {
   }
 }
 
-function renderConfigContent(config: GedConfig): string {
-  return `# GedPi Configuration
+function renderConfigContent(config: OmniConfig): string {
+  return `# Omni-Pi Configuration
 
 ## Models
 
@@ -81,7 +81,7 @@ Delete completed plan files: ${config.cleanupCompletedPlans}
 
 export async function writeConfig(
   rootDir: string,
-  config: GedConfig,
+  config: OmniConfig,
 ): Promise<void> {
   const configPath = path.join(rootDir, CONFIG_PATH);
   await mkdir(path.dirname(configPath), { recursive: true });
@@ -92,7 +92,7 @@ export async function updateModelConfig(
   rootDir: string,
   agent: string,
   model: string,
-): Promise<GedConfig> {
+): Promise<OmniConfig> {
   const config = await readConfig(rootDir);
   const validAgents = ["brain"] as const;
   const normalizedAgent = agent.toLowerCase() as (typeof validAgents)[number];

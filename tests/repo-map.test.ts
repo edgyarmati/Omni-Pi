@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
-import gedCoreExtension from "../extensions/ged-core/index.js";
+import omniCoreExtension from "../extensions/omni-core/index.js";
 import { refreshRepoMapState } from "../src/repo-map-index.js";
 import {
   getRepoMapDebugSnapshot,
@@ -11,7 +11,7 @@ import {
   warmRepoMap,
 } from "../src/repo-map-runtime.js";
 import { repoMapStatePath } from "../src/repo-map-store.js";
-import { saveGedMode } from "../src/theme.js";
+import { saveOmniMode } from "../src/theme.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
@@ -136,10 +136,10 @@ describe("repo map", () => {
       "import { brain } from './brain';\nexport const workflow = brain;\n",
       "utf8",
     );
-    saveGedMode(rootDir, true);
+    saveOmniMode(rootDir, true);
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
-    gedCoreExtension({
+    omniCoreExtension({
       registerMessageRenderer() {
         return undefined;
       },
@@ -210,7 +210,7 @@ describe("repo map", () => {
     );
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
-    gedCoreExtension({
+    omniCoreExtension({
       registerMessageRenderer() {
         return undefined;
       },
@@ -249,7 +249,7 @@ describe("repo map", () => {
     expect(beforeStart.systemPrompt).toContain("## Repo Map");
     expect(beforeStart.systemPrompt).toContain("src/workflow.ts");
     expect(beforeStart.systemPrompt).not.toContain(
-      "## Current Ged Workflow Files",
+      "## Current Omni Workflow Files",
     );
   });
 

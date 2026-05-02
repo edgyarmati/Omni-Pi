@@ -4,7 +4,7 @@ import { writeFileAtomic } from "./atomic.js";
 import { readConfig } from "./config.js";
 import type {
   ConversationBrief,
-  GedState,
+  OmniState,
   SkillCandidate,
 } from "./contracts.js";
 import { type DoctorReport, runDoctor } from "./doctor.js";
@@ -37,12 +37,12 @@ import {
 import {
   type DiscoveredStandard,
   ensurePiIgnoredInGitignore,
-  GED_STANDARD_VERSION,
-  readGedVersion,
+  OMNI_STANDARD_VERSION,
+  readOmniVersion,
   resolveImportedStandards,
-  writeGedVersion,
+  writeOmniVersion,
 } from "./standards.js";
-import { type SyncRequest, syncGedMemory } from "./sync.js";
+import { type SyncRequest, syncOmniMemory } from "./sync.js";
 import { executeNextTask, type WorkEngine, type WorkResult } from "./work.js";
 
 export interface InitResult {
@@ -69,7 +69,7 @@ export interface InitResult {
   version: number;
 }
 
-export interface InitializeGedOptions {
+export interface InitializeOmniOptions {
   ui?: {
     confirm(title: string, message: string): Promise<boolean>;
   };
@@ -82,11 +82,11 @@ export interface PlanResult {
 }
 
 export interface WorkExecutionResult extends WorkResult {
-  state: GedState;
+  state: OmniState;
 }
 
 export interface SyncResult {
-  state: GedState;
+  state: OmniState;
 }
 
 const starterFileMap = buildStarterFileMap();
@@ -179,7 +179,7 @@ async function archiveReplacedTaskList(
   rootDir: string,
   summary: string,
 ): Promise<void> {
-  const sessionPath = path.join(rootDir, ".ged", "SESSION-SUMMARY.md");
+  const sessionPath = path.join(rootDir, ".omni", "SESSION-SUMMARY.md");
   await appendBullets(sessionPath, "## Archived task summaries", [summary]);
 }
 
@@ -192,8 +192,8 @@ async function discardActivePlans(rootDir: string): Promise<void> {
   );
 }
 
-async function writeState(rootDir: string, state: GedState): Promise<void> {
-  const statePath = path.join(rootDir, ".ged", "STATE.md");
+async function writeState(rootDir: string, state: OmniState): Promise<void> {
+  const statePath = path.join(rootDir, ".omni", "STATE.md");
   const recoverySection =
     state.recoveryOptions && state.recoveryOptions.length > 0
       ? `\nRecovery Options:\n${state.recoveryOptions.map((option) => `- ${option}`).join("\n")}\n`
@@ -368,7 +368,7 @@ Capture:
 Known repo context:
 ${hints}
 
-After the interview, write the resulting context into .ged/PROJECT.md, .ged/SPEC.md, and .ged/SESSION-SUMMARY.md before proceeding. Do not implement anything yet.`;
+After the interview, write the resulting context into .omni/PROJECT.md, .omni/SPEC.md, and .omni/SESSION-SUMMARY.md before proceeding. Do not implement anything yet.`;
 }
 
 function buildSkillCandidates(
@@ -392,9 +392,9 @@ function buildSkillCandidates(
   return candidates;
 }
 
-export async function initializeGedProject(
+export async function initializeOmniProject(
   rootDir: string,
-  options: InitializeGedOptions = {},
+  options: InitializeOmniOptions = {},
 ): Promise<InitResult> {
   const created: string[] = [];
   const reused: string[] = [];
@@ -416,7 +416,7 @@ export async function initializeGedProject(
     steps: installSteps,
   } = buildSkillInstallPlan(skillCandidates);
 
-  const skillsPath = path.join(rootDir, ".ged", "SKILLS.md");
+  const skillsPath = path.join(rootDir, ".omni", "SKILLS.md");
   await replaceSection(
     skillsPath,
     "## Installed",
@@ -439,7 +439,7 @@ export async function initializeGedProject(
       ),
   );
 
-  const projectPath = path.join(rootDir, ".ged", "PROJECT.md");
+  const projectPath = path.join(rootDir, ".omni", "PROJECT.md");
   const project = await readFile(projectPath, "utf8");
   const signalSummary = [
     `- Detected languages: ${repoSignals.languages.join(", ") || "unknown"}`,
@@ -462,7 +462,7 @@ export async function initializeGedProject(
 
   const imports = await resolveImportedStandards(rootDir, options.ui);
   const gitignoreUpdated = await ensurePiIgnoredInGitignore(rootDir);
-  await writeGedVersion(rootDir);
+  await writeOmniVersion(rootDir);
 
   const diagnostics = await runDoctor(rootDir);
   const onboarding = await assessInitialProjectClarity(rootDir);
@@ -473,15 +473,15 @@ export async function initializeGedProject(
       ? "Run onboarding interview"
       : "Capture exact requirements",
     statusSummary: onboarding.onboardingInterviewNeeded
-      ? `GedPi has created its project memory files and needs first-run onboarding context. ${onboarding.onboardingReason}`
-      : "GedPi has created its project memory files and scanned the repository for useful signals.",
+      ? `Omni-Pi has created its project memory files and needs first-run onboarding context. ${onboarding.onboardingReason}`
+      : "Omni-Pi has created its project memory files and scanned the repository for useful signals.",
     blockers: [],
     nextStep:
       diagnostics.overall === "red"
         ? "Review the recorded issues before proceeding."
         : onboarding.onboardingInterviewNeeded
           ? "Run a short onboarding interview to capture project goal, users, constraints, workflow style, and missing context before planning or implementation."
-          : "Interview the user, capture the exact spec in .ged/, then break the work into bounded slices.",
+          : "Interview the user, capture the exact spec in .omni/, then break the work into bounded slices.",
   });
 
   return {
@@ -501,49 +501,49 @@ export async function initializeGedProject(
     acceptedStandards: imports.accepted,
     standardsPromptNeeded: imports.promptNeeded,
     gitignoreUpdated,
-    version: GED_STANDARD_VERSION,
+    version: OMNI_STANDARD_VERSION,
   };
 }
 
-export interface EnsureCurrentGedResult {
+export interface EnsureCurrentOmniResult {
   status: "initialized" | "migrated" | "existing";
   initResult?: InitResult;
 }
 
-export async function ensureGedProjectCurrent(
+export async function ensureOmniProjectCurrent(
   rootDir: string,
-  options: InitializeGedOptions = {},
-): Promise<EnsureCurrentGedResult> {
-  const statePath = path.join(rootDir, ".ged", "STATE.md");
-  const currentVersion = await readGedVersion(rootDir);
+  options: InitializeOmniOptions = {},
+): Promise<EnsureCurrentOmniResult> {
+  const statePath = path.join(rootDir, ".omni", "STATE.md");
+  const currentVersion = await readOmniVersion(rootDir);
   const needsInit = !(await readOptionalText(statePath));
   const needsMigration =
-    currentVersion == null || currentVersion < GED_STANDARD_VERSION;
+    currentVersion == null || currentVersion < OMNI_STANDARD_VERSION;
 
   if (needsInit) {
     return {
       status: "initialized",
-      initResult: await initializeGedProject(rootDir, options),
+      initResult: await initializeOmniProject(rootDir, options),
     };
   }
 
   if (needsMigration) {
     return {
       status: "migrated",
-      initResult: await initializeGedProject(rootDir, options),
+      initResult: await initializeOmniProject(rootDir, options),
     };
   }
 
   return { status: "existing" };
 }
 
-export async function planGedProject(
+export async function planOmniProject(
   rootDir: string,
   brief: ConversationBrief,
 ): Promise<PlanResult> {
-  const specPath = path.join(rootDir, ".ged", "SPEC.md");
-  const tasksPath = path.join(rootDir, ".ged", "TASKS.md");
-  const testsPath = path.join(rootDir, ".ged", "TESTS.md");
+  const specPath = path.join(rootDir, ".omni", "SPEC.md");
+  const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
+  const testsPath = path.join(rootDir, ".omni", "TESTS.md");
 
   for (const required of [specPath, tasksPath, testsPath]) {
     const relative = path.relative(rootDir, required);
@@ -598,18 +598,18 @@ export async function planGedProject(
     currentPhase: "plan",
     activeTask: "Prepare the first bounded implementation slice",
     statusSummary: unrelatedRequest
-      ? "GedPi archived the previous unrelated task list and refreshed the spec, task slices, and verification plan."
-      : "GedPi refreshed the spec, task slices, and verification plan.",
+      ? "Omni-Pi archived the previous unrelated task list and refreshed the spec, task slices, and verification plan."
+      : "Omni-Pi refreshed the spec, task slices, and verification plan.",
     blockers: [],
     nextStep:
-      "Implement the next bounded slice and keep .ged/STATE.md in sync with progress.",
+      "Implement the next bounded slice and keep .omni/STATE.md in sync with progress.",
   });
 
   return { specPath, tasksPath, testsPath };
 }
 
-export async function readGedStatus(rootDir: string): Promise<GedState> {
-  const statePath = path.join(rootDir, ".ged", "STATE.md");
+export async function readOmniStatus(rootDir: string): Promise<OmniState> {
+  const statePath = path.join(rootDir, ".omni", "STATE.md");
   const content = await readFile(statePath, "utf8");
 
   const matchValue = (label: string): string => {
@@ -628,7 +628,7 @@ export async function readGedStatus(rootDir: string): Promise<GedState> {
   return {
     currentPhase: matchValue(
       "Current Phase",
-    ).toLowerCase() as GedState["currentPhase"],
+    ).toLowerCase() as OmniState["currentPhase"],
     activeTask: matchValue("Active Task"),
     statusSummary: matchValue("Status Summary"),
     blockers:
@@ -640,13 +640,13 @@ export async function readGedStatus(rootDir: string): Promise<GedState> {
   };
 }
 
-export async function workOnGedProject(
+export async function workOnOmniProject(
   rootDir: string,
   engine: WorkEngine,
 ): Promise<WorkExecutionResult> {
   const result = await executeNextTask(rootDir, engine);
 
-  let state: GedState;
+  let state: OmniState;
   if (result.kind === "completed") {
     state = {
       currentPhase: "build",
@@ -668,7 +668,7 @@ export async function workOnGedProject(
         : ["A task is blocked."],
       nextStep: result.message.includes("queued for retry")
         ? "Tighten the slice, then retry the implementation with the updated task notes."
-        : "Review the recovery notes in `.ged/tasks/` and refine the plan or task inputs.",
+        : "Review the recovery notes in `.omni/tasks/` and refine the plan or task inputs.",
       recoveryOptions: result.recoveryOptions,
     };
   } else {
@@ -691,11 +691,11 @@ export async function workOnGedProject(
   return { ...result, state };
 }
 
-export async function syncGedProject(
+export async function syncOmniProject(
   rootDir: string,
   request: SyncRequest,
 ): Promise<SyncResult> {
-  await syncGedMemory(rootDir, request);
+  await syncOmniMemory(rootDir, request);
   await appendProgress(rootDir, request.summary);
 
   const config = await readConfig(rootDir);
@@ -703,10 +703,10 @@ export async function syncGedProject(
     await cleanupCompletedPlans(rootDir);
   }
 
-  const state: GedState = {
+  const state: OmniState = {
     currentPhase: "understand",
     activeTask: "Sync project memory",
-    statusSummary: "GedPi synced recent progress into durable memory files.",
+    statusSummary: "Omni-Pi synced recent progress into durable memory files.",
     blockers: [],
     nextStep:
       "Review the latest durable notes and refine the next slice if needed.",

@@ -1,4 +1,4 @@
-# Contributing to GedPi
+# Contributing to Omni-Pi
 
 Thanks for your interest in contributing.
 
@@ -8,8 +8,8 @@ Thanks for your interest in contributing.
 2. Clone your fork locally:
 
    ```bash
-   git clone https://github.com/<your-username>/GedPi.git
-   cd GedPi
+   git clone https://github.com/<your-username>/Omni-Pi.git
+   cd Omni-Pi
    npm install
    ```
 
@@ -23,7 +23,7 @@ Thanks for your interest in contributing.
 
 | Command | Purpose |
 |---------|---------|
-| `npm run chat` | Launch the local `gedpi` executable from this checkout |
+| `npm run chat` | Launch the local `omni` executable from this checkout |
 | `npm test` | Run the test suite with Vitest |
 | `npm run check` | Run the TypeScript type-check |
 | `npm run lint` | Run Biome lint and format checks |
@@ -82,17 +82,17 @@ Test the global install flow:
 
 ```bash
 npm install -g .
-ged
+omni
 ```
 
 Test the packed tarball flow:
 
 ```bash
 npm pack
-npm install -g ./gedpi-<version>.tgz
-ged
+npm install -g ./omni-pi-<version>.tgz
+omni
 ```
 
 ## Questions
 
-If something is unclear, open an issue on [GitHub](https://github.com/EdGy2k/GedPi/issues).
+If something is unclear, open an issue on [GitHub](https://github.com/EdGy2k/Omni-Pi/issues).

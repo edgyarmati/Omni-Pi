@@ -14,7 +14,7 @@ import { readRepoMapState, writeRepoMapState } from "./repo-map-store.js";
 const DEFAULT_IGNORES = new Set([
   ".git",
   ".pi",
-  ".ged",
+  ".omni",
   "node_modules",
   "dist",
   "build",

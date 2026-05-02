@@ -3,25 +3,25 @@ import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
-import gedCoreExtension from "../extensions/ged-core/index.js";
+import omniCoreExtension from "../extensions/omni-core/index.js";
 import {
   buildBrainSystemPromptSuffix,
-  buildPassiveGedPromptSuffix,
-  ensureGedReady,
+  buildPassiveOmniPromptSuffix,
+  ensureOmniReady,
 } from "../src/brain.js";
-import { saveGedMode } from "../src/theme.js";
+import { saveOmniMode } from "../src/theme.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   return mkdtemp(path.join(os.tmpdir(), prefix));
 }
 
-describe("Ged brain runtime", () => {
-  test("ensureGedReady bootstraps .ged when ged mode is enabled", async () => {
-    const rootDir = await createTempProject("ged-brain-init-");
+describe("Omni brain runtime", () => {
+  test("ensureOmniReady bootstraps .omni when omni mode is enabled", async () => {
+    const rootDir = await createTempProject("omni-brain-init-");
 
-    const result = await ensureGedReady(rootDir);
+    const result = await ensureOmniReady(rootDir);
     const state = await readFile(
-      path.join(rootDir, ".ged", "STATE.md"),
+      path.join(rootDir, ".omni", "STATE.md"),
       "utf8",
     );
 
@@ -30,42 +30,42 @@ describe("Ged brain runtime", () => {
   });
 
   test("buildBrainSystemPromptSuffix includes the single-brain workflow and durable files", async () => {
-    const rootDir = await createTempProject("ged-brain-prompt-");
-    await ensureGedReady(rootDir);
+    const rootDir = await createTempProject("omni-brain-prompt-");
+    await ensureOmniReady(rootDir);
 
     const prompt = await buildBrainSystemPromptSuffix(rootDir);
 
-    expect(prompt).toContain("GedPi Single-Brain Mode");
+    expect(prompt).toContain("Omni-Pi Single-Brain Mode");
     expect(prompt).toContain("Interview the user until the requested behavior");
     expect(prompt).toContain(
       "use the interview tool to ask targeted clarification questions instead of asking them in chat",
     );
     expect(prompt).toContain(
-      "treat direct user instructions as requested Ged app/product behavior by default",
+      "treat direct user instructions as requested Omni app/product behavior by default",
     );
-    expect(prompt).toContain(".ged/TASKS.md");
+    expect(prompt).toContain(".omni/TASKS.md");
     expect(prompt).toContain("Run onboarding interview");
   });
 
-  test("buildPassiveGedPromptSuffix excludes workflow files and keeps durable guidance", async () => {
-    const rootDir = await createTempProject("ged-brain-passive-");
-    await ensureGedReady(rootDir);
+  test("buildPassiveOmniPromptSuffix excludes workflow files and keeps durable guidance", async () => {
+    const rootDir = await createTempProject("omni-brain-passive-");
+    await ensureOmniReady(rootDir);
 
-    const prompt = await buildPassiveGedPromptSuffix(rootDir);
+    const prompt = await buildPassiveOmniPromptSuffix(rootDir);
 
-    expect(prompt).toContain("Ged Durable Standards");
-    expect(prompt).toContain(".ged/PROJECT.md");
-    expect(prompt).not.toContain("### .ged/TASKS.md");
-    expect(prompt).not.toContain("### .ged/TESTS.md");
+    expect(prompt).toContain("Omni Durable Standards");
+    expect(prompt).toContain(".omni/PROJECT.md");
+    expect(prompt).not.toContain("### .omni/TASKS.md");
+    expect(prompt).not.toContain("### .omni/TESTS.md");
   });
 
-  test("gedCoreExtension leaves ged init off by default and only injects passive prompt", async () => {
-    const rootDir = await createTempProject("ged-brain-ext-");
+  test("omniCoreExtension leaves omni init off by default and only injects passive prompt", async () => {
+    const rootDir = await createTempProject("omni-brain-ext-");
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const statuses: Array<string | undefined> = [];
     const sentMessages: string[] = [];
 
-    gedCoreExtension({
+    omniCoreExtension({
       registerMessageRenderer() {
         return undefined;
       },
@@ -106,15 +106,15 @@ describe("Ged brain runtime", () => {
     expect(statuses).toHaveLength(3);
     expect(sentMessages).toHaveLength(0);
     expect(beforeStart.systemPrompt).toContain("BASE");
-    expect(beforeStart.systemPrompt).not.toContain("GedPi Single-Brain Mode");
+    expect(beforeStart.systemPrompt).not.toContain("Omni-Pi Single-Brain Mode");
   });
 
-  test("gedCoreExtension initializes and injects workflow prompt when ged mode is on", async () => {
-    const rootDir = await createTempProject("ged-brain-ext-on-");
-    saveGedMode(rootDir, true);
+  test("omniCoreExtension initializes and injects workflow prompt when omni mode is on", async () => {
+    const rootDir = await createTempProject("omni-brain-ext-on-");
+    saveOmniMode(rootDir, true);
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
 
-    gedCoreExtension({
+    omniCoreExtension({
       registerMessageRenderer() {
         return undefined;
       },
@@ -135,7 +135,7 @@ describe("Ged brain runtime", () => {
       { cwd: rootDir },
     )) as { systemPrompt: string };
 
-    expect(beforeStart.systemPrompt).toContain("GedPi Single-Brain Mode");
+    expect(beforeStart.systemPrompt).toContain("Omni-Pi Single-Brain Mode");
     expect(beforeStart.systemPrompt).toContain(
       "use the interview tool now to run a concise onboarding interview",
     );

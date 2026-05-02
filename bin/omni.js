@@ -40,13 +40,13 @@ function writeFileAtomicSync(filePath, content) {
   }
 }
 
-export function getGedPackageDir() {
+export function getOmniPackageDir() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 }
 
 export function resolvePiCliPath() {
   return path.join(
-    getGedPackageDir(),
+    getOmniPackageDir(),
     "node_modules",
     "@mariozechner",
     "pi-coding-agent",
@@ -55,9 +55,9 @@ export function resolvePiCliPath() {
   );
 }
 
-export function buildGedEnvironment(baseEnv = process.env) {
-  // Pi has its own update prompt; GedPi runs its own (registerUpdater).
-  // Suppress Pi's check at the launcher boundary so the Ged updater is
+export function buildOmniEnvironment(baseEnv = process.env) {
+  // Pi has its own update prompt; Omni-Pi runs its own (registerUpdater).
+  // Suppress Pi's check at the launcher boundary so the Omni updater is
   // the only one that surfaces upgrade prompts.
   return {
     ...baseEnv,
@@ -123,12 +123,12 @@ export function buildPiProcessSpec(
 ) {
   return {
     command: process.execPath,
-    args: [resolvePiCliPath(), "-e", getGedPackageDir(), ...argv],
-    env: buildGedEnvironment(baseEnv),
+    args: [resolvePiCliPath(), "-e", getOmniPackageDir(), ...argv],
+    env: buildOmniEnvironment(baseEnv),
   };
 }
 
-export async function runGed(argv = process.argv.slice(2), options = {}) {
+export async function runOmni(argv = process.argv.slice(2), options = {}) {
   ensureQuietStartupDefault(options.env);
   const spec = buildPiProcessSpec(argv, options.env);
 
@@ -148,7 +148,7 @@ export async function runGed(argv = process.argv.slice(2), options = {}) {
       process.off("SIGTERM", forwardSignal);
 
       if (signal) {
-        reject(new Error(`ged terminated with signal ${signal}`));
+        reject(new Error(`omni terminated with signal ${signal}`));
         return;
       }
 
@@ -163,7 +163,7 @@ export async function runGed(argv = process.argv.slice(2), options = {}) {
   });
 }
 
-export function isGedEntrypointInvocation(
+export function isOmniEntrypointInvocation(
   argvPath = process.argv[1],
   moduleUrl = import.meta.url,
 ) {
@@ -178,8 +178,8 @@ export function isGedEntrypointInvocation(
   }
 }
 
-if (isGedEntrypointInvocation()) {
-  runGed().catch((error) => {
+if (isOmniEntrypointInvocation()) {
+  runOmni().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   });

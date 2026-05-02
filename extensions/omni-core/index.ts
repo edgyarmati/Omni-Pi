@@ -2,16 +2,16 @@ import { fileURLToPath } from "node:url";
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-import { syncGedSubagentRuntimeConfig } from "../../src/agent-settings.js";
+import { syncOmniSubagentRuntimeConfig } from "../../src/agent-settings.js";
 import {
-  buildPassiveGedPromptSuffix,
+  buildPassiveOmniPromptSuffix,
   buildWorkflowPromptSuffix,
-  ensureGedReady,
+  ensureOmniReady,
 } from "../../src/brain.js";
-import { createGedCommands } from "../../src/commands.js";
+import { createOmniCommands } from "../../src/commands.js";
 import { renderHeader } from "../../src/header.js";
 import {
-  registerGedMessageRenderer,
+  registerOmniMessageRenderer,
   registerPiCommands,
 } from "../../src/pi.js";
 import { ensureBundledPromptTemplates } from "../../src/prompt-template-sync.js";
@@ -26,11 +26,11 @@ import {
   registerRtkBashRouting,
 } from "../../src/rtk.js";
 import {
-  createGedTheme,
+  createOmniTheme,
   ensurePiSettings,
-  formatGedModeStatus,
+  formatOmniModeStatus,
   loadSavedTheme,
-  readGedMode,
+  readOmniMode,
   readRtkMode,
 } from "../../src/theme.js";
 import { registerThemeCommand } from "../../src/theme-command.js";
@@ -38,9 +38,9 @@ import { registerTodoShortcut } from "../../src/todo-shortcut.js";
 import { registerUpdater } from "../../src/updater.js";
 import { buildOnboardingInterviewKickoff } from "../../src/workflow.js";
 
-export default function gedCoreExtension(api: ExtensionAPI): void {
-  registerGedMessageRenderer(api);
-  registerPiCommands(api, createGedCommands());
+export default function omniCoreExtension(api: ExtensionAPI): void {
+  registerOmniMessageRenderer(api);
+  registerPiCommands(api, createOmniCommands());
   registerThemeCommand(api);
   registerTodoShortcut(api);
   registerUpdater(api);
@@ -49,31 +49,31 @@ export default function gedCoreExtension(api: ExtensionAPI): void {
 
   api.on("session_start", async (_event, ctx) => {
     await ensurePiSettings(ctx.cwd);
-    await syncGedSubagentRuntimeConfig(ctx.cwd);
+    await syncOmniSubagentRuntimeConfig(ctx.cwd);
     ensureBundledPromptTemplates(
       fileURLToPath(
         new URL("../../templates/managed-prompts", import.meta.url),
       ),
     );
     loadSavedTheme(ctx.cwd);
-    const gedMode = readGedMode(ctx.cwd);
-    ctx.ui.setTitle("GedPi");
-    ctx.ui.setTheme(createGedTheme());
+    const omniMode = readOmniMode(ctx.cwd);
+    ctx.ui.setTitle("Omni-Pi");
+    ctx.ui.setTheme(createOmniTheme());
     ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
-    ctx.ui.setStatus("gedpi", formatGedModeStatus(gedMode));
+    ctx.ui.setStatus("omni", formatOmniModeStatus(omniMode));
     ctx.ui.setStatus("rtk", formatRtkModeStatus(readRtkMode(ctx.cwd), false));
     await refreshRtkStatusIndicator(ctx);
     void warmRepoMap(ctx.cwd);
   });
 
   api.on("before_agent_start", async (event, ctx) => {
-    const gedMode = readGedMode(ctx.cwd);
-    const passivePrompt = await buildPassiveGedPromptSuffix(ctx.cwd);
+    const omniMode = readOmniMode(ctx.cwd);
+    const passivePrompt = await buildPassiveOmniPromptSuffix(ctx.cwd);
     const repoMapPrompt = await buildRepoMapPromptSuffix(ctx.cwd, {
       prompt: typeof event.prompt === "string" ? event.prompt : "",
-      maxTokens: gedMode ? undefined : 120,
+      maxTokens: omniMode ? undefined : 120,
     });
-    if (!gedMode) {
+    if (!omniMode) {
       return {
         systemPrompt: [event.systemPrompt, passivePrompt, repoMapPrompt]
           .filter(Boolean)
@@ -81,7 +81,7 @@ export default function gedCoreExtension(api: ExtensionAPI): void {
       };
     }
 
-    const init = await ensureGedReady(ctx.cwd, {
+    const init = await ensureOmniReady(ctx.cwd, {
       ui: "ui" in ctx ? ctx.ui : undefined,
     });
     const workflowPrompt = await buildWorkflowPromptSuffix(ctx.cwd);
@@ -100,11 +100,11 @@ export default function gedCoreExtension(api: ExtensionAPI): void {
 
     if (init.initResult?.standardsPromptNeeded) {
       api.sendMessage({
-        customType: "ged-update",
+        customType: "omni-update",
         content:
-          "Ged found external instruction files that can be imported into .ged/STANDARDS.md. Please confirm in chat whether Ged should keep those standards.",
+          "Omni found external instruction files that can be imported into .omni/STANDARDS.md. Please confirm in chat whether Omni should keep those standards.",
         display: true,
-        details: { title: "ged-mode" },
+        details: { title: "omni-mode" },
       });
     }
 

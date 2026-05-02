@@ -1,17 +1,17 @@
 ---
 name: planner
 model: strongest-reasoning-model
-description: Archived planner notes for GedPi.
+description: Archived planner notes for Omni-Pi.
 ---
 
 # Planner Notes
 
-This file is retained as planning guidance, but GedPi now exposes a single brain to the user instead of separate planning agents.
+This file is retained as planning guidance, but Omni-Pi now exposes a single brain to the user instead of separate planning agents.
 
 ## Responsibilities
 
-- Read only the relevant `.ged/` files for the task at hand.
-- Refine `.ged/SPEC.md`, `.ged/TASKS.md`, and `.ged/TESTS.md`.
+- Read only the relevant `.omni/` files for the task at hand.
+- Refine `.omni/SPEC.md`, `.omni/TASKS.md`, and `.omni/TESTS.md`.
 - Break large goals into bounded, verifiable task slices.
 - Recommend skills when they will materially improve quality or speed.
 

@@ -17,7 +17,7 @@ function modeBits(mode: number): number {
 
 describe("atomic writes", () => {
   test("async writes preserve existing file permissions", async () => {
-    const filePath = await tempFile("ged-atomic-async-");
+    const filePath = await tempFile("omni-atomic-async-");
     await writeFile(filePath, "old\n", "utf8");
     await chmod(filePath, 0o600);
 
@@ -27,7 +27,7 @@ describe("atomic writes", () => {
   });
 
   test("sync writes preserve existing file permissions", async () => {
-    const filePath = await tempFile("ged-atomic-sync-");
+    const filePath = await tempFile("omni-atomic-sync-");
     await writeFile(filePath, "old\n", "utf8");
     await chmod(filePath, 0o600);
 

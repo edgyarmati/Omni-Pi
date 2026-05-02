@@ -1,6 +1,6 @@
-export const GED_DIR = ".ged";
+export const OMNI_DIR = ".omni";
 
-export type GedPhase = "understand" | "plan" | "build" | "check" | "escalate";
+export type OmniPhase = "understand" | "plan" | "build" | "check" | "escalate";
 
 export type TaskStatus = "todo" | "in_progress" | "blocked" | "done";
 
@@ -57,8 +57,8 @@ export interface SkillCandidate {
   policy: SkillPolicy;
 }
 
-export interface GedState {
-  currentPhase: GedPhase;
+export interface OmniState {
+  currentPhase: OmniPhase;
   activeTask: string;
   statusSummary: string;
   blockers: string[];
@@ -118,7 +118,7 @@ export const WORKFLOW_PRESETS: Record<WorkflowPreset, PresetConfig> = {
     maxTasks: 1,
     skipInterview: true,
     requireVerification: false,
-    executionHint: "Explore freely. Document findings in .ged/research/.",
+    executionHint: "Explore freely. Document findings in .omni/research/.",
   },
   "security-audit": {
     name: "security-audit",
@@ -145,7 +145,7 @@ export function detectPreset(
   return null;
 }
 
-export interface GedConfig {
+export interface OmniConfig {
   models: {
     brain: string;
   };

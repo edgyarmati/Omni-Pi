@@ -1,12 +1,12 @@
 ---
 name: expert
 model: strongest-implementation-model
-description: Archived recovery notes for GedPi. Not registered for Ged orchestration.
+description: Archived recovery notes for Omni-Pi. Not registered for Omni orchestration.
 ---
 
 # Recovery Notes
 
-This file is retained as recovery guidance, but GedPi now exposes a single brain to the user instead of separate expert agents. Do not register this as an Ged subagent role.
+This file is retained as recovery guidance, but Omni-Pi now exposes a single brain to the user instead of separate expert agents. Do not register this as an Omni subagent role.
 
 ## Responsibilities
 

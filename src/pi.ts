@@ -115,7 +115,7 @@ function renderStatusMessage(
   const details = (message.details ?? {}) as StatusDetails;
   const header = theme.fg(
     "accent",
-    theme.bold(details.title ?? "GedPi Status"),
+    theme.bold(details.title ?? "Omni-Pi Status"),
   );
   const lines = [header];
   if (details.phase) lines.push(`Phase: ${details.phase}`);
@@ -163,15 +163,15 @@ function renderEscalationMessage(
   return { box };
 }
 
-export function registerGedMessageRenderer(api: ExtensionAPI): void {
-  api.registerMessageRenderer("ged-update", (message, { expanded }, theme) => {
+export function registerOmniMessageRenderer(api: ExtensionAPI): void {
+  api.registerMessageRenderer("omni-update", (message, { expanded }, theme) => {
     const body =
       typeof message.content === "string"
         ? message.content
         : String(message.content ?? "");
     const details = (message.details ?? {}) as { title?: string };
     const lines = [
-      theme.fg("accent", theme.bold(details.title ?? "GedPi")),
+      theme.fg("accent", theme.bold(details.title ?? "Omni-Pi")),
       body,
     ];
     const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
@@ -182,18 +182,18 @@ export function registerGedMessageRenderer(api: ExtensionAPI): void {
   });
 
   api.registerMessageRenderer(
-    "ged-verification",
+    "omni-verification",
     (message, { expanded }, theme) => {
       return renderVerificationMessage(message, expanded, theme).box;
     },
   );
 
-  api.registerMessageRenderer("ged-status", (message, { expanded }, theme) => {
+  api.registerMessageRenderer("omni-status", (message, { expanded }, theme) => {
     return renderStatusMessage(message, expanded, theme).box;
   });
 
   api.registerMessageRenderer(
-    "ged-escalation",
+    "omni-escalation",
     (message, { expanded }, theme) => {
       return renderEscalationMessage(message, expanded, theme).box;
     },
@@ -226,7 +226,7 @@ export function registerPiCommands(
         const result = normalizeResult(raw);
         if (result.text.trim().length > 0 && ctx.hasUI) {
           api.sendMessage({
-            customType: result.messageType ?? "ged-update",
+            customType: result.messageType ?? "omni-update",
             content: result.text,
             display: true,
             details: { title: command.name, ...result.details },

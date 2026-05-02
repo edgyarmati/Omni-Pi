@@ -1,6 +1,6 @@
-export function getGedPackageDir(): string;
+export function getOmniPackageDir(): string;
 export function resolvePiCliPath(): string;
-export function buildGedEnvironment(
+export function buildOmniEnvironment(
   baseEnv?: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv;
 export function ensureQuietStartupDefault(baseEnv?: NodeJS.ProcessEnv): void;
@@ -12,11 +12,11 @@ export function buildPiProcessSpec(
   args: string[];
   env: NodeJS.ProcessEnv;
 };
-export function runGed(
+export function runOmni(
   argv?: string[],
   options?: { cwd?: string; env?: NodeJS.ProcessEnv },
 ): Promise<number>;
-export function isGedEntrypointInvocation(
+export function isOmniEntrypointInvocation(
   argvPath?: string,
   moduleUrl?: string,
 ): boolean;

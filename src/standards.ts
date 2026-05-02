@@ -3,12 +3,12 @@ import { access, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { writeFileAtomic } from "./atomic.js";
-import { GED_DIR } from "./contracts.js";
+import { OMNI_DIR } from "./contracts.js";
 
-export const GED_STANDARD_VERSION = 1;
-const VERSION_PATH = path.join(GED_DIR, "VERSION");
-const IMPORT_STATE_PATH = path.join(GED_DIR, "IMPORT-STATE.json");
-const STANDARDS_PATH = path.join(GED_DIR, "STANDARDS.md");
+export const OMNI_STANDARD_VERSION = 1;
+const VERSION_PATH = path.join(OMNI_DIR, "VERSION");
+const IMPORT_STATE_PATH = path.join(OMNI_DIR, "IMPORT-STATE.json");
+const STANDARDS_PATH = path.join(OMNI_DIR, "STANDARDS.md");
 
 interface ImportState {
   accepted: string[];
@@ -195,7 +195,7 @@ async function writeImportState(
   rootDir: string,
   state: ImportState,
 ): Promise<void> {
-  await mkdir(path.join(rootDir, GED_DIR), { recursive: true });
+  await mkdir(path.join(rootDir, OMNI_DIR), { recursive: true });
   await writeFileAtomic(
     path.join(rootDir, IMPORT_STATE_PATH),
     `${JSON.stringify(state, null, 2)}\n`,
@@ -219,7 +219,7 @@ async function syncAcceptedStandards(
   const body = sections.filter(Boolean).join("\n");
   const next = `# Imported Standards
 
-These standards were imported from other harness-specific instruction files and approved for Ged use.
+These standards were imported from other harness-specific instruction files and approved for Omni use.
 
 ${body || "No imported standards have been accepted yet.\n"}
 `;
@@ -232,7 +232,7 @@ function buildConfirmationMessage(candidates: DiscoveredStandard[]): string {
     .map((candidate) => `- ${candidate.path}: ${candidate.summary}`);
   const extra =
     candidates.length > 6 ? `\n- +${candidates.length - 6} more files` : "";
-  return `Ged found external instruction files that could be kept as durable Ged standards.\n\n${lines.join("\n")}${extra}\n\nImport the repo-wide standards into .ged/STANDARDS.md now?`;
+  return `Omni found external instruction files that could be kept as durable Omni standards.\n\n${lines.join("\n")}${extra}\n\nImport the repo-wide standards into .omni/STANDARDS.md now?`;
 }
 
 export async function resolveImportedStandards(
@@ -296,7 +296,7 @@ export async function resolveImportedStandards(
   };
 }
 
-export async function readGedVersion(rootDir: string): Promise<number | null> {
+export async function readOmniVersion(rootDir: string): Promise<number | null> {
   const content = await readOptional(path.join(rootDir, VERSION_PATH));
   if (!content) {
     return null;
@@ -304,7 +304,7 @@ export async function readGedVersion(rootDir: string): Promise<number | null> {
   // Accept the integer version as the only file content (with optional
   // trailing newline / whitespace). Refuse files like "1abc", "1 2", or
   // "v1" so a corrupted or unrelated file can't be silently treated as
-  // a valid Ged standard version.
+  // a valid Omni standard version.
   const trimmed = content.trim();
   if (!/^\d+$/u.test(trimmed)) {
     return null;
@@ -313,11 +313,11 @@ export async function readGedVersion(rootDir: string): Promise<number | null> {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export async function writeGedVersion(rootDir: string): Promise<void> {
-  await mkdir(path.join(rootDir, GED_DIR), { recursive: true });
+export async function writeOmniVersion(rootDir: string): Promise<void> {
+  await mkdir(path.join(rootDir, OMNI_DIR), { recursive: true });
   await writeFileAtomic(
     path.join(rootDir, VERSION_PATH),
-    `${GED_STANDARD_VERSION}\n`,
+    `${OMNI_STANDARD_VERSION}\n`,
   );
 }
 

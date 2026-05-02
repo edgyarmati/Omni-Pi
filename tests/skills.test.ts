@@ -9,9 +9,9 @@ import { ensureTaskSkillDependencies } from "../src/skills.js";
 
 async function createTempProject(prefix: string): Promise<string> {
   const rootDir = await mkdtemp(path.join(os.tmpdir(), prefix));
-  await mkdir(path.join(rootDir, ".ged"), { recursive: true });
+  await mkdir(path.join(rootDir, ".omni"), { recursive: true });
   await writeFile(
-    path.join(rootDir, ".ged", "SKILLS.md"),
+    path.join(rootDir, ".omni", "SKILLS.md"),
     `# Skills
 
 ## Installed
@@ -41,7 +41,7 @@ async function createTempProject(prefix: string): Promise<string> {
 
 describe("project skill generation", () => {
   test("quotes generated skill frontmatter as YAML-safe scalars", async () => {
-    const rootDir = await createTempProject("ged-skills-yaml-");
+    const rootDir = await createTempProject("omni-skills-yaml-");
     const task: TaskBrief = {
       id: "T1",
       title: "API: checkout's flow",
@@ -58,7 +58,7 @@ describe("project skill generation", () => {
     expect(skillName).toBeTruthy();
 
     const content = await readFile(
-      path.join(rootDir, ".ged", "project-skills", skillName, "SKILL.md"),
+      path.join(rootDir, ".omni", "project-skills", skillName, "SKILL.md"),
       "utf8",
     );
 

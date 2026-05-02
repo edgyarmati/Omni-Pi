@@ -8,13 +8,13 @@ import { writeFileAtomicSync } from "./atomic.js";
 
 // ── Curated presets ──────────────────────────────────────────────
 
-export interface GedPreset {
+export interface OmniPreset {
   readonly label: string;
   readonly brand: string;
   readonly welcome: string;
 }
 
-export const PRESETS: Record<string, GedPreset> = {
+export const PRESETS: Record<string, OmniPreset> = {
   lavender: {
     label: "Lavender",
     brand: "#c5bceb",
@@ -101,8 +101,8 @@ export type RtkMode = "off" | "auto";
 
 interface PiSettings {
   quietStartup?: boolean;
-  gedTheme?: string;
-  gedMode?: boolean;
+  omniTheme?: string;
+  omniMode?: boolean;
   rtkMode?: RtkMode;
   [key: string]: unknown;
 }
@@ -141,13 +141,13 @@ export async function ensurePiSettings(cwd: string): Promise<void> {
   }
 }
 
-export function readGedMode(cwd: string): boolean {
-  return readSettings(cwd).gedMode === true;
+export function readOmniMode(cwd: string): boolean {
+  return readSettings(cwd).omniMode === true;
 }
 
-export function saveGedMode(cwd: string, enabled: boolean): void {
+export function saveOmniMode(cwd: string, enabled: boolean): void {
   const settings = readSettings(cwd);
-  writeSettings(cwd, { ...settings, gedMode: enabled });
+  writeSettings(cwd, { ...settings, omniMode: enabled });
 }
 
 export function readRtkMode(cwd: string): RtkMode {
@@ -162,7 +162,7 @@ export function saveRtkMode(cwd: string, mode: RtkMode): void {
 /** Load the saved theme from .pi/settings.json, or fall back to default. */
 export function loadSavedTheme(cwd: string): void {
   const settings = readSettings(cwd);
-  const name = settings.gedTheme;
+  const name = settings.omniTheme;
   if (typeof name === "string" && name in PRESETS) {
     applyPreset(name);
   } else {
@@ -173,7 +173,7 @@ export function loadSavedTheme(cwd: string): void {
 /** Persist the chosen preset to .pi/settings.json. */
 export function saveThemeChoice(cwd: string, presetName: string): void {
   const settings = readSettings(cwd);
-  writeSettings(cwd, { ...settings, gedTheme: presetName });
+  writeSettings(cwd, { ...settings, omniTheme: presetName });
 }
 
 // ── ANSI helpers ─────────────────────────────────────────────────
@@ -190,8 +190,8 @@ export function ansiColor(hex: string, text: string): string {
   return `\x1b[38;2;${r};${g};${b}m${text}${ANSI_RESET}`;
 }
 
-export function formatGedModeStatus(enabled: boolean): string {
-  const label = enabled ? "Ged mode ON" : "Ged mode OFF";
+export function formatOmniModeStatus(enabled: boolean): string {
+  const label = enabled ? "Omni mode ON" : "Omni mode OFF";
   return enabled
     ? `${ansiColor(activeBrand, label)}  \x1b[2mctrl+shift+t tasks\x1b[0m`
     : `\x1b[2m${label}  ctrl+shift+t tasks\x1b[0m`;
@@ -210,10 +210,10 @@ export function welcome(text: string): string {
 // ── Theme constructor ────────────────────────────────────────────
 
 /**
- * GedPi theme — dark base with brand accent.
+ * Omni-Pi theme — dark base with brand accent.
  * Reads the active brand color so `/theme` changes propagate.
  */
-export function createGedTheme(): Theme {
+export function createOmniTheme(): Theme {
   const accent = activeBrand;
   return new Theme(
     {
@@ -272,6 +272,6 @@ export function createGedTheme(): Theme {
       toolErrorBg: "#3c2828",
     },
     "truecolor",
-    { name: "gedpi" },
+    { name: "omni" },
   );
 }

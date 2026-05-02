@@ -5,8 +5,8 @@ import path from "node:path";
 import { writeFileAtomicSync } from "./atomic.js";
 
 const MANAGED_PROMPT_FILES = ["commit.md", "push.md"] as const;
-const MANAGED_SUBDIR = "gedpi";
-const LEGACY_MANAGED_SUBDIRS = ["zz-gedpi"] as const;
+const MANAGED_SUBDIR = "omni-pi";
+const LEGACY_MANAGED_SUBDIRS = ["zz-omni-pi"] as const;
 
 export function ensureBundledPromptTemplates(
   sourceDir: string,

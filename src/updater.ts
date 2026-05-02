@@ -12,8 +12,8 @@ import type {
 
 import { writeFileAtomicSync } from "./atomic.js";
 
-const PACKAGE_NAME = "gedpi";
-const CACHE_DIR = path.join(os.homedir(), ".ged");
+const PACKAGE_NAME = "omni-pi";
+const CACHE_DIR = path.join(os.homedir(), ".omni");
 const CACHE_PATH = path.join(CACHE_DIR, "update-cache.json");
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 
@@ -215,7 +215,7 @@ async function promptUpdate(
   const skipLabel = "Skip";
   const dismissLabel = "Skip this version";
   const choice = await ctx.ui.select(
-    `GedPi update available: ${current} → ${version}`,
+    `Omni-Pi update available: ${current} → ${version}`,
     [updateLabel, skipLabel, dismissLabel],
   );
 
@@ -223,7 +223,7 @@ async function promptUpdate(
     const success = await doInstall(version, ctx);
     if (success) {
       const restart = await ctx.ui.confirm(
-        "Restart ged?",
+        "Restart omni?",
         "The update has been installed.",
       );
       if (restart) {
@@ -248,7 +248,7 @@ export function registerUpdater(api: ExtensionAPI): void {
   });
 
   api.registerCommand("update", {
-    description: "Check for GedPi updates",
+    description: "Check for Omni-Pi updates",
     async handler(_args, ctx) {
       ctx.ui.notify("Checking for updates...", "info");
       // Force a fresh check
@@ -261,7 +261,7 @@ export function registerUpdater(api: ExtensionAPI): void {
       if (isNewer(latest, current)) {
         await promptUpdate(latest, ctx);
       } else {
-        ctx.ui.notify(`GedPi ${current} is up to date`, "info");
+        ctx.ui.notify(`Omni-Pi ${current} is up to date`, "info");
       }
     },
   });

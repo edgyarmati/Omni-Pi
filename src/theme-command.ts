@@ -13,7 +13,7 @@ import {
 import {
   ansiColor,
   applyPreset,
-  createGedTheme,
+  createOmniTheme,
   getActivePresetName,
   PRESETS,
   saveThemeChoice,
@@ -109,7 +109,7 @@ class ThemePickerComponent implements Component {
 
 export function registerThemeCommand(api: ExtensionAPI): void {
   api.registerCommand("theme", {
-    description: "Pick an GedPi color theme with live preview",
+    description: "Pick an Omni-Pi color theme with live preview",
     async handler(_args: string, ctx: ExtensionCommandContext) {
       const originalKey = getActivePresetName() ?? "lavender";
 
@@ -121,13 +121,13 @@ export function registerThemeCommand(api: ExtensionAPI): void {
       if (result === "cancelled") {
         // Revert to original
         applyPreset(originalKey);
-        ctx.ui.setTheme(createGedTheme());
+        ctx.ui.setTheme(createOmniTheme());
         ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
         return;
       }
 
       applyPreset(result.key);
-      ctx.ui.setTheme(createGedTheme());
+      ctx.ui.setTheme(createOmniTheme());
       ctx.ui.setHeader((_tui, theme) => renderHeader(theme));
       saveThemeChoice(ctx.cwd, result.key);
 

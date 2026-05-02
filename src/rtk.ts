@@ -257,7 +257,7 @@ function formatStatus(status: RtkRuntimeStatus): string {
   if (status.version) lines.push(`Version: ${status.version}`);
   if (status.path) lines.push(`Path: ${status.path}`);
   lines.push(
-    "Scope: Ged routes bash tool calls through RTK when `rtk rewrite` supports the command.",
+    "Scope: Omni routes bash tool calls through RTK when `rtk rewrite` supports the command.",
   );
   lines.push(
     "Notes: Native Pi read/edit/write tools stay unchanged. Bash commands still fall back to their original form when RTK is unavailable or declines to rewrite.",
@@ -269,7 +269,7 @@ function formatMissingInstall(plan: InstallPlan | null): string {
   if (!plan) {
     return [
       "RTK is not installed and no supported installer was detected automatically.",
-      "Install RTK manually from https://github.com/rtk-ai/rtk and then run /ged-rtk on.",
+      "Install RTK manually from https://github.com/rtk-ai/rtk and then run /omni-rtk on.",
     ].join("\n");
   }
 
@@ -277,7 +277,7 @@ function formatMissingInstall(plan: InstallPlan | null): string {
     "RTK is not installed yet.",
     `Recommended installer: ${plan.label}`,
     `Command: ${plan.command}`,
-    "Run /ged-rtk install to install it and enable Ged's bash-side RTK routing.",
+    "Run /omni-rtk install to install it and enable Omni's bash-side RTK routing.",
   ].join("\n");
 }
 
@@ -312,7 +312,7 @@ export async function executeRtkCommand(
   if (subcommand === "off" || subcommand === "disable") {
     saveRtkMode(cwd, "off");
     await refreshRtkStatusIndicator(ctx, exec);
-    return "RTK routing is now OFF. Ged will stop rewriting bash tool calls through RTK.";
+    return "RTK routing is now OFF. Omni will stop rewriting bash tool calls through RTK.";
   }
 
   if (subcommand === "on" || subcommand === "enable") {
@@ -332,7 +332,7 @@ export async function executeRtkCommand(
     if (existing.installed) {
       saveRtkMode(cwd, "auto");
       await refreshRtkStatusIndicator(ctx, exec);
-      return `RTK is already installed${existing.version ? ` (${existing.version})` : ""}. Ged will use it for supported bash tool calls.`;
+      return `RTK is already installed${existing.version ? ` (${existing.version})` : ""}. Omni will use it for supported bash tool calls.`;
     }
 
     const plan = await buildInstallPlan(cwd, exec);
@@ -343,7 +343,7 @@ export async function executeRtkCommand(
     const confirmed = ctx.hasUI
       ? await ctx.ui.confirm(
           "Install RTK?",
-          `GedPi will run:\n\n${plan.command}\n\nThen it will enable RTK for supported bash tool calls.`,
+          `Omni-Pi will run:\n\n${plan.command}\n\nThen it will enable RTK for supported bash tool calls.`,
         )
       : false;
 
@@ -368,18 +368,18 @@ export async function executeRtkCommand(
     if (!installed.installed) {
       await refreshRtkStatusIndicator(ctx, exec);
       return [
-        `RTK installer ran, but Ged still cannot find the \`rtk\` binary in PATH from ${cwd}.`,
-        "Restart your shell if the installer changed PATH, then run /ged-rtk on.",
+        `RTK installer ran, but Omni still cannot find the \`rtk\` binary in PATH from ${cwd}.`,
+        "Restart your shell if the installer changed PATH, then run /omni-rtk on.",
       ].join("\n\n");
     }
 
     saveRtkMode(cwd, "auto");
     await refreshRtkStatusIndicator(ctx, exec);
-    return `Installed RTK${installed.version ? ` ${installed.version}` : ""} and enabled Ged's bash-side RTK routing.`;
+    return `Installed RTK${installed.version ? ` ${installed.version}` : ""} and enabled Omni's bash-side RTK routing.`;
   }
 
   return [
-    `Unknown /ged-rtk subcommand: ${subcommand}`,
+    `Unknown /omni-rtk subcommand: ${subcommand}`,
     "Available subcommands: status, install, on, off",
   ].join("\n");
 }

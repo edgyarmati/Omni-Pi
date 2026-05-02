@@ -34,7 +34,7 @@ export async function gatherPlanningContext(
 
   try {
     const decisions = await readFile(
-      path.join(rootDir, ".ged", "DECISIONS.md"),
+      path.join(rootDir, ".omni", "DECISIONS.md"),
       "utf8",
     );
     ctx.existingDecisions = decisions
@@ -48,7 +48,7 @@ export async function gatherPlanningContext(
 
   try {
     const session = await readFile(
-      path.join(rootDir, ".ged", "SESSION-SUMMARY.md"),
+      path.join(rootDir, ".omni", "SESSION-SUMMARY.md"),
       "utf8",
     );
     const progressMatch = session.match(
@@ -65,7 +65,7 @@ export async function gatherPlanningContext(
   }
 
   try {
-    const spec = await readFile(path.join(rootDir, ".ged", "SPEC.md"), "utf8");
+    const spec = await readFile(path.join(rootDir, ".omni", "SPEC.md"), "utf8");
     const titleMatch = spec.match(/## Title\n\n([\s\S]*?)(?=\n## |$)/u);
     ctx.priorTitle = titleMatch?.[1]?.trim() ?? "";
     const scopeMatch = spec.match(/## Scope\n\n([\s\S]*?)(?=\n## |$)/u);
@@ -81,7 +81,7 @@ export async function gatherPlanningContext(
 
   try {
     const tasks = await readFile(
-      path.join(rootDir, ".ged", "TASKS.md"),
+      path.join(rootDir, ".omni", "TASKS.md"),
       "utf8",
     );
     const taskRows = tasks.split("\n").filter((line) => line.startsWith("| T"));
@@ -112,8 +112,8 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
       title: "Lock the exact user requirements",
       objective:
         "Refine the requested behavior, constraints, and success criteria into an implementation-ready spec.",
-      contextFiles: [".ged/PROJECT.md", ".ged/IDEAS.md", ".ged/SPEC.md"],
-      skills: ["ged-planning", "brainstorming"],
+      contextFiles: [".omni/PROJECT.md", ".omni/IDEAS.md", ".omni/SPEC.md"],
+      skills: ["omni-planning", "brainstorming"],
       doneCriteria: [
         "The requested behavior is explicit.",
         "Constraints are captured.",
@@ -127,8 +127,8 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
       title: "Break the work into the first bounded slice",
       objective:
         "Break the first meaningful delivery slice into bounded tasks with clear verification steps.",
-      contextFiles: [".ged/SPEC.md", ".ged/TASKS.md", ".ged/TESTS.md"],
-      skills: ["ged-planning", "brainstorming"],
+      contextFiles: [".omni/SPEC.md", ".omni/TASKS.md", ".omni/TESTS.md"],
+      skills: ["omni-planning", "brainstorming"],
       doneCriteria: [
         "The first slice is broken into bounded tasks.",
         "Each task has explicit done criteria.",
@@ -148,8 +148,8 @@ function buildBootstrapTasks(repoSignals: RepoSignals): TaskBrief[] {
       title: "Document browser verification expectations",
       objective:
         "Document how browser-based checks should be used during future work.",
-      contextFiles: [".ged/TESTS.md", ".ged/SPEC.md"],
-      skills: ["agent-browser", "ged-verification"],
+      contextFiles: [".omni/TESTS.md", ".omni/SPEC.md"],
+      skills: ["agent-browser", "omni-verification"],
       doneCriteria: [
         "Browser testing expectations are documented.",
         "The verification plan names the browser toolchain.",
@@ -181,8 +181,8 @@ const RELATION_STOPWORDS = new Set([
   "improve",
   "make",
   "new",
-  "gedpi",
-  "gedpi",
+  "omni",
+  "omni-pi",
   "please",
   "project",
   "repo",
@@ -290,7 +290,7 @@ export function createInitialSpec(
   }
 
   const architecture = [
-    "Use `.ged/` as the durable project memory layer.",
+    "Use `.omni/` as the durable project memory layer.",
     "Keep one friendly user-facing brain that interviews first, plans privately, and only then edits code.",
     `Detected repo signals: languages=${repoSignals.languages.join(", ") || "unknown"}; frameworks=${repoSignals.frameworks.join(", ") || "unknown"}; tools=${repoSignals.tools.join(", ") || "unknown"}.`,
   ];
@@ -306,7 +306,7 @@ export function createInitialSpec(
   }
 
   const acceptanceCriteria = [
-    "The project direction is captured in `.ged/PROJECT.md` and `.ged/SPEC.md`.",
+    "The project direction is captured in `.omni/PROJECT.md` and `.omni/SPEC.md`.",
     "The next tasks are small, verifiable, and ready for implementation.",
     "The verification plan names the checks needed for the first slice.",
   ];
@@ -330,7 +330,7 @@ export function createInitialSpec(
   }
 
   return {
-    title: brief.desiredOutcome || "Initial GedPi plan",
+    title: brief.desiredOutcome || "Initial Omni-Pi plan",
     scope: scopeItems,
     architecture,
     taskSlices: tasks,

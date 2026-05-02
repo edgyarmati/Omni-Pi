@@ -55,7 +55,7 @@ async function readRetryLimit(testsPath: string): Promise<number> {
 }
 
 async function ensureTaskDir(rootDir: string): Promise<string> {
-  const taskDir = path.join(rootDir, ".ged", "tasks");
+  const taskDir = path.join(rootDir, ".omni", "tasks");
   await mkdir(taskDir, { recursive: true });
   return taskDir;
 }
@@ -113,7 +113,7 @@ ${task.contextFiles.map((item) => `- ${item}`).join("\n") || "- None"}
 export async function prepareNextTaskDispatch(
   rootDir: string,
 ): Promise<WorkDispatchResult> {
-  const tasksPath = path.join(rootDir, ".ged", "TASKS.md");
+  const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
   const tasks = await readTasks(tasksPath);
   const nextTask = findNextExecutableTask(tasks);
 
@@ -148,15 +148,15 @@ export async function prepareNextTaskDispatch(
     (name) => !availableNames.has(name),
   );
   const prompt = [
-    "You are working inside an GedPi implementation session.",
+    "You are working inside an Omni-Pi implementation session.",
     "",
     `Task: ${preparedTask.id} - ${preparedTask.title}`,
     `Objective: ${preparedTask.objective}`,
     "",
     "Read these files first:",
-    "- .ged/PROJECT.md",
-    "- .ged/SPEC.md",
-    "- .ged/TESTS.md",
+    "- .omni/PROJECT.md",
+    "- .omni/SPEC.md",
+    "- .omni/TESTS.md",
     `- ${path.relative(rootDir, briefPath)}`,
     ...preparedTask.contextFiles.map((file) => `- ${file}`),
     "",
@@ -256,8 +256,8 @@ export async function executeNextTask(
   rootDir: string,
   engine: WorkEngine,
 ): Promise<WorkResult> {
-  const tasksPath = path.join(rootDir, ".ged", "TASKS.md");
-  const testsPath = path.join(rootDir, ".ged", "TESTS.md");
+  const tasksPath = path.join(rootDir, ".omni", "TASKS.md");
+  const testsPath = path.join(rootDir, ".omni", "TESTS.md");
   const tasks = await readTasks(tasksPath);
   const nextTask = findNextExecutableTask(tasks);
 
@@ -324,10 +324,10 @@ export async function executeNextTask(
     taskId: preparedTask.id,
     message: `Task ${preparedTask.id} remains blocked after ${attempt} implementation attempts. ${formatVerificationSummary(implementationResult)}`,
     recoveryOptions: [
-      "Review the recovery notes in `.ged/tasks/` and refine the task inputs.",
+      "Review the recovery notes in `.omni/tasks/` and refine the task inputs.",
       "Restructure the task into smaller slices.",
-      "Sync the latest learnings into `.ged/` before attempting a different approach.",
-      "Manually inspect and fix the failing checks listed in `.ged/TESTS.md`.",
+      "Sync the latest learnings into `.omni/` before attempting a different approach.",
+      "Manually inspect and fix the failing checks listed in `.omni/TESTS.md`.",
     ],
   };
 }

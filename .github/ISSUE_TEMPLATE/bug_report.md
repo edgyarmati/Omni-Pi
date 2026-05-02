@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible bug in GedPi
+about: Report a reproducible bug in Omni-Pi
 title: "[Bug]: "
 labels: bug
 ---
@@ -20,7 +20,7 @@ labels: bug
 - OS:
 - Node version:
 - Pi version:
-- GedPi version:
+- Omni-Pi version:
 
 ## Additional Context
 

@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Run the full quality gate for GedPi — type-check then test suite. Use before committing or after significant changes.
+description: Run the full quality gate for Omni-Pi — type-check then test suite. Use before committing or after significant changes.
 ---
 
 Run the full quality gate:

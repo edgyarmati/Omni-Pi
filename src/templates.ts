@@ -1,4 +1,4 @@
-import { GED_DIR } from "./contracts.js";
+import { OMNI_DIR } from "./contracts.js";
 
 export interface StarterFile {
   path: string;
@@ -7,12 +7,12 @@ export interface StarterFile {
 
 export const starterFiles: StarterFile[] = [
   {
-    path: `${GED_DIR}/VERSION`,
+    path: `${OMNI_DIR}/VERSION`,
     content: `1
 `,
   },
   {
-    path: `${GED_DIR}/PROJECT.md`,
+    path: `${OMNI_DIR}/PROJECT.md`,
     content: `# Project
 
 ## Goal
@@ -35,7 +35,7 @@ Describe what this project should achieve.
 `,
   },
   {
-    path: `${GED_DIR}/IDEAS.md`,
+    path: `${OMNI_DIR}/IDEAS.md`,
     content: `# Ideas
 
 ## Active ideas
@@ -52,7 +52,7 @@ Describe what this project should achieve.
 `,
   },
   {
-    path: `${GED_DIR}/DECISIONS.md`,
+    path: `${OMNI_DIR}/DECISIONS.md`,
     content: `# Decisions
 
 Record important choices here as the project evolves.
@@ -66,27 +66,27 @@ Record important choices here as the project evolves.
 `,
   },
   {
-    path: `${GED_DIR}/STANDARDS.md`,
+    path: `${OMNI_DIR}/STANDARDS.md`,
     content: `# Imported Standards
 
-These standards were imported from other harness-specific instruction files and approved for Ged use.
+These standards were imported from other harness-specific instruction files and approved for Omni use.
 
 No imported standards have been accepted yet.
 `,
   },
   {
-    path: `${GED_DIR}/STATE.md`,
+    path: `${OMNI_DIR}/STATE.md`,
     content: `# State
 
 Current Phase: Understand
 Active Task: None
 Status Summary: Project initialized. Ready to interview the user and capture exact requirements.
 Blockers: None
-Next Step: Interview the user, write the exact spec into .ged/, then implement the first bounded slice.
+Next Step: Interview the user, write the exact spec into .omni/, then implement the first bounded slice.
 `,
   },
   {
-    path: `${GED_DIR}/SKILLS.md`,
+    path: `${OMNI_DIR}/SKILLS.md`,
     content: `# Skills
 
 ## Installed
@@ -111,21 +111,21 @@ Next Step: Interview the user, write the exact spec into .ged/, then implement t
 `,
   },
   {
-    path: `${GED_DIR}/project-skills/README.md`,
+    path: `${OMNI_DIR}/project-skills/README.md`,
     content: `# Project Skills
 
-Store project-scoped skills that Ged auto-installs or creates for active tasks here.
+Store project-scoped skills that Omni auto-installs or creates for active tasks here.
 `,
   },
   {
-    path: `${GED_DIR}/SKILLS-STATE.json`,
+    path: `${OMNI_DIR}/SKILLS-STATE.json`,
     content: `{
   "managed": []
 }
 `,
   },
   {
-    path: `${GED_DIR}/SPEC.md`,
+    path: `${OMNI_DIR}/SPEC.md`,
     content: `# Spec
 
 ## Problem
@@ -140,7 +140,7 @@ Store project-scoped skills that Ged auto-installs or creates for active tasks h
 `,
   },
   {
-    path: `${GED_DIR}/TASKS.md`,
+    path: `${OMNI_DIR}/TASKS.md`,
     content: `# Tasks
 
 ## Task slices
@@ -150,7 +150,7 @@ Store project-scoped skills that Ged auto-installs or creates for active tasks h
 `,
   },
   {
-    path: `${GED_DIR}/TESTS.md`,
+    path: `${OMNI_DIR}/TESTS.md`,
     content: `# Tests
 
 ## Project-wide checks
@@ -171,7 +171,7 @@ Store project-scoped skills that Ged auto-installs or creates for active tasks h
 `,
   },
   {
-    path: `${GED_DIR}/SESSION-SUMMARY.md`,
+    path: `${OMNI_DIR}/SESSION-SUMMARY.md`,
     content: `# Session Summary
 
 ## Current understanding
@@ -188,7 +188,7 @@ Store project-scoped skills that Ged auto-installs or creates for active tasks h
 `,
   },
   {
-    path: `${GED_DIR}/PROGRESS.md`,
+    path: `${OMNI_DIR}/PROGRESS.md`,
     content: `# Progress
 
 Ongoing log of project progress.
@@ -196,7 +196,7 @@ Ongoing log of project progress.
 `,
   },
   {
-    path: `${GED_DIR}/plans/INDEX.md`,
+    path: `${OMNI_DIR}/plans/INDEX.md`,
     content: `# Plan Index
 
 | ID | Title | Status | Created | Completed |
@@ -204,42 +204,42 @@ Ongoing log of project progress.
 `,
   },
   {
-    path: `${GED_DIR}/research/README.md`,
+    path: `${OMNI_DIR}/research/README.md`,
     content: `# Research
 
 Store external research summaries and package notes here.
 `,
   },
   {
-    path: `${GED_DIR}/specs/README.md`,
+    path: `${OMNI_DIR}/specs/README.md`,
     content: `# Specs
 
 Store versioned detailed specs here.
 `,
   },
   {
-    path: `${GED_DIR}/tasks/README.md`,
+    path: `${OMNI_DIR}/tasks/README.md`,
     content: `# Task Artifacts
 
 Store per-task briefs, outputs, and failure histories here.
 `,
   },
   {
-    path: `.pi/agents/ged-brain.md`,
+    path: `.pi/agents/omni-brain.md`,
     content: `---
-name: ged-brain
-description: GedPi brain for user-facing interviewing, planning, and implementation
+name: omni-brain
+description: Omni-Pi brain for user-facing interviewing, planning, and implementation
 model: anthropic/claude-opus-4-6
 tools: read, grep, find, ls, bash
-skill: ged-planning, ged-execution, ged-verification
+skill: omni-planning, omni-execution, omni-verification
 ---
 
-You are GedPi's only user-facing agent.
+You are Omni-Pi's only user-facing agent.
 
 Interview the user until the requested behavior, constraints, and success criteria are concrete enough to implement safely.
-Write the evolving project intent into .ged/PROJECT.md and .ged/SPEC.md.
-Break the work into bounded slices in .ged/TASKS.md before editing code.
-Run the planned checks, record outcomes in .ged/STATE.md and .ged/SESSION-SUMMARY.md, and tighten the plan if a slice fails.
+Write the evolving project intent into .omni/PROJECT.md and .omni/SPEC.md.
+Break the work into bounded slices in .omni/TASKS.md before editing code.
+Run the planned checks, record outcomes in .omni/STATE.md and .omni/SESSION-SUMMARY.md, and tighten the plan if a slice fails.
 `,
   },
 ];

@@ -4,7 +4,7 @@
 
 ### Documentation
 
-- Added a single-writer intelligence orchestration implementation handoff for future GedPi work, covering read-only explorer/planner/verifier roles, model settings with per-agent options, `/ged-agents` setup behavior, clean-context review, and config-isolation safeguards.
+- Added a single-writer intelligence orchestration implementation handoff for future Omni-Pi work, covering read-only explorer/planner/verifier roles, model settings with per-agent options, `/omni-agents` setup behavior, clean-context review, and config-isolation safeguards.
 
 ## 0.12.0 - 2026-04-27
 
@@ -12,7 +12,7 @@
 
 - Sanitized untrusted text before it reaches brain prompts and `DECISIONS.md`
 - Sanitized generated `SKILL.md` files and fixed `Set` mutation in loop
-- Added atomic writes for `.ged/` and `.pi/` state files
+- Added atomic writes for `.omni/` and `.pi/` state files
 - Hardened version parsing in the self-updater
 
 ### Bug fixes
@@ -48,7 +48,7 @@
 
 ### Removed
 
-- Removed `/model-setup`, `/manage-providers`, the `ged-providers` extension, and the bundled provider catalog. Pi now handles provider and model management natively.
+- Removed `/model-setup`, `/manage-providers`, the `omni-providers` extension, and the bundled provider catalog. Pi now handles provider and model management natively.
 - Removed `PROVIDERS.md` and the provider docs spec.
 
 ## 0.10.1 - 2026-04-24
@@ -62,12 +62,12 @@
 
 ### Removed
 
-- Removed `/model-setup`, `/manage-providers`, and the `ged-providers` extension. Pi now handles provider and model management natively.
+- Removed `/model-setup`, `/manage-providers`, and the `omni-providers` extension. Pi now handles provider and model management natively.
 
 ### Runtime and integrations
 
 - upgraded `@mariozechner/pi-coding-agent` to `0.70.0`
-- bundled `pi-diff-review` as a packaged GedPi dependency so `/diff-review` is available out of the box
+- bundled `pi-diff-review` as a packaged Omni-Pi dependency so `/diff-review` is available out of the box
 - vendored `pi-diff-review` locally so global installs no longer fail on the extension's git prepare hook
 - bundled `pi-prompt-template-model` so packaged prompt templates can register smarter slash commands
 
@@ -94,11 +94,11 @@
 
 ### Startup
 
-- defaulted first-run `gedpi` launcher installs to quiet startup so package resource listings do not appear unless the user opts in
+- defaulted first-run `omni` launcher installs to quiet startup so package resource listings do not appear unless the user opts in
 
 ### Model setup and config
 
-- simplified Ged model configuration to a single `brain` model assignment
+- simplified Omni model configuration to a single `brain` model assignment
 - stopped offering automatic model discovery for `google-generative-ai`, which was not implemented
 - stopped persisting fake placeholder API keys for local or unauthenticated custom providers
 
@@ -117,50 +117,50 @@
 
 - upgraded `@mariozechner/pi-coding-agent` to `0.65.2`
 
-### Ged mode
+### Omni mode
 
-- changed GedPi to start in standard Pi behavior by default while keeping Ged branding and shell UI
-- added persistent `/ged-mode` to toggle the specialized Ged workflow per project
-- made Ged mode initialize or migrate `.ged/` lazily on the first real turn instead of at session start
-- fixed the first-turn Ged onboarding race so the kickoff instructions are folded into the active prompt instead of trying to enqueue a second user message mid-turn
+- changed Omni-Pi to start in standard Pi behavior by default while keeping Omni branding and shell UI
+- added persistent `/omni-mode` to toggle the specialized Omni workflow per project
+- made Omni mode initialize or migrate `.omni/` lazily on the first real turn instead of at session start
+- fixed the first-turn Omni onboarding race so the kickoff instructions are folded into the active prompt instead of trying to enqueue a second user message mid-turn
 
 ### Durable standards and memory
 
-- split passive `.ged/` standards from active workflow state so normal mode can still follow durable project guidance without resuming task execution
-- added `.ged/VERSION` and migration handling for the Ged durable-memory standard
+- split passive `.omni/` standards from active workflow state so normal mode can still follow durable project guidance without resuming task execution
+- added `.omni/VERSION` and migration handling for the Omni durable-memory standard
 - added external standards discovery/import for files such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, Copilot instructions, Cursor rules, Windsurf rules, and Continue rules
-- automatically add `.pi/` to `.gitignore` during Ged init or migration when the workspace is a Git repository
+- automatically add `.pi/` to `.gitignore` during Omni init or migration when the workspace is a Git repository
 
 ### Skills
 
 - bundled `find-skills`, `skill-creator`, and `brainstorming` directly with the npm package as built-in default skills
-- made Ged automatically check task skill requirements, install matching skills project-scope, create a project-specific skill when no match exists, and remove unused project skills when no open task still depends on them
-- persisted task skill dependencies in `.ged/TASKS.md` so planning, dispatch, and execution share the same skill graph
+- made Omni automatically check task skill requirements, install matching skills project-scope, create a project-specific skill when no match exists, and remove unused project skills when no open task still depends on them
+- persisted task skill dependencies in `.omni/TASKS.md` so planning, dispatch, and execution share the same skill graph
 - removed the mistaken default Rust-specific recommendations so task-driven skill discovery is now the primary path
 
 ### Documentation
 
-- updated `README.md` and `AGENTS.md` to document opt-in Ged mode, bundled skills, standards import, and automatic task skill management
+- updated `README.md` and `AGENTS.md` to document opt-in Omni mode, bundled skills, standards import, and automatic task skill management
 
 ## 0.7.1 - 2026-04-05
 
 ### Dependencies
 
 - upgraded `@mariozechner/pi-coding-agent` to `0.65.0`
-- removed `session_switch` handler from ged-memory extension (event removed upstream; `session_start` now covers session switches via `event.reason`)
+- removed `session_switch` handler from omni-memory extension (event removed upstream; `session_start` now covers session switches via `event.reason`)
 
 ## 0.7.0 - 2026-03-30
 
 ### Interview-first workflow
 
 - require the interview tool for ambiguous requests instead of ad hoc chat clarification
-- treat direct instructions in this repo as Ged app/product behavior changes by default unless explicitly marked as meta
-- add first-run onboarding for ambiguous projects so Ged captures goal, users, constraints, workflow preferences, and missing context before planning or implementation
+- treat direct instructions in this repo as Omni app/product behavior changes by default unless explicitly marked as meta
+- add first-run onboarding for ambiguous projects so Omni captures goal, users, constraints, workflow preferences, and missing context before planning or implementation
 
 ### Planning continuity
 
 - reset stale active tasks when a new request is unrelated to the previous work
-- archive concise summaries of replaced task lists outside `.ged/TASKS.md` while keeping related follow-up work continuous
+- archive concise summaries of replaced task lists outside `.omni/TASKS.md` while keeping related follow-up work continuous
 
 ## 0.6.4 - 2026-03-30
 
@@ -191,7 +191,7 @@
 
 ### Native micro-UI
 
-- bundled `glimpseui` as a first-class GedPi dependency
+- bundled `glimpseui` as a first-class Omni-Pi dependency
 - loaded the packaged Glimpse Pi extension and `glimpse` skill so native dialogs, forms, previews, and overlays are available to the agent
 - added support for the `/companion` command to toggle the optional floating Glimpse status widget
 
@@ -238,7 +238,7 @@
 
 ### Selector and UX improvements
 
-- aligned GedPi setup selectors with Pi-style searchable selection behavior
+- aligned Omni-Pi setup selectors with Pi-style searchable selection behavior
 - limited the custom searchable selector to 10 visible rows and only enabled search when more than 10 items are present
 - improved bundled command descriptions and provider-management messaging
 

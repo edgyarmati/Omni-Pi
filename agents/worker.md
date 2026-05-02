@@ -1,12 +1,12 @@
 ---
 name: worker
 model: cheap-fast-model
-description: Archived implementation notes for GedPi. Not registered for Ged orchestration.
+description: Archived implementation notes for Omni-Pi. Not registered for Omni orchestration.
 ---
 
 # Implementation Notes
 
-This file is retained as implementation guidance, but GedPi now exposes a single brain to the user instead of separate worker agents. Do not register this as an Ged subagent role.
+This file is retained as implementation guidance, but Omni-Pi now exposes a single brain to the user instead of separate worker agents. Do not register this as an Omni subagent role.
 
 ## Responsibilities
 
